@@ -79,8 +79,6 @@ import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 
-import { showError } from '@nextcloud/dialogs';
-
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
 import * as nativex from '@native';
@@ -157,32 +155,9 @@ export default defineComponent({
     },
 
     async createFolder(): Promise<void> {
-      const name = (
-        await utils.prompt({
-          title: this.t('memories', 'New folder'),
-          message: this.t('memories', 'Enter a name for the new folder'),
-          name: this.t('memories', 'Name'),
-        })
-      )?.trim();
-
-      if (!name) return;
-
-      if (name.includes('/')) {
-        showError(this.t('memories', 'Folder name cannot contain "/"'));
-        return;
-      }
-
       const base = utils.getFolderRoutePath(this.config.folders_path);
-      try {
-        await dav.createFolder(`${base}/${name}`.replace(/\/+/g, '/'));
-      } catch (e) {
-        showError(
-          e?.status === 405
-            ? this.t('memories', 'A folder with this name already exists')
-            : this.t('memories', 'Failed to create folder'),
-        );
-        return;
-      }
+      const name = await dav.createFolderWithPrompt(base);
+      if (!name) return;
 
       // Navigate straight into the new folder
       let path: string[] | string = this.$route.params.path || [];

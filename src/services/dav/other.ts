@@ -51,6 +51,43 @@ export async function createFolder(path: string): Promise<void> {
 }
 
 /**
+ * Prompt the user for a name and create a new folder under the given base path.
+ * Shared by every "New folder" entry point (top bar, empty-state action, etc).
+ *
+ * @param basePath Path of the parent folder, relative to the user's root
+ * @returns The name of the created folder, or null if cancelled/invalid/failed
+ */
+export async function createFolderWithPrompt(basePath: string): Promise<string | null> {
+  const name = (
+    await utils.prompt({
+      title: t('memories', 'New folder'),
+      message: t('memories', 'Enter a name for the new folder'),
+      name: t('memories', 'Name'),
+    })
+  )?.trim();
+
+  if (!name) return null;
+
+  if (name.includes('/')) {
+    showError(t('memories', 'Folder name cannot contain "/"'));
+    return null;
+  }
+
+  try {
+    await createFolder(`${basePath}/${name}`.replace(/\/+/g, '/'));
+  } catch (e: any) {
+    showError(
+      e?.status === 405
+        ? t('memories', 'A folder with this name already exists')
+        : t('memories', 'Failed to create folder'),
+    );
+    return null;
+  }
+
+  return name;
+}
+
+/**
  * Rename (move) a folder, failing if the destination already exists.
  *
  * @param oldPath Current path of the folder, relative to the user's root

@@ -15,6 +15,16 @@
   height: 100%;
   text-align: center;
   padding: 10px;
+
+  // Folders is the only Timeline-routed view that also renders a
+  // route-specific top matter (breadcrumbs + actions, .top-matter-container).
+  // Forcing height:100% of the whole .memories-timeline (not just the space
+  // remaining below that top matter) crowds it out / pushes it out of view.
+  // Size to content instead when a top matter is also present.
+  .memories-timeline:has(.top-matter-container) & {
+    height: auto;
+    min-height: 50vh;
+  }
 }
 
 // Make NcListItem border-box to prevent overflow
