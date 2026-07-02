@@ -178,6 +178,14 @@
         </NcCheckboxRadioSwitch>
 
         <NcCheckboxRadioSwitch
+          :checked.sync="config.show_empty_folders"
+          @update:checked="updateShowEmpty"
+          type="switch"
+        >
+          {{ t('memories', 'Show empty folders') }}
+        </NcCheckboxRadioSwitch>
+
+        <NcCheckboxRadioSwitch
           :checked.sync="config.sort_folder_month"
           @update:checked="updateSortFolderMonth"
           type="switch"
@@ -404,6 +412,10 @@ export default defineComponent({
     async updateShowHidden() {
       await this.updateSetting('show_hidden_folders', 'showHidden');
       await this.updateSetting('show_hidden_albums', 'showHiddenAlbums');
+    },
+
+    async updateShowEmpty() {
+      await this.updateSetting('show_empty_folders', 'showEmpty');
     },
 
     async updateSortFolderMonth() {

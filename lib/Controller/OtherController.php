@@ -117,6 +117,7 @@ final class OtherController extends GenericApiController
                 // folder settings
                 'folders_path' => $getAppConfig('foldersPath', '/'),
                 'show_hidden_folders' => 'true' === $getAppConfig('showHidden', 'false'),
+                'show_empty_folders' => 'true' === $getAppConfig('showEmpty', 'false'),
                 'sort_folder_month' => 'true' === $getAppConfig('sortFolderMonth', 'false'),
 
                 // album settings

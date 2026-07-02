@@ -1,10 +1,12 @@
 import { getFiles } from './base';
+import client from './client';
 import { generateUrl } from '@nextcloud/router';
 import { showError, showSuccess } from '@nextcloud/dialogs';
 import axios from '@nextcloud/axios';
 
 import { API } from '@services/API';
 import { translate as t } from '@services/l10n';
+import * as utils from '@services/utils';
 
 import type { ClusterTypes, IPhoto } from '@typings';
 
@@ -37,6 +39,40 @@ export function viewInFolderUrl({ filename, fileid }: { filename: string; fileid
     scrollto: fileid,
     openfile: fileid,
   });
+}
+
+/**
+ * Create a new folder at the given path (relative to the user's root).
+ *
+ * @param path Path of the new folder, e.g. `/Photos/Vacation`
+ */
+export async function createFolder(path: string): Promise<void> {
+  await client.createDirectory(`files/${utils.uid}${path}`);
+}
+
+/**
+ * Rename (move) a folder, failing if the destination already exists.
+ *
+ * @param oldPath Current path of the folder, relative to the user's root
+ * @param newPath New path of the folder, relative to the user's root
+ */
+export async function renameFolder(oldPath: string, newPath: string): Promise<void> {
+  await client.moveFile(
+    `files/${utils.uid}${oldPath}`,
+    `files/${utils.uid}${newPath}`,
+    // @ts-ignore - https://github.com/perry-mitchell/webdav-client/issues/329
+    { headers: { Overwrite: 'F' } },
+  );
+}
+
+/**
+ * Delete a folder at the given path (relative to the user's root).
+ * The folder is moved to the Nextcloud trash, same as deleting via the Files app.
+ *
+ * @param path Path of the folder to delete
+ */
+export async function deleteFolder(path: string): Promise<void> {
+  await client.deleteFile(`files/${utils.uid}${path}`);
 }
 
 /**

@@ -1,13 +1,18 @@
 <template>
   <div class="grid">
     <div class="item fill-block" v-for="item of items" :key="item.fileid">
-      <Folder :data="item" />
+      <Folder
+        :data="item"
+        :selected="selected.has(item.fileid)"
+        :selection-mode="selected.size > 0"
+        @toggle-select="$emit('toggle-select', item)"
+      />
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, type PropType } from 'vue';
 
 import UserConfig from '@mixins/UserConfig';
 import Folder from '@components/frame/Folder.vue';
@@ -28,7 +33,13 @@ export default defineComponent({
       type: Array<IFolder>,
       required: true,
     },
+    selected: {
+      type: Object as PropType<Set<number>>,
+      default: () => new Set<number>(),
+    },
   },
+
+  emits: ['toggle-select'],
 });
 </script>
 

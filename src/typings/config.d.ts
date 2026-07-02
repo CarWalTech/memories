@@ -37,6 +37,7 @@ declare module '@typings' {
     // folder settings
     folders_path: string;
     show_hidden_folders: boolean;
+    show_empty_folders: boolean;
     sort_folder_month: boolean;
 
     // album settings

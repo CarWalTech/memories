@@ -149,6 +149,7 @@ class StaticConfig {
       // folder settings
       folders_path: '',
       show_hidden_folders: false,
+      show_empty_folders: false,
       sort_folder_month: false,
 
       // album settings

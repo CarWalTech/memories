@@ -99,11 +99,14 @@
   },
   "git.alwaysSignOff": true,
   "editor.formatOnSave": true,
-  "psalm.configPaths": ["psalm-ls.xml"],
-
+  "psalm.configPaths": [
+    "psalm-ls.xml"
+  ],
   "intelephense.environment.phpVersion": "8.1.0",
   "intelephense.environment.documentRoot": "../..",
-  "intelephense.environment.includePaths": ["../.."],
+  "intelephense.environment.includePaths": [
+    "../.."
+  ],
   "intelephense.files.exclude": [
     "**/.git/**",
     "**/.svn/**",
@@ -124,5 +127,6 @@
   "php.validate.enable": false,
   "php.suggest.basic": false,
   "prettier.configPath": ".prettierrc",
-  "prettier.prettierPath": "node_modules/prettier"
+  "prettier.prettierPath": "node_modules/prettier",
+  "makefile.configureOnOpen": true
 }

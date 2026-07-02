@@ -35,6 +35,16 @@
           <template #icon> <UploadIcon :size="20" /> </template>
         </NcActionButton>
 
+        <NcActionButton
+          v-if="!routeIsPublic"
+          :aria-label="t('memories', 'New folder')"
+          @click="createFolder()"
+          close-after-click
+        >
+          {{ t('memories', 'New folder') }}
+          <template #icon> <NewFolderIcon :size="20" /> </template>
+        </NcActionButton>
+
         <!-- Public upload button -->
         <NcActionButton
           v-if="allowPublicUpload"
@@ -69,7 +79,10 @@ import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 
+import { showError } from '@nextcloud/dialogs';
+
 import * as utils from '@services/utils';
+import * as dav from '@services/dav';
 import * as nativex from '@native';
 
 import HomeIcon from 'vue-material-design-icons/Home.vue';
@@ -77,6 +90,7 @@ import ShareIcon from 'vue-material-design-icons/ShareVariant.vue';
 import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
 import UploadIcon from 'vue-material-design-icons/Upload.vue';
+import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
 
 export default defineComponent({
   name: 'FolderTopMatter',
@@ -92,6 +106,7 @@ export default defineComponent({
     TimelineIcon,
     FoldersIcon,
     UploadIcon,
+    NewFolderIcon,
   },
 
   mixins: [UserConfig],
@@ -139,6 +154,43 @@ export default defineComponent({
 
     upload(): void {
       _m.modals.upload();
+    },
+
+    async createFolder(): Promise<void> {
+      const name = (
+        await utils.prompt({
+          title: this.t('memories', 'New folder'),
+          message: this.t('memories', 'Enter a name for the new folder'),
+          name: this.t('memories', 'Name'),
+        })
+      )?.trim();
+
+      if (!name) return;
+
+      if (name.includes('/')) {
+        showError(this.t('memories', 'Folder name cannot contain "/"'));
+        return;
+      }
+
+      const base = utils.getFolderRoutePath(this.config.folders_path);
+      try {
+        await dav.createFolder(`${base}/${name}`.replace(/\/+/g, '/'));
+      } catch (e) {
+        showError(
+          e?.status === 405
+            ? this.t('memories', 'A folder with this name already exists')
+            : this.t('memories', 'Failed to create folder'),
+        );
+        return;
+      }
+
+      // Navigate straight into the new folder
+      let path: string[] | string = this.$route.params.path || [];
+      if (typeof path === 'string') {
+        path = path.split('/');
+      }
+
+      this.$router.push(this.getRoute([...path, name]));
     },
 
     toggleRecursive(): void {

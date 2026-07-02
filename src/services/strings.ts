@@ -5,6 +5,8 @@ export function emptyDescription(routeName: string): string {
   switch (routeName) {
     case _m.routes.Base.name:
       return t('memories', 'Upload some photos and make sure the timeline path is configured');
+    case _m.routes.Folders.name:
+      return t('memories', 'Upload files or create a folder to get started');
     case _m.routes.Favorites.name:
       return t('memories', 'Mark photos as favorite to find them easily');
     case _m.routes.ThisDay.name:

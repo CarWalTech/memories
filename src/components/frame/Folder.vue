@@ -5,9 +5,16 @@
     :class="{
       hasPreview: previews.length > 0,
       onePreview: previews.length === 1,
+      selected: selected,
     }"
     :to="target"
+    @click.native="onClick"
   >
+    <div class="select-checkbox top-left" :class="{ visible: selectionMode }" @click.stop.prevent="onToggleSelect">
+      <CheckboxMarkedCircleIcon v-if="selected" class="icon checked" />
+      <CheckboxBlankCircleOutlineIcon v-else class="icon" />
+    </div>
+
     <div class="big-icon top-left fill-block">
       <FolderIcon class="icon" />
       <div class="name">{{ data.name }}</div>
@@ -33,11 +40,15 @@ import * as utils from '@services/utils/helpers';
 import type { IFolder, IPhoto } from '@typings';
 
 import FolderIcon from 'vue-material-design-icons/Folder.vue';
+import CheckboxMarkedCircleIcon from 'vue-material-design-icons/CheckboxMarkedCircle.vue';
+import CheckboxBlankCircleOutlineIcon from 'vue-material-design-icons/CheckboxBlankCircleOutline.vue';
 
 export default defineComponent({
   name: 'Folder',
   components: {
     FolderIcon,
+    CheckboxMarkedCircleIcon,
+    CheckboxBlankCircleOutlineIcon,
   },
 
   mixins: [UserConfig],
@@ -47,7 +58,17 @@ export default defineComponent({
       type: Object as PropType<IFolder>,
       required: true,
     },
+    selected: {
+      type: Boolean,
+      default: false,
+    },
+    selectionMode: {
+      type: Boolean,
+      default: false,
+    },
   },
+
+  emits: ['toggle-select'],
 
   computed: {
     /** Open folder */
@@ -87,6 +108,18 @@ export default defineComponent({
         sqsize: 256,
       });
     },
+
+    /** Toggle selection instead of navigating when in selection mode */
+    onClick(e: Event) {
+      if (this.selectionMode) {
+        e.preventDefault();
+        this.onToggleSelect();
+      }
+    },
+
+    onToggleSelect() {
+      this.$emit('toggle-select');
+    },
   },
 });
 </script>
@@ -94,6 +127,31 @@ export default defineComponent({
 <style lang="scss" scoped>
 .folder {
   cursor: pointer;
+}
+
+.select-checkbox {
+  cursor: pointer;
+  z-index: 200;
+  position: absolute;
+  margin: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+
+  .icon {
+    width: 28px;
+    height: 28px;
+    color: white;
+  }
+
+  .icon.checked {
+    color: var(--color-primary-element, #00639b);
+  }
+
+  .folder:hover > &,
+  &.visible {
+    opacity: 1;
+  }
 }
 
 .big-icon {
