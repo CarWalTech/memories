@@ -131,6 +131,7 @@ class StaticConfig {
 
       // general settings
       timeline_path: '_unknown_',
+      all_photos_exclude_paths: '',
       enable_top_memories: true,
       stack_raw_files: true,
       dedup_identical: false,

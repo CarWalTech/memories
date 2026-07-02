@@ -16,6 +16,7 @@ import { constants as c } from '@services/utils';
 export type RouteId =
   | 'Base'
   | 'Folders'
+  | 'AllPhotos'
   | 'Favorites'
   | 'Videos'
   | 'Albums'
@@ -44,6 +45,13 @@ export const routes: { [key in RouteId]: RouteConfig } = {
     component: Timeline,
     name: 'folders',
     props: (route: Route) => ({ rootTitle: t('memories', 'Folders') }),
+  },
+
+  AllPhotos: {
+    path: '/all',
+    component: Timeline,
+    name: 'all-photos',
+    props: (route: Route) => ({ rootTitle: t('memories', 'All Photos') }),
   },
 
   Favorites: {

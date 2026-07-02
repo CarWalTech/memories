@@ -194,7 +194,7 @@ trait TimelineQueryDays
         // Get SQL
         $CTE_SQL = \array_key_exists('cteFoldersArchive', $params)
             ? $this->CTE_FOLDERS_ARCHIVE()
-            : $this->CTE_FOLDERS(\array_key_exists('cteIncludeHidden', $params));
+            : $this->CTE_FOLDERS(\array_key_exists('cteIncludeHidden', $params), \array_key_exists('cteExcludeFolders', $params));
 
         // Add WITH clause if needed
         if (str_contains($sql, 'cte_folders')) {
@@ -512,6 +512,11 @@ trait TimelineQueryDays
 
         if ($hidden) {
             $query->setParameter('cteIncludeHidden', true, IQueryBuilder::PARAM_BOOL);
+        }
+
+        if (!empty($excludeFolderIds = $root->getExcludedFolderIds())) {
+            $query->setParameter('excludeFolderIds', $excludeFolderIds, IQueryBuilder::PARAM_INT_ARRAY);
+            $query->setParameter('cteExcludeFolders', true, IQueryBuilder::PARAM_BOOL);
         }
     }
 

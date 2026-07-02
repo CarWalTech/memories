@@ -114,9 +114,17 @@ final class FsManager
         $uid = $user->getUID();
         $userFolder = $this->rootFolder->getUserFolder($uid);
 
+        // "All Photos": root at the whole user folder, bypassing timeline_path
+        // entirely. Reuses the exact same root-folder resolution path as
+        // browsing "/" in the ordinary Folders view (already proven to work,
+        // e.g. when folders_path is left at its "/" default).
+        $isAllPhotos = null !== $this->getRequestAll();
+
         /** @var string[] $paths List of paths to add to root */
         $paths = [];
-        if ($path = $this->getRequestFolder()) {
+        if ($isAllPhotos) {
+            $paths = ['/'];
+        } elseif ($path = $this->getRequestFolder()) {
             $paths = [$path];
         } else {
             $paths = Util::getTimelinePaths($uid);
@@ -161,7 +169,33 @@ final class FsManager
             $root->excludePaths($this->getNoMediaFolders($userFolder, md5($etag)));
         }
 
+        // Resolve and apply "All Photos" folder exclusions. Best-effort: paths
+        // that no longer exist (deleted/renamed) are silently skipped rather
+        // than failing the whole request, since this list is user-editable.
+        if ($isAllPhotos) {
+            $root->setExcludedFolderIds($this->resolveExcludedFolderIds($uid, $userFolder));
+        }
+
         return $root;
+    }
+
+    /**
+     * Resolve the configured "All Photos" exclude paths to fileids.
+     *
+     * @return int[]
+     */
+    private function resolveExcludedFolderIds(string $uid, Folder $userFolder): array
+    {
+        $ids = [];
+        foreach (Util::getAllPhotosExcludePaths($uid) as $path) {
+            try {
+                $ids[] = $userFolder->get($path)->getId();
+            } catch (\OCP\Files\NotFoundException) {
+                // Skip paths that no longer exist
+            }
+        }
+
+        return $ids;
     }
 
     /**
@@ -475,5 +509,10 @@ final class FsManager
     private function getRequestFolder(): ?string
     {
         return $this->request->getParam('folder', null);
+    }
+
+    private function getRequestAll(): ?string
+    {
+        return $this->request->getParam('all', null);
     }
 }

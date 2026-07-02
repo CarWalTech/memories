@@ -19,6 +19,7 @@ declare module '@typings' {
 
     // general settings
     timeline_path: string;
+    all_photos_exclude_paths: string;
     enable_top_memories: boolean;
     stack_raw_files: boolean;
     dedup_identical: boolean;

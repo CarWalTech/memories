@@ -21,6 +21,7 @@ export const enum DaysFilterType {
   FAVORITES = 'fav',
   VIDEOS = 'vid',
   FOLDER = 'folder',
+  ALL_PHOTOS = 'all',
   ARCHIVE = 'archive',
   ALBUM = 'albums',
   RECOGNIZE = 'recognize',

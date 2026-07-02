@@ -284,7 +284,7 @@ export default defineComponent({
         display: none;
       }
       .folder:hover & {
-        filter: brightness(100%);
+        filter: brightness(40%);
       }
     }
   }

@@ -658,6 +658,13 @@ export default defineComponent({
         }
       }
 
+      // All Photos: dedicated signal, not the folder+recursive mechanism --
+      // deliberately distinct from Folders-view browsing so configured path
+      // exclusions only ever apply here, never to an ordinary folder browse.
+      if (this.routeIsAllPhotos) {
+        set(DaysFilterType.ALL_PHOTOS);
+      }
+
       // Archive
       if (this.routeIsArchive) {
         set(DaysFilterType.ARCHIVE);

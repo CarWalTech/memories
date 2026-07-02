@@ -38,6 +38,7 @@ import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import Modal from './Modal.vue';
 import ModalMixin from './ModalMixin';
 
+import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 
 import CloseIcon from 'vue-material-design-icons/Close.vue';
@@ -58,6 +59,10 @@ export default defineComponent({
     title: {
       type: String,
       required: true,
+    },
+    addPrompt: {
+      type: String,
+      default: () => t('memories', 'Add a root to your timeline'),
     },
   },
 
@@ -85,7 +90,7 @@ export default defineComponent({
     },
 
     async add() {
-      this.paths.push(await utils.chooseNcFolder(this.t('memories', 'Add a root to your timeline')));
+      this.paths.push(await utils.chooseNcFolder(this.addPrompt));
     },
 
     remove(index: number) {

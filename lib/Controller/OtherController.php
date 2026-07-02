@@ -99,6 +99,7 @@ final class OtherController extends GenericApiController
 
                 // general settings
                 'timeline_path' => $getAppConfig('timelinePath', SystemConfig::get('memories.timeline.default_path')),
+                'all_photos_exclude_paths' => $getAppConfig('allPhotosExcludePaths', ''),
                 'enable_top_memories' => 'true' === $getAppConfig('enableTopMemories', 'true'),
                 'stack_raw_files' => 'true' === $getAppConfig('stackRawFiles', 'true'),
                 'dedup_identical' => 'true' === $getAppConfig('dedupIdentical', 'false'),

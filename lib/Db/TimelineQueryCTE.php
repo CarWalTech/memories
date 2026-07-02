@@ -13,12 +13,14 @@ trait TimelineQueryCTE
     /**
      * CTE to get all files recursively in the given top folders
      * :topFolderIds - The top folders to get files from.
+     * :excludeFolderIds - Folders (and everything under them) to exclude, if $exclude is true.
      *
-     * @param bool $hidden Whether to include files in hidden folders
-     *                     If the top folder is hidden, the files in it will still be returned
-     *                     Hidden files are marked as such in the "hidden" field
+     * @param bool $hidden  Whether to include files in hidden folders
+     *                      If the top folder is hidden, the files in it will still be returned
+     *                      Hidden files are marked as such in the "hidden" field
+     * @param bool $exclude Whether to exclude :excludeFolderIds (default false, backward compatible no-op)
      */
-    protected function CTE_FOLDERS_ALL(bool $hidden): string
+    protected function CTE_FOLDERS_ALL(bool $hidden, bool $exclude = false): string
     {
         $provider = $this->connection->getDatabaseProvider();
 
@@ -39,6 +41,10 @@ trait TimelineQueryCTE
         // Whether to filter out hidden folders
         $CLS_HIDDEN_JOIN = $hidden ? '1 = 1' : "f.name NOT LIKE '.%'";
 
+        // Whether to exclude configured folder ids (and thus everything under them,
+        // since an excluded folder never gets added to the CTE for children to join against)
+        $CLS_EXCLUDE = $exclude ? 'f.fileid NOT IN (:excludeFolderIds)' : '1 = 1';
+
         // On MySQL or MariaDB, provide the hint to use the index
         // The index is not used sometimes since the table is unbalanced
         // and fs_parent is used instead
@@ -53,6 +59,7 @@ trait TimelineQueryCTE
             FROM *PREFIX*filecache f
             WHERE (
                 f.fileid IN (:topFolderIds) AND
+                {$CLS_EXCLUDE} AND
                 {$CLS_NOMEDIA}
             )
 
@@ -66,6 +73,7 @@ trait TimelineQueryCTE
                 ON (
                     f.parent = c.fileid AND
                     f.mimetype = ({$FOLDER_MIME_QUERY}) AND
+                    {$CLS_EXCLUDE} AND
                     ({$CLS_HIDDEN_JOIN})
                 )
             WHERE (
@@ -77,9 +85,10 @@ trait TimelineQueryCTE
     /**
      * CTE to get all folders recursively in the given top folders.
      *
-     * @param bool $hidden Whether to include files in hidden folders
+     * @param bool $hidden  Whether to include files in hidden folders
+     * @param bool $exclude Whether to exclude :excludeFolderIds (default false, backward compatible no-op)
      */
-    protected function CTE_FOLDERS(bool $hidden): string
+    protected function CTE_FOLDERS(bool $hidden, bool $exclude = false): string
     {
         $CLS_HIDDEN = $hidden ? 'MIN(hidden)' : '0';
 
@@ -92,7 +101,7 @@ trait TimelineQueryCTE
                 fileid
         )";
 
-        return self::bundleCTEs([$this->CTE_FOLDERS_ALL($hidden), $cte]);
+        return self::bundleCTEs([$this->CTE_FOLDERS_ALL($hidden, $exclude), $cte]);
     }
 
     /**

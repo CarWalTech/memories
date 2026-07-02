@@ -17,6 +17,14 @@
           readonly
         />
 
+        <NcTextField
+          :label="t('memories', 'All Photos: Excluded Paths')"
+          :label-visible="true"
+          v-model="config.all_photos_exclude_paths"
+          @click="chooseAllPhotosExcludePaths"
+          readonly
+        />
+
         <NcCheckboxRadioSwitch :checked.sync="config.square_thumbs" @update:checked="updateSquareThumbs" type="switch">
           {{ t('memories', 'Square grid mode') }}
         </NcCheckboxRadioSwitch>
@@ -214,6 +222,12 @@
     </NcAppSettingsDialog>
 
     <MultiPathSelectionModal ref="multiPathModal" :title="pathSelTitle" @close="saveTimelinePath" />
+    <MultiPathSelectionModal
+      ref="excludePathsModal"
+      :title="excludePathsSelTitle"
+      :add-prompt="t('memories', 'Choose a folder to exclude')"
+      @close="saveAllPhotosExcludePaths"
+    />
   </div>
 </template>
 
@@ -282,11 +296,16 @@ export default defineComponent({
     refs() {
       return this.$refs as {
         multiPathModal: InstanceType<typeof MultiPathSelectionModal>;
+        excludePathsModal: InstanceType<typeof MultiPathSelectionModal>;
       };
     },
 
     pathSelTitle(): string {
       return this.t('memories', 'Choose Timeline Paths');
+    },
+
+    excludePathsSelTitle(): string {
+      return this.t('memories', 'Choose Paths to Exclude from All Photos');
     },
 
     isNative(): boolean {
@@ -338,6 +357,20 @@ export default defineComponent({
       if (newPath !== this.config.timeline_path) {
         this.config.timeline_path = newPath;
         await this.updateSetting('timeline_path', 'timelinePath');
+      }
+    },
+
+    async chooseAllPhotosExcludePaths() {
+      const paths = this.config.all_photos_exclude_paths ? this.config.all_photos_exclude_paths.split(';') : [];
+      this.refs.excludePathsModal.open(paths);
+    },
+
+    async saveAllPhotosExcludePaths(paths: string[]) {
+      // Unlike timeline_path, an empty list is valid here (no exclusions).
+      const newPaths = (paths ?? []).join(';');
+      if (newPaths !== this.config.all_photos_exclude_paths) {
+        this.config.all_photos_exclude_paths = newPaths;
+        await this.updateSetting('all_photos_exclude_paths', 'allPhotosExcludePaths');
       }
     },
 

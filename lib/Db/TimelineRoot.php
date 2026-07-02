@@ -15,6 +15,15 @@ final class TimelineRoot
     private array $folderPaths = [];
 
     /**
+     * Fileids of folders to exclude recursively at the SQL/CTE level.
+     * Distinct from excludePaths() below, which only removes top-level
+     * root entries -- this supports excluding arbitrary nested folders.
+     *
+     * @var int[]
+     */
+    private array $excludedFolderIds = [];
+
+    /**
      * Add a folder to the root.
      *
      * @throws \Exception if node is not valid readable folder
@@ -96,6 +105,18 @@ final class TimelineRoot
     public function getIds(): array
     {
         return array_keys($this->folderPaths);
+    }
+
+    /** @param int[] $ids */
+    public function setExcludedFolderIds(array $ids): void
+    {
+        $this->excludedFolderIds = $ids;
+    }
+
+    /** @return int[] */
+    public function getExcludedFolderIds(): array
+    {
+        return $this->excludedFolderIds;
     }
 
     public function getOneId(): ?int

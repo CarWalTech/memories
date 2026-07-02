@@ -122,6 +122,7 @@ import { translate as t } from '@services/l10n';
 import staticConfig from '@services/static-config';
 
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue';
+import ImageMultipleOutline from 'vue-material-design-icons/ImageMultipleOutline.vue';
 import FolderIcon from 'vue-material-design-icons/Folder.vue';
 import Star from 'vue-material-design-icons/Star.vue';
 import Video from 'vue-material-design-icons/PlayCircle.vue';
@@ -169,6 +170,7 @@ export default defineComponent({
     UploadModal,
 
     ImageMultiple,
+    ImageMultipleOutline,
     FolderIcon,
     Star,
     Video,
@@ -325,6 +327,11 @@ export default defineComponent({
           name: 'timeline',
           icon: ImageMultiple,
           title: t('memories', 'Timeline'),
+        },
+        {
+          name: 'all-photos',
+          icon: ImageMultipleOutline,
+          title: t('memories', 'All Photos'),
         },
         {
           name: 'explore',
