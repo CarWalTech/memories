@@ -61,9 +61,15 @@ import AlbumRemoveIcon from 'vue-material-design-icons/BookRemove.vue';
 import FolderMoveIcon from 'vue-material-design-icons/FolderMove.vue';
 import RotateLeftIcon from 'vue-material-design-icons/RotateLeft.vue';
 import ImageCheckIcon from 'vue-material-design-icons/ImageCheck.vue';
+import PencilIcon from 'vue-material-design-icons/Pencil.vue';
 
-import type { IDay, IHeadRow, IPhoto, IRow } from '@typings';
+import type { IDay, IFolder, IHeadRow, IPhoto, IRow } from '@typings';
 import type ScrollerManager from './ScrollerManager.vue';
+
+/** Discriminate a folder from a photo in a mixed Selection */
+function isFolderItem(item: IPhoto): item is IFolder {
+  return 'name' in item;
+}
 
 /**
  * The distance for which the touch selection is clamped.
@@ -131,6 +137,8 @@ type ISelectionAction = {
   if?: (self?: any) => boolean;
   /** Allow for public routes (default false) */
   allowPublic?: boolean;
+  /** Allow this action when the selection contains folders (default false) */
+  folderCompatible?: boolean;
 };
 
 export default defineComponent({
@@ -191,6 +199,7 @@ export default defineComponent({
     touchScrollDelta: 0,
     touchMoveSelFrame: 0,
     multiSelectDelta: null as 1 | -1 | null,
+    suppressNextFolderClick: false,
   }),
 
   mounted() {
@@ -199,9 +208,18 @@ export default defineComponent({
       {
         name: t('memories', 'Delete'),
         icon: DeleteIcon,
-        callback: this.deleteSelection.bind(this),
+        callback: (selection: Selection) =>
+          this.selectionHasFolders() ? this.deleteFolderSelection(selection) : this.deleteSelection(selection),
         allowPublic: true,
+        folderCompatible: true,
         if: () => !this.routeIsAlbums && (!this.routeIsPublic || this.initstate.allow_delete),
+      },
+      {
+        name: t('memories', 'Rename'),
+        icon: PencilIcon,
+        callback: this.renameFolderSelection.bind(this),
+        folderCompatible: true,
+        if: () => this.selectionHasFolders() && this.selection.size === 1,
       },
       {
         name: t('memories', 'Remove from album'),
@@ -347,9 +365,21 @@ export default defineComponent({
       return !this.selection.size;
     },
 
+    /** Does the current selection contain any folders (Folders view subfolder tiles) */
+    selectionHasFolders(): boolean {
+      return Array.from(this.selection.values()).some(isFolderItem);
+    },
+
     /** Get the actions list */
     getActions(): ISelectionAction[] {
-      return this.defaultActions?.filter((a) => (!a.if || a.if(this)) && (!this.routeIsPublic || a.allowPublic)) || [];
+      return (
+        this.defaultActions?.filter(
+          (a) =>
+            (!a.if || a.if(this)) &&
+            (!this.routeIsPublic || a.allowPublic) &&
+            (!this.selectionHasFolders() || a.folderCompatible),
+        ) || []
+      );
     },
 
     /** Click on an action */
@@ -384,6 +414,103 @@ export default defineComponent({
       } else {
         this.selectPhoto(photo);
       }
+    },
+
+    /**
+     * Clicking (or tapping) on a folder tile (Folders view). Unlike photos,
+     * folders only support simple click/tap-to-select and touch long-press --
+     * no shift-range-select or drag-to-multi-select.
+     */
+    clickFolder(folder: IFolder, event: Event) {
+      if (this.suppressNextFolderClick) {
+        // This click is the browser's trailing "ghost click" after a touch
+        // long-press that already selected the folder via the timer below.
+        // Consume it: stop the router-link from navigating, but don't
+        // toggle again (that would immediately deselect what was just selected).
+        this.suppressNextFolderClick = false;
+        event.preventDefault();
+        return;
+      }
+
+      if (this.empty()) {
+        // Nothing selected -- this is a plain navigation click, let the
+        // router-link do its thing. Don't touch the selection at all.
+        return;
+      }
+
+      event.preventDefault(); // don't navigate, toggle instead
+      this.toggleFolder(folder);
+    },
+
+    /** Add/remove a folder from the selection */
+    toggleFolder(folder: IFolder) {
+      if (this.selection.size && !this.selectionHasFolders()) this.clear();
+
+      const nval = !this.selection.hasBy(folder);
+      if (nval) {
+        folder.flag |= this.c.FLAG_SELECTED;
+        this.selection.addBy(folder);
+      } else {
+        folder.flag &= ~this.c.FLAG_SELECTED;
+        this.selection.deleteBy(folder);
+      }
+      this.selectionChanged();
+    },
+
+    /** Touch hold to select a folder, mirroring touchstartPhoto's long-press timer */
+    touchstartFolder(folder: IFolder, event: TouchEvent) {
+      this.resetTouchParams();
+
+      // Fresh interaction -- any leftover suppression from a previous
+      // (fully-consumed) long-press must not leak into this one.
+      this.suppressNextFolderClick = false;
+
+      this.touchAnchor = folder;
+      this.prevTouch = event.touches[0];
+      this.touchMoved = false;
+      this.touchTimer = window.setTimeout(() => {
+        if (this.touchAnchor === folder) {
+          this.toggleFolder(folder);
+          // The finger is still down at this point (this fires mid-hold).
+          // The eventual touchend -> click for *this* gesture must be
+          // swallowed so it doesn't navigate or re-toggle the selection.
+          this.suppressNextFolderClick = true;
+        }
+        this.touchTimer = 0;
+      }, 600);
+    },
+
+    /** Tap off a folder tile */
+    touchendFolder(event: TouchEvent) {
+      if (!this.touchTimer && !this.touchMoved) {
+        // Best-effort: on most browsers, preventDefault() on touchend also
+        // suppresses the trailing synthetic click. suppressNextFolderClick
+        // (checked in clickFolder) is the reliable fallback in case this isn't
+        // honored (e.g. some touch-emulation environments).
+        event.preventDefault();
+      }
+      this.resetTouchParams();
+    },
+
+    /** Tap move on a folder tile -- cancel the long-press if the finger moves */
+    touchmoveFolder(event: TouchEvent) {
+      if (!this.touchTimer) return;
+
+      const touch = event.touches[0];
+      this.touchMoved = true;
+
+      // Be forgiving: ignore small jitter within 30px of the anchor touch
+      if (
+        this.prevTouch &&
+        Math.abs(this.prevTouch.clientX - touch.clientX) < 30 &&
+        Math.abs(this.prevTouch.clientY - touch.clientY) < 30
+      ) {
+        return;
+      }
+
+      window.clearTimeout(this.touchTimer);
+      this.touchTimer = 0;
+      this.touchAnchor = null;
     },
 
     /** Tap on */
@@ -639,6 +766,8 @@ export default defineComponent({
         return; // ignore placeholders
       }
 
+      if (this.selection.size && this.selectionHasFolders()) this.clear();
+
       const nval = val ?? !this.selection.hasBy(photo);
       if (nval) {
         photo.flag |= this.c.FLAG_SELECTED;
@@ -801,7 +930,9 @@ export default defineComponent({
       const heads = new Set<IHeadRow>();
       photos.forEach((photo: IPhoto) => {
         photo.flag &= ~this.c.FLAG_SELECTED;
-        heads.add(this.heads.get(photo.dayid)!);
+        // Folders have no meaningful dayid/head -- skip head bookkeeping for them
+        const head = this.heads.get(photo.dayid);
+        if (head) heads.add(head);
         this.selection.deleteBy(photo);
         this.selectionChanged();
       });
@@ -875,6 +1006,73 @@ export default defineComponent({
       } catch (e) {
         console.error(e);
       }
+    },
+
+    /**
+     * Rename the single selected folder (Folders view)
+     */
+    async renameFolderSelection(selection: Selection) {
+      const folder = Array.from(selection.values())[0] as IFolder;
+      if (!folder) return;
+
+      const name = (
+        await utils.prompt({
+          title: t('memories', 'Rename folder'),
+          message: t('memories', 'Enter a new name for "{name}"', { name: folder.name }),
+          name: t('memories', 'Name'),
+        })
+      )?.trim();
+      if (!name || name === folder.name) return;
+
+      if (name.includes('/')) {
+        showError(t('memories', 'Folder name cannot contain "/"'));
+        return;
+      }
+
+      const base = utils.getFolderRoutePath(this.config.folders_path);
+      try {
+        await dav.renameFolder(`${base}/${folder.name}`, `${base}/${name}`);
+      } catch (e: any) {
+        showError(
+          e?.response?.status === 412
+            ? t('memories', 'A folder with this name already exists')
+            : t('memories', 'Failed to rename folder'),
+        );
+        return;
+      }
+
+      // Shared reference with FolderDynamicTopMatter's `folders` array -- reactive update for free
+      folder.name = name;
+      utils.bus.emit('memories:folders:renamed', null);
+      this.clear();
+    },
+
+    /**
+     * Delete the selected folders (Folders view)
+     */
+    async deleteFolderSelection(selection: Selection) {
+      const targets = Array.from(selection.values()) as IFolder[];
+      if (!targets.length || !(await utils.dialogs.moveToTrash(targets.length))) return;
+
+      const base = utils.getFolderRoutePath(this.config.folders_path);
+      const calls = targets.map((f) => async () => {
+        try {
+          await dav.deleteFolder(`${base}/${f.name}`);
+          return f.fileid;
+        } catch (e) {
+          console.error('Failed to delete folder', f, e);
+          showError(t('memories', 'Failed to delete {name}.', { name: f.name }));
+          return 0;
+        }
+      });
+
+      const deletedIds: number[] = [];
+      for await (const ids of dav.runInParallel(calls, 10)) {
+        deletedIds.push(...ids.filter(Boolean));
+      }
+
+      utils.bus.emit('memories:folders:deleted', deletedIds);
+      this.clear();
     },
 
     /**

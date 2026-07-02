@@ -5,14 +5,18 @@
     :class="{
       hasPreview: previews.length > 0,
       onePreview: previews.length === 1,
-      selected: selected,
+      selected: data.flag & c.FLAG_SELECTED,
     }"
     :to="target"
+    :event="navigationEvent"
     @click.native="onClick"
+    @touchstart.native.passive="onTouchStart"
+    @touchmove.native.passive="onTouchMove"
+    @touchend.native="onTouchEnd"
+    @touchcancel.native="onTouchEnd"
   >
-    <div class="select-checkbox top-left" :class="{ visible: selectionMode }" @click.stop.prevent="onToggleSelect">
-      <CheckboxMarkedCircleIcon v-if="selected" class="icon checked" />
-      <CheckboxBlankCircleOutlineIcon v-else class="icon" />
+    <div class="select" v-if="!routeIsPublic" @click.stop.prevent="onToggleSelect">
+      <CheckCircleIcon :size="18" />
     </div>
 
     <div class="big-icon top-left fill-block">
@@ -34,21 +38,20 @@
 import { defineComponent, type PropType } from 'vue';
 
 import UserConfig from '@mixins/UserConfig';
+import type SelectionManager from '@components/SelectionManager.vue';
 
 import * as utils from '@services/utils/helpers';
 
 import type { IFolder, IPhoto } from '@typings';
 
 import FolderIcon from 'vue-material-design-icons/Folder.vue';
-import CheckboxMarkedCircleIcon from 'vue-material-design-icons/CheckboxMarkedCircle.vue';
-import CheckboxBlankCircleOutlineIcon from 'vue-material-design-icons/CheckboxBlankCircleOutline.vue';
+import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue';
 
 export default defineComponent({
   name: 'Folder',
   components: {
     FolderIcon,
-    CheckboxMarkedCircleIcon,
-    CheckboxBlankCircleOutlineIcon,
+    CheckCircleIcon,
   },
 
   mixins: [UserConfig],
@@ -58,17 +61,11 @@ export default defineComponent({
       type: Object as PropType<IFolder>,
       required: true,
     },
-    selected: {
-      type: Boolean,
-      default: false,
-    },
-    selectionMode: {
-      type: Boolean,
-      default: false,
+    selectionManager: {
+      type: Object as PropType<InstanceType<typeof SelectionManager>>,
+      required: false,
     },
   },
-
-  emits: ['toggle-select'],
 
   computed: {
     /** Open folder */
@@ -98,6 +95,22 @@ export default defineComponent({
         return previews.slice(0, 4);
       }
     },
+
+    /**
+     * router-link's own click handler races against our @click.native
+     * handler -- depending on DOM listener registration order, its
+     * navigation can fire before our preventDefault() has a chance to
+     * stop it. Disabling its click-triggered navigation entirely while a
+     * selection is active sidesteps that race instead of fighting it.
+     *
+     * Note: reads selectionManager.size (a plain reactive data property),
+     * not selectionManager.empty() -- that reads Selection.size on the
+     * underlying Map, which Vue 2 can't track reactively, so a computed
+     * depending on it would never re-evaluate after the first render.
+     */
+    navigationEvent(): string | string[] {
+      return this.selectionManager && this.selectionManager.size > 0 ? [] : 'click';
+    },
   },
 
   methods: {
@@ -109,16 +122,26 @@ export default defineComponent({
       });
     },
 
-    /** Toggle selection instead of navigating when in selection mode */
+    /** Toggle selection instead of navigating when a selection is active */
     onClick(e: Event) {
-      if (this.selectionMode) {
-        e.preventDefault();
-        this.onToggleSelect();
-      }
+      this.selectionManager?.clickFolder(this.data, e);
     },
 
     onToggleSelect() {
-      this.$emit('toggle-select');
+      this.selectionManager?.toggleFolder(this.data);
+    },
+
+    /** Touch hold to select, mirroring Photo.vue's long-press gesture */
+    onTouchStart(e: TouchEvent) {
+      this.selectionManager?.touchstartFolder(this.data, e);
+    },
+
+    onTouchMove(e: TouchEvent) {
+      this.selectionManager?.touchmoveFolder(e);
+    },
+
+    onTouchEnd(e: TouchEvent) {
+      this.selectionManager?.touchendFolder(e);
     },
   },
 });
@@ -127,30 +150,48 @@ export default defineComponent({
 <style lang="scss" scoped>
 .folder {
   cursor: pointer;
+  --icon-dist: 8px;
+
+  @media (max-width: 768px) {
+    --icon-dist: 4px;
+  }
 }
 
-.select-checkbox {
-  cursor: pointer;
-  z-index: 200;
+// Selection icon, same treatment as Photo.vue's .select:
+// a single check-circle icon that is recolored via CSS instead
+// of swapping icon components for selected vs unselected state.
+.select {
   position: absolute;
-  margin: 8px;
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  top: calc(var(--icon-dist) + 2px);
+  right: calc(var(--icon-dist) + 2px);
+  z-index: 200;
+  border-radius: 50%;
+  cursor: pointer;
+  display: none;
+  opacity: 0.7;
+  filter: invert(1) brightness(100);
 
-  .icon {
-    width: 28px;
-    height: 28px;
-    color: white;
-  }
-
-  .icon.checked {
-    color: var(--color-primary-element, #00639b);
-  }
-
-  .folder:hover > &,
-  &.visible {
+  @mixin visible {
+    display: flex;
     opacity: 1;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .folder:hover > & {
+      @include visible;
+    }
+  }
+
+  .folder.selected > & {
+    @include visible;
+    filter: invert(0);
+    background-color: white;
+    color: var(--color-primary);
+  }
+
+  :deep path {
+    // fill up the space, same fix as Photo.vue's check-circle-icon
+    transform: scale(1.2) translate(-2px, -2px);
   }
 }
 
@@ -198,7 +239,7 @@ export default defineComponent({
     opacity: 0.8;
   }
   .folder.hasPreview:hover > & {
-    opacity: 0;
+    opacity: 0.9;
   }
 
   > .folder-icon {

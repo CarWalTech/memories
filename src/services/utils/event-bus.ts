@@ -54,6 +54,11 @@ export type BusEvent = {
   /** Albums were updated for these photos */
   'memories:albums:update': IPhoto[];
 
+  /** Folders were deleted from the Folders view (fileids) */
+  'memories:folders:deleted': number[];
+  /** A folder was renamed in the Folders view (re-sort signal only) */
+  'memories:folders:renamed': null;
+
   /** NativeX database was updated */
   'nativex:db:updated': null;
 } & {

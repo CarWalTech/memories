@@ -1,12 +1,7 @@
 <template>
   <div class="grid">
     <div class="item fill-block" v-for="item of items" :key="item.fileid">
-      <Folder
-        :data="item"
-        :selected="selected.has(item.fileid)"
-        :selection-mode="selected.size > 0"
-        @toggle-select="$emit('toggle-select', item)"
-      />
+      <Folder :data="item" :selection-manager="selectionManager" />
     </div>
   </div>
 </template>
@@ -16,6 +11,7 @@ import { defineComponent, type PropType } from 'vue';
 
 import UserConfig from '@mixins/UserConfig';
 import Folder from '@components/frame/Folder.vue';
+import type SelectionManager from '@components/SelectionManager.vue';
 
 import type { IFolder } from '@typings';
 
@@ -33,13 +29,11 @@ export default defineComponent({
       type: Array<IFolder>,
       required: true,
     },
-    selected: {
-      type: Object as PropType<Set<number>>,
-      default: () => new Set<number>(),
+    selectionManager: {
+      type: Object as PropType<InstanceType<typeof SelectionManager>>,
+      required: false,
     },
   },
-
-  emits: ['toggle-select'],
 });
 </script>
 

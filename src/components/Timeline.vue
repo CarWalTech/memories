@@ -47,7 +47,7 @@
           <div class="mobile-header-top-gap"></div>
 
           <!-- Route-specific top matter -->
-          <DynamicTopMatter ref="dtm" @load="refs.scrollerManager.adjust()" />
+          <DynamicTopMatter ref="dtm" :selection-manager="refs.selectionManager" @load="refs.scrollerManager.adjust()" />
         </div>
       </template>
 

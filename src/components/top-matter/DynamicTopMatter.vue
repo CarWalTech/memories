@@ -1,12 +1,12 @@
 <template>
   <div class="dtm-container" v-if="currentmatter || viewName">
     <div v-if="viewName" class="header">{{ viewName }}</div>
-    <component ref="child" v-if="currentmatter" :is="currentmatter" @load="$emit('load')" />
+    <component ref="child" v-if="currentmatter" :is="currentmatter" v-bind="matterProps" @load="$emit('load')" />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, type Component } from 'vue';
+import { defineComponent, type Component, type PropType } from 'vue';
 
 import UserMixin from '@mixins/UserConfig';
 
@@ -14,6 +14,7 @@ import AlbumDynamicTopMatter from './AlbumDynamicTopMatter.vue';
 import FolderDynamicTopMatter from './FolderDynamicTopMatter.vue';
 import PlacesDynamicTopMatterVue from './PlacesDynamicTopMatter.vue';
 import OnThisDay from './OnThisDay.vue';
+import type SelectionManager from '@components/SelectionManager.vue';
 import * as strings from '@services/strings';
 
 // Auto-hide top header on public shares if redundant
@@ -24,6 +25,13 @@ export default defineComponent({
 
   mixins: [UserMixin],
 
+  props: {
+    selectionManager: {
+      type: Object as PropType<InstanceType<typeof SelectionManager>>,
+      required: false,
+    },
+  },
+
   emits: {
     load: () => true,
   },
@@ -33,6 +41,11 @@ export default defineComponent({
       return this.$refs as {
         child?: { refresh?(): Promise<boolean> };
       };
+    },
+
+    /** Extra props only the Folders dynamic top matter needs */
+    matterProps(): Record<string, unknown> {
+      return this.currentmatter === FolderDynamicTopMatter ? { selectionManager: this.selectionManager } : {};
     },
 
     currentmatter(): Component | null {
