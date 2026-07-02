@@ -278,13 +278,16 @@ export default defineComponent({
       object-fit: cover;
       padding: 0;
       filter: brightness(50%);
-      transition: filter 0.2s ease-in-out;
+      opacity: 1;
+      background-color: var(--color-background-dark);
+      transition: filter opacity 0.2s ease-in-out;
 
       &.error {
         display: none;
       }
       .folder:hover & {
-        filter: brightness(40%);
+        filter: brightness(50%);
+        opacity: 0.5;
       }
     }
   }

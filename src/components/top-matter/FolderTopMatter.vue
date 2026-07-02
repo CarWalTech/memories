@@ -1,5 +1,64 @@
 <template>
   <div class="top-matter">
+    <div class="top-row">
+      <div class="name">{{ t('memories', 'Folders') }}</div>
+      <div class="right-actions">
+        <!-- Progress bar for upload -->
+        <PublicUploadHandler ref="uploadHandler" v-if="allowPublicUpload" />
+
+        <NcActions :inline="3">
+          <NcActionButton
+            v-if="!routeIsPublic"
+            :aria-label="t('memories', 'Share folder')"
+            @click="share()"
+            close-after-click
+          >
+            {{ t('memories', 'Share folder') }}
+            <template #icon> <ShareIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <NcActionButton
+            v-if="!routeIsPublic"
+            :aria-label="t('memories', 'Upload files')"
+            @click="upload()"
+            close-after-click
+          >
+            {{ t('memories', 'Upload files') }}
+            <template #icon> <UploadIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <NcActionButton
+            v-if="!routeIsPublic"
+            :aria-label="t('memories', 'New folder')"
+            @click="createFolder()"
+            close-after-click
+          >
+            {{ t('memories', 'New folder') }}
+            <template #icon> <NewFolderIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <!-- Public upload button -->
+          <NcActionButton
+            v-if="allowPublicUpload"
+            :aria-label="t('memories', 'Upload files')"
+            :disabled="uploadHandler()?.processing"
+            @click="uploadHandler()?.startUpload()"
+          >
+            {{ t('memories', 'Upload files') }}
+            <template #icon> <UploadIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <NcActionButton @click="toggleRecursive" close-after-click>
+            {{ recursive ? t('memories', 'Folder view') : t('memories', 'Timeline view') }}
+            <template #icon>
+              <FoldersIcon v-if="recursive" :size="20" />
+              <TimelineIcon v-else :size="20" />
+            </template>
+          </NcActionButton>
+        </NcActions>
+      </div>
+    </div>
+
     <NcBreadcrumbs :key="$route.path">
       <NcBreadcrumb :name="rootFolderName" :to="getRoute([])" :force-icon-text="routeIsPublic">
         <template #icon>
@@ -9,62 +68,6 @@
       </NcBreadcrumb>
       <NcBreadcrumb v-for="folder in list" :key="folder.idx" :name="folder.text" :to="getRoute(folder.path)" />
     </NcBreadcrumbs>
-
-    <div class="right-actions">
-      <!-- Progress bar for upload -->
-      <PublicUploadHandler ref="uploadHandler" v-if="allowPublicUpload" />
-
-      <NcActions :inline="3">
-        <NcActionButton
-          v-if="!routeIsPublic"
-          :aria-label="t('memories', 'Share folder')"
-          @click="share()"
-          close-after-click
-        >
-          {{ t('memories', 'Share folder') }}
-          <template #icon> <ShareIcon :size="20" /> </template>
-        </NcActionButton>
-
-        <NcActionButton
-          v-if="!routeIsPublic"
-          :aria-label="t('memories', 'Upload files')"
-          @click="upload()"
-          close-after-click
-        >
-          {{ t('memories', 'Upload files') }}
-          <template #icon> <UploadIcon :size="20" /> </template>
-        </NcActionButton>
-
-        <NcActionButton
-          v-if="!routeIsPublic"
-          :aria-label="t('memories', 'New folder')"
-          @click="createFolder()"
-          close-after-click
-        >
-          {{ t('memories', 'New folder') }}
-          <template #icon> <NewFolderIcon :size="20" /> </template>
-        </NcActionButton>
-
-        <!-- Public upload button -->
-        <NcActionButton
-          v-if="allowPublicUpload"
-          :aria-label="t('memories', 'Upload files')"
-          :disabled="uploadHandler()?.processing"
-          @click="uploadHandler()?.startUpload()"
-        >
-          {{ t('memories', 'Upload files') }}
-          <template #icon> <UploadIcon :size="20" /> </template>
-        </NcActionButton>
-
-        <NcActionButton @click="toggleRecursive" close-after-click>
-          {{ recursive ? t('memories', 'Folder view') : t('memories', 'Timeline view') }}
-          <template #icon>
-            <FoldersIcon v-if="recursive" :size="20" />
-            <TimelineIcon v-else :size="20" />
-          </template>
-        </NcActionButton>
-      </NcActions>
-    </div>
   </div>
 </template>
 
@@ -194,6 +197,21 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .top-matter {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+  > .text {
+    flex-grow: 1;
+    line-height: 42px;
+    padding-left: 8px;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: center;
+  }
+
   .breadcrumb {
     min-width: 0;
     height: unset;
