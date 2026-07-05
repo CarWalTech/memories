@@ -162,6 +162,7 @@ class StaticConfig {
       square_thumbs: false,
       high_res_cond: null,
       show_face_rect: false,
+      mobile_nav_items: ['timeline', 'explore', 'albums'],
     };
 
     const set = <K extends keyof IConfig, V extends IConfig[K]>(key: K, value: string | null) => {
@@ -171,6 +172,8 @@ class StaticConfig {
         config[key] = (value === 'true') as V;
       } else if (typeof config[key] === 'number') {
         config[key] = Number(value) as V;
+      } else if (Array.isArray(config[key])) {
+        config[key] = value.split(',').filter(Boolean) as V;
       } else {
         config[key] = value as V;
       }

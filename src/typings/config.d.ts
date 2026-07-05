@@ -50,5 +50,6 @@ declare module '@typings' {
     high_res_cond: HighResCond | null;
     show_face_rect: boolean;
     album_list_sort: number;
+    mobile_nav_items: string[];
   };
 }

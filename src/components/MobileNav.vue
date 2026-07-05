@@ -1,6 +1,13 @@
 <template>
   <div id="mobile-nav">
-    <router-link v-for="link in links" :key="link.to" :to="link.to" @click.native="linkClick" replace exact-path>
+    <router-link
+      v-for="link in links"
+      :key="link.name"
+      :to="{ name: link.name }"
+      @click.native="linkClick"
+      replace
+      exact-path
+    >
       <component :is="link.icon" :size="22" />
       {{ link.text }}
     </router-link>
@@ -13,27 +20,40 @@ import { defineComponent } from 'vue';
 import * as nativex from '@native';
 
 import { translate as t } from '@services/l10n';
+import { availableNavState, withRequiredNavItem } from '@services/nav-items';
+import UserConfig from '@mixins/UserConfig';
 
 import ImageMultipleIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import SearchIcon from 'vue-material-design-icons/Magnify.vue';
 import AlbumIcon from 'vue-material-design-icons/ImageAlbum.vue';
 
+// Fallback shown if the user's selection is empty or entirely unavailable
+// (e.g. an admin disabled every feature the user had picked).
+const FALLBACK_LINKS = [
+  { name: 'timeline', icon: ImageMultipleIcon, text: t('memories', 'Photos') },
+  { name: 'explore', icon: SearchIcon, text: t('memories', 'Explore') },
+  { name: 'albums', icon: AlbumIcon, text: t('memories', 'Albums') },
+];
+
 export default defineComponent({
   name: 'MobileNav',
 
-  components: {
-    ImageMultipleIcon,
-    SearchIcon,
-    AlbumIcon,
-  },
+  mixins: [UserConfig],
 
   computed: {
     links() {
-      return [
-        { to: '/', icon: ImageMultipleIcon, text: t('memories', 'Photos') },
-        { to: '/explore', icon: SearchIcon, text: t('memories', 'Explore') },
-        { to: '/albums', icon: AlbumIcon, text: t('memories', 'Albums') },
-      ];
+      const byName = new Map(availableNavState.items.map((item) => [item.name, item]));
+      const items = (this.config.mobile_nav_items ?? [])
+        .map((name) => byName.get(name))
+        .filter((item): item is (typeof availableNavState.items)[number] => !!item);
+
+      const links = withRequiredNavItem(items).map((item) => ({
+        name: item.name,
+        icon: item.icon,
+        text: item.title,
+      }));
+
+      return links.length ? links : FALLBACK_LINKS;
     },
   },
 

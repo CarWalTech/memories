@@ -62,6 +62,42 @@
         </NcCheckboxRadioSwitch>
       </NcAppSettingsSection>
 
+      <NcAppSettingsSection id="mobile-nav-settings" :name="names.mobileNav">
+        <p class="settings-hint">
+          {{
+            t('memories', 'Choose up to {max} items for the mobile bottom navigation bar. Drag to reorder.', {
+              max: MAX_MOBILE_NAV_ITEMS,
+            })
+          }}
+        </p>
+
+        <draggable v-model="mobileNavOrder" tag="ul" class="mobile-nav-order" handle=".drag-handle">
+          <li v-for="item in mobileNavOrder" :key="item.name">
+            <DragHandleIcon class="drag-handle" :size="18" />
+            <component :is="item.icon" :size="18" />
+            <span class="label">{{ item.title }}</span>
+            <NcButton
+              v-if="item.name !== REQUIRED_NAV_ITEM"
+              type="tertiary"
+              :ariaLabel="t('memories', 'Remove')"
+              :disabled="mobileNavOrder.length <= MIN_MOBILE_NAV_ITEMS"
+              @click="removeMobileNavItem(item.name)"
+            >
+              <template #icon><CloseIcon :size="16" /></template>
+            </NcButton>
+          </li>
+        </draggable>
+
+        <NcSelect
+          v-if="mobileNavOrder.length < MAX_MOBILE_NAV_ITEMS"
+          v-model="mobileNavAddSelection"
+          class="mobile-nav-add"
+          :options="mobileNavAvailableToAdd"
+          label="title"
+          :placeholder="t('memories', 'Add an item…')"
+        />
+      </NcAppSettingsSection>
+
       <NcAppSettingsSection id="viewer-settings" :name="names.viewer">
         <NcCheckboxRadioSwitch
           :checked.sync="config.livephoto_autoplay"
@@ -240,18 +276,25 @@ input[type='text'] {
 <script lang="ts">
 import { defineComponent } from 'vue';
 
+import draggable from 'vuedraggable';
+
 import UserConfig from '@mixins/UserConfig';
 import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 import * as nativex from '@native';
+import { availableNavState, withRequiredNavItem, REQUIRED_NAV_ITEM, type AvailableNavItem } from '@services/nav-items';
 
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 const NcTextField = () => import('@nextcloud/vue/dist/Components/NcTextField.js');
+const NcSelect = () => import('@nextcloud/vue/dist/Components/NcSelect.js');
 const NcAppSettingsDialog = () => import('@nextcloud/vue/dist/Components/NcAppSettingsDialog.js');
 const NcAppSettingsSection = () => import('@nextcloud/vue/dist/Components/NcAppSettingsSection.js');
 const NcCheckboxRadioSwitch = () => import('@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js');
 
 import MultiPathSelectionModal from '@components/modal/MultiPathSelectionModal.vue';
+
+import DragHandleIcon from 'vue-material-design-icons/DragVertical.vue';
+import CloseIcon from 'vue-material-design-icons/Close.vue';
 
 import type { IConfig } from '@typings';
 
@@ -261,10 +304,14 @@ export default defineComponent({
   components: {
     NcButton,
     NcTextField,
+    NcSelect,
     NcAppSettingsDialog,
     NcAppSettingsSection,
     NcCheckboxRadioSwitch,
     MultiPathSelectionModal,
+    draggable,
+    DragHandleIcon,
+    CloseIcon,
   },
 
   mixins: [UserConfig],
@@ -278,11 +325,16 @@ export default defineComponent({
     names: {
       header: t('memories', 'Memories Settings'),
       general: t('memories', 'General'),
+      mobileNav: t('memories', 'Mobile Navigation'),
       viewer: t('memories', 'Photo Viewer'),
       account: t('memories', 'Account'),
       folders: t('memories', 'Folders'),
       albums: t('memories', 'Albums'),
     },
+    MIN_MOBILE_NAV_ITEMS: 1,
+    MAX_MOBILE_NAV_ITEMS: 5,
+    REQUIRED_NAV_ITEM,
+    mobileNavAddSelection: null as AvailableNavItem | null,
   }),
 
   props: {
@@ -319,9 +371,35 @@ export default defineComponent({
     highResCond(): IConfig['high_res_cond_default'] {
       return this.config.high_res_cond || this.config.high_res_cond_default || 'zoom';
     },
+
+    mobileNavOrder: {
+      get(): AvailableNavItem[] {
+        const byName = new Map(availableNavState.items.map((item) => [item.name, item]));
+        const items = (this.config.mobile_nav_items ?? [])
+          .map((name) => byName.get(name))
+          .filter((item): item is AvailableNavItem => !!item);
+        return withRequiredNavItem(items);
+      },
+
+      set(items: AvailableNavItem[]) {
+        this.config.mobile_nav_items = items.map((item) => item.name);
+        this.updateSetting('mobile_nav_items');
+      },
+    },
+
+    mobileNavAvailableToAdd(): AvailableNavItem[] {
+      const selected = new Set(this.config.mobile_nav_items ?? []);
+      return availableNavState.items.filter((item) => !selected.has(item.name));
+    },
   },
 
   watch: {
+    mobileNavAddSelection(item: AvailableNavItem | null) {
+      if (!item) return;
+      this.mobileNavOrder = [...this.mobileNavOrder, item];
+      this.mobileNavAddSelection = null;
+    },
+
     open(value: boolean) {
       utils.fragment.if(value, utils.fragment.types.settings);
     },
@@ -405,6 +483,13 @@ export default defineComponent({
 
     async updateShowOwnerNameTimeline() {
       await this.updateSetting('show_owner_name_timeline', 'showOwnerNameTimeline');
+    },
+
+    // Mobile navigation settings
+    removeMobileNavItem(name: string) {
+      if (name === REQUIRED_NAV_ITEM) return;
+      if (this.mobileNavOrder.length <= this.MIN_MOBILE_NAV_ITEMS) return;
+      this.mobileNavOrder = this.mobileNavOrder.filter((item) => item.name !== name);
     },
 
     // Viewer settings
@@ -524,6 +609,37 @@ export default defineComponent({
     .checkbox-radio-switch-radio {
       margin: 2px 16px; // indent for radio button
     }
+  }
+
+  .settings-hint {
+    color: var(--color-text-maxcontrast);
+    margin-bottom: 6px;
+  }
+
+  .mobile-nav-order {
+    padding: 0;
+    margin: 0 0 10px 0;
+    list-style: none;
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+
+      .drag-handle {
+        cursor: grab;
+        opacity: 0.6;
+      }
+
+      .label {
+        flex-grow: 1;
+      }
+    }
+  }
+
+  .mobile-nav-add {
+    max-width: 300px;
   }
 }
 </style>

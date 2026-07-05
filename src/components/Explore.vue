@@ -51,6 +51,7 @@ import ClusterHList from '@components/ClusterHList.vue';
 
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 
+import ImageMultipleOutline from 'vue-material-design-icons/ImageMultipleOutline.vue';
 import FolderIcon from 'vue-material-design-icons/Folder.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';
 import VideoIcon from 'vue-material-design-icons/PlayCircle.vue';
@@ -88,6 +89,11 @@ export default defineComponent({
     tags: [] as ICluster[],
 
     categories: [
+      {
+        name: t('memories', 'All Photos'),
+        icon: ImageMultipleOutline,
+        link: '/all',
+      },
       {
         name: t('memories', 'Folders'),
         icon: FolderIcon,

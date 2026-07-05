@@ -120,6 +120,7 @@ import * as utils from '@services/utils';
 import * as nativex from '@native';
 import { translate as t } from '@services/l10n';
 import staticConfig from '@services/static-config';
+import { availableNavState } from '@services/nav-items';
 
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue';
 import ImageMultipleOutline from 'vue-material-design-icons/ImageMultipleOutline.vue';
@@ -238,8 +239,13 @@ export default defineComponent({
       }
 
       if (this.native) {
-        // Only show navigation on "main" tabs
-        return this.routeIsBase || this.routeIsExplore || (this.routeIsAlbums && !this.$route.params.name);
+        // Only show navigation on "root" list views, not inside a specific album
+        if (this.routeIsAlbums && this.$route.params.name) {
+          return false;
+        }
+
+        // Show on any of the app's top-level nav destinations (sidebar/bottom bar)
+        return this.navItems.some((item) => item.name === this.$route.name);
       }
 
       return true;
@@ -396,6 +402,7 @@ export default defineComponent({
       ];
 
       this.navItems = navItems.filter((item) => typeof item.if === 'undefined' || Boolean(item.if));
+      availableNavState.items = this.navItems.map(({ name, icon, title }) => ({ name, icon, title }));
     },
 
     linkClick() {
