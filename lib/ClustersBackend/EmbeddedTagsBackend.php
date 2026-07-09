@@ -6,7 +6,9 @@ namespace OCA\Memories\ClustersBackend;
 
 use OCA\Memories\Db\EmbeddedTagsQuery;
 use OCA\Memories\Db\TimelineQuery;
+use OCA\Memories\Db\TimelineRoot;
 use OCA\Memories\Exif;
+use OCA\Memories\Util;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IRequest;
 
@@ -114,18 +116,71 @@ final class EmbeddedTagsBackend extends Backend
             return [];
         }
 
+        // Unlike Folders, a tag isn't tied to any one location: a photo
+        // anywhere in the account can carry it, and the tag dictionary itself
+        // is built from every indexed photo regardless of the user's
+        // configured timeline path (see whole-account root note below). So
+        // browsing a tag must search the whole account too, or photos (and
+        // even the tag's own previews) outside the timeline path would look
+        // like they don't exist even though the tag genuinely isn't empty.
+        $root = $this->wholeAccountRoot();
+
         if ($this->tq->shouldFilterExifBySQL()) {
-            return $this->getPhotosSQL($name, $limit, $fileid);
+            return $this->getPhotosSQL($name, $limit, $fileid, false, $root);
         }
 
-        return $this->getPhotosPHP($name, $limit, $fileid);
+        return $this->getPhotosPHP($name, $limit, $fileid, false, $root);
+    }
+
+    /**
+     * Whether any photo -- including archived/hidden ones -- is currently
+     * tagged with this path or any of its sub-tags. Used to decide whether a
+     * tag is safe to permanently delete: if this returns true, deleting the
+     * tag's dictionary entry would just have it silently reappear the next
+     * time those photos get (re-)indexed, since deleting never touches photo
+     * EXIF data itself.
+     */
+    public function hasAnyPhotos(string $path): bool
+    {
+        $root = $this->wholeAccountRoot();
+
+        if ($this->tq->shouldFilterExifBySQL()) {
+            return !empty($this->getPhotosSQL($path, 1, null, true, $root));
+        }
+
+        return !empty($this->getPhotosPHP($path, 1, null, true, $root));
+    }
+
+    /**
+     * Root at the user's whole file space (like "All Photos" mode), not just
+     * their configured timeline path. The tag dictionary is built from every
+     * photo the user has ever indexed, regardless of which folder it's in or
+     * whether it's archived/hidden -- indexing doesn't care about those
+     * view-level preferences -- so every embedded-tag query needs to search
+     * the same scope, or it'll report tags as empty/unused that are still
+     * very much in use just outside the configured timeline path.
+     */
+    private function wholeAccountRoot(): TimelineRoot
+    {
+        $root = new TimelineRoot();
+        $root->addFolder(Util::getUserFolder());
+        $root->addMountPoints();
+
+        return $root;
     }
 
     /**
      * MySQL/MariaDB fast path: match photos via JSON_CONTAINS/JSON_SEARCH
      * directly in SQL.
+     *
+     * @param bool          $hidden Whether to also include archived/hidden photos
+     *                              (normal browsing excludes them; the tag-deletion
+     *                              safety check must not, see hasAnyPhotos())
+     * @param ?TimelineRoot $root   Explicit root to scope the search to, instead of
+     *                              the request-driven default (the user's configured
+     *                              timeline path); see hasAnyPhotos()
      */
-    private function getPhotosSQL(string $name, ?int $limit, ?int $fileid): array
+    private function getPhotosSQL(string $name, ?int $limit, ?int $fileid, bool $hidden = false, ?TimelineRoot $root = null): array
     {
         $query = $this->tq->getBuilder();
 
@@ -138,7 +193,7 @@ final class EmbeddedTagsBackend extends Backend
         $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
 
         // WHERE these photos are in the user's requested folder recursively
-        $query = $this->tq->filterFilecache($query);
+        $query = $this->tq->filterFilecache($query, $root, true, false, $hidden);
 
         if (null !== $limit) {
             $query->setMaxResults($limit);
@@ -157,8 +212,15 @@ final class EmbeddedTagsBackend extends Backend
      * fetch candidate photos (scoped the same way as the SQL path) and match
      * each one's embedded tags in PHP, same approach as
      * TimelineQueryDays::postProcessDaysWithFilters() uses for the timeline.
+     *
+     * @param bool          $hidden Whether to also include archived/hidden photos
+     *                              (normal browsing excludes them; the tag-deletion
+     *                              safety check must not, see hasAnyPhotos())
+     * @param ?TimelineRoot $root   Explicit root to scope the search to, instead of
+     *                              the request-driven default (the user's configured
+     *                              timeline path); see hasAnyPhotos()
      */
-    private function getPhotosPHP(string $name, ?int $limit, ?int $fileid): array
+    private function getPhotosPHP(string $name, ?int $limit, ?int $fileid, bool $hidden = false, ?TimelineRoot $root = null): array
     {
         if ('' === $name) {
             // Root has no directly-associated photos -- only child tags do.
@@ -168,7 +230,7 @@ final class EmbeddedTagsBackend extends Backend
         $query = $this->tq->getBuilder();
         $query->select('m.fileid', 'm.exif', 'f.etag')->from('memories', 'm');
         $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
-        $query = $this->tq->filterFilecache($query);
+        $query = $this->tq->filterFilecache($query, $root, true, false, $hidden);
 
         if (null !== $fileid) {
             $query->andWhere($query->expr()->eq('f.fileid', $query->createNamedParameter($fileid, \PDO::PARAM_INT)));

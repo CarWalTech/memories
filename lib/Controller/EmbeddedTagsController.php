@@ -142,7 +142,7 @@ class EmbeddedTagsController extends GenericApiController
                 throw Exceptions::BadRequest('cannot delete the tag root');
             }
 
-            if (!empty($this->backend->getPhotos($path, 1))) {
+            if ($this->backend->hasAnyPhotos($path)) {
                 throw Exceptions::BadRequest('tag (or a sub-tag) still has photos -- remove the tag from all photos first');
             }
 

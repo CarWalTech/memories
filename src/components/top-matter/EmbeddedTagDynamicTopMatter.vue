@@ -63,7 +63,11 @@ export default defineComponent({
 
       this.sortTags();
 
-      return this.tags.length > 0;
+      // Must match `show`: when in recursive/timeline-view mode the grid
+      // isn't rendered at all, so it shouldn't count as "has content" either
+      // -- otherwise Timeline's empty-state check (list.length && !dtmContent)
+      // stays falsely non-empty and neither the grid nor EmptyContent render.
+      return !!this.show;
     },
 
     sortTags() {

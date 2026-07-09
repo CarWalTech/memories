@@ -685,6 +685,14 @@ export default defineComponent({
         if (this.$route.query.recursive) {
           set(DaysFilterType.RECURSIVE);
         }
+
+        // Unlike a folder, a tag isn't tied to any one location -- a photo
+        // anywhere in the account can carry it, and the tag dictionary itself
+        // is built from every indexed photo regardless of the configured
+        // timeline path. So this must search the whole account too (same as
+        // "All Photos"), or photos outside the timeline path would make an
+        // otherwise non-empty tag look empty here.
+        set(DaysFilterType.ALL_PHOTOS);
       }
 
       // All Photos: dedicated signal, not the folder+recursive mechanism --
