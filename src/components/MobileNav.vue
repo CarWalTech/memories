@@ -50,7 +50,7 @@ export default defineComponent({
       const links = withRequiredNavItem(items).map((item) => ({
         name: item.name,
         icon: item.icon,
-        text: item.title,
+        text: item.shortTitle ?? item.title,
       }));
 
       return links.length ? links : FALLBACK_LINKS;

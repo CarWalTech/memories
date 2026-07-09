@@ -5,6 +5,8 @@ import type { Component } from 'vue';
 export interface AvailableNavItem {
   name: string; // matches vue-router route `name`
   title: string;
+  /** Shorter label for the space-constrained mobile bottom bar; falls back to `title` if unset. */
+  shortTitle?: string;
   icon: Component;
 }
 

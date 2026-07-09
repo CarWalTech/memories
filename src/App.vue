@@ -141,6 +141,7 @@ import SearchIcon from 'vue-material-design-icons/Magnify.vue';
 type NavItem = {
   name: string;
   title: string;
+  shortTitle?: string;
   icon: any;
   if?: any;
 };
@@ -399,17 +400,26 @@ export default defineComponent({
           name: 'embeddedtags',
           icon: TagsIcon,
           title: t('memories', 'Embedded Tags'),
+          // "Embedded Tags" overflows the space-constrained mobile bottom bar
+          shortTitle: t('memories', 'Tags'),
         },
         {
           name: 'tags',
           icon: TagMultipleIcon,
           title: t('memories', 'Collaborative Tags'),
+          // "Collaborative Tags" overflows the space-constrained mobile bottom bar
+          shortTitle: t('memories', 'Collab Tags'),
           if: this.config.systemtags_enabled,
         },
       ];
 
       this.navItems = navItems.filter((item) => typeof item.if === 'undefined' || Boolean(item.if));
-      availableNavState.items = this.navItems.map(({ name, icon, title }) => ({ name, icon, title }));
+      availableNavState.items = this.navItems.map(({ name, icon, title, shortTitle }) => ({
+        name,
+        icon,
+        title,
+        shortTitle,
+      }));
     },
 
     linkClick() {
