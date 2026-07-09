@@ -90,6 +90,16 @@ declare global {
     };
     scrollToPosition: (position: number) => void;
     scrollToItem: (index: number) => void;
+    /**
+     * Force vue-virtual-scroller to re-measure the #before slot and
+     * recompute item positions. Needed because it only does this
+     * automatically on scroll/resize/items-changed -- not when the
+     * #before slot's own content changes size asynchronously (e.g. the
+     * folder/embedded-tag dynamic top matter populating after its own
+     * fetch resolves), which otherwise leaves photo rows positioned
+     * using a stale (too small) offset that overlaps the top matter.
+     */
+    updateVisibleItems: (checkItem: boolean) => void;
   };
 
   type VueNcPopover = ComponentPublicInstance & {

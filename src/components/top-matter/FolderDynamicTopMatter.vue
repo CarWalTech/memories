@@ -60,7 +60,7 @@ export default defineComponent({
       const folder = utils.getFolderRoutePath(this.config.folders_path);
 
       // Clear folders if switching to a different folder, otherwise just refresh
-      if (this.currentFolder === folder) {
+      if (this.currentFolder !== folder) {
         this.currentFolder = folder;
         this.folders = [];
       }

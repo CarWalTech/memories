@@ -374,6 +374,17 @@ export default defineComponent({
       // Wait for one tick before doing anything
       await this.$nextTick();
 
+      // Watch the static top matter's own size, not just the outer container.
+      // NcBreadcrumbs/NcBreadcrumb are lazy-loaded via dynamic import(), so on
+      // a cold cache the top matter can still grow (e.g. once the breadcrumb
+      // row actually renders) after we measure it below. Without this, that
+      // later growth never triggers a recompute, and the recycler (photos +
+      // the dynamic top matter grid) stays sized as if the header were
+      // shorter, ending up rendered too high and overlapping/clipped under it.
+      if (this.refs.topmatter?.$el instanceof Element) {
+        this.resizeObserver?.observe(this.refs.topmatter.$el);
+      }
+
       // Fit to window
       this.recomputeSizes();
 
@@ -762,6 +773,17 @@ export default defineComponent({
         const res = await this.refs.dtm?.refresh();
         if (this.state !== state) return;
         this.dtmContent = res ?? false;
+
+        // The dynamic top matter (e.g. subfolder/subtag grid) just changed the
+        // height of the recycler's #before slot. vue-virtual-scroller doesn't
+        // know that happened -- it only re-measures #before on its own
+        // scroll/resize/items-changed triggers -- so without this, photo rows
+        // get positioned using the stale (too small) previous height and
+        // visually overlap/clip the bottom of the top matter until something
+        // else (a scroll, a resize, navigating away and back) happens to
+        // trigger a recalculation.
+        await this.$nextTick();
+        this.refs.recycler?.updateVisibleItems(false);
       } finally {
         this.updateLoading(-1);
       }

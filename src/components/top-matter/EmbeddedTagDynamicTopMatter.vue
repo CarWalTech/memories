@@ -45,7 +45,7 @@ export default defineComponent({
       const path = this.path;
 
       // Clear tags if switching to a different path, otherwise just refresh
-      if (this.currentPath === path) {
+      if (this.currentPath !== path) {
         this.currentPath = path;
         this.tags = [];
       }
