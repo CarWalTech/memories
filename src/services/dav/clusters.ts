@@ -7,6 +7,7 @@ export const clusterIs = {
   album: (cluster: ICluster): cluster is IAlbum => cluster.cluster_type === 'albums',
   place: (cluster: ICluster): cluster is IPlace => cluster.cluster_type === 'places',
   tag: (cluster: ICluster): cluster is ITag => cluster.cluster_type === 'tags',
+  embeddedTag: (cluster: ICluster): cluster is ITag => cluster.cluster_type === 'embeddedtag',
   recognize: (cluster: ICluster): cluster is IFace => cluster.cluster_type === 'recognize',
   facerecognition: (cluster: ICluster): cluster is IFace => cluster.cluster_type === 'facerecognition',
   face: (cluster: ICluster): cluster is IFace =>
@@ -73,6 +74,10 @@ export function getClusterLinkTarget(cluster: ICluster) {
 
   if (clusterIs.tag(cluster)) {
     return { name: _m.routes.Tags.name, params: { name: cluster.name } };
+  }
+
+  if (clusterIs.embeddedTag(cluster)) {
+    return { name: _m.routes.EmbeddedTags.name, params: { path: cluster.name.split('/') } };
   }
 
   return {};

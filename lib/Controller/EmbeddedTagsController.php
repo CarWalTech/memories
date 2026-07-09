@@ -23,9 +23,11 @@ declare(strict_types=1);
 
 namespace OCA\Memories\Controller;
 
+use OCA\Memories\ClustersBackend\EmbeddedTagsBackend;
 use OCA\Memories\Db\EmbeddedTagsQuery;
 use OCA\Memories\Db\FsManager;
 use OCA\Memories\Db\TimelineQuery;
+use OCA\Memories\Db\TimelineWrite;
 use OCA\Memories\Exceptions;
 use OCA\Memories\Util;
 use OCP\App\IAppManager;
@@ -54,8 +56,100 @@ class EmbeddedTagsController extends GenericApiController
         TimelineQuery $tq,
         FsManager $fs,
         protected EmbeddedTagsQuery $etq,
+        protected EmbeddedTagsBackend $backend,
+        protected TimelineWrite $tw,
     ) {
         parent::__construct($request, $config, $userConfig, $userSession, $connection, $rootFolder, $appManager, $logger, $tq, $fs);
+    }
+
+    /**
+     * Get direct child tags of a path with preview photos, for the
+     * folder-style embedded tags browsing view. Tags with no matching
+     * photos are included too (with an empty previews array) so they
+     * can be seen and, if desired, deleted.
+     */
+    #[NoAdminRequired]
+    public function sub(string $path = ''): Http\Response
+    {
+        return Util::guardEx(function () use ($path) {
+            if (!Util::isLoggedIn()) {
+                throw Exceptions::NotLoggedIn();
+            }
+
+            $path = trim($path, '/');
+
+            $list = [];
+            foreach ($this->etq->getChildTags($path) as $child) {
+                $previews = $this->backend->getPhotos($child['path'], 4);
+
+                $list[] = [
+                    'name' => $child['tag'],
+                    'path' => $child['path'],
+                    'previews' => array_map(static fn ($p) => [
+                        'fileid' => (int) $p['fileid'],
+                        'etag' => $p['etag'],
+                    ], $previews),
+                ];
+            }
+
+            return new JSONResponse($list, Http::STATUS_OK);
+        });
+    }
+
+    /**
+     * Create a new (empty) child tag under the given path. Only touches
+     * the tag dictionary -- no photos are affected.
+     */
+    #[NoAdminRequired]
+    public function create(string $path, string $name): Http\Response
+    {
+        return Util::guardEx(function () use ($path, $name) {
+            if (!Util::isLoggedIn()) {
+                throw Exceptions::NotLoggedIn();
+            }
+
+            $name = trim($name);
+            if ('' === $name || str_contains($name, '/')) {
+                throw Exceptions::BadRequest('tag name must be non-empty and cannot contain "/"');
+            }
+
+            $path = trim($path, '/');
+            $fullPath = '' === $path ? $name : "{$path}/{$name}";
+
+            $this->tw->createTag(Util::getUID(), $fullPath);
+
+            return new JSONResponse(['path' => $fullPath], Http::STATUS_OK);
+        });
+    }
+
+    /**
+     * Delete a tag. Only allowed if the tag and its whole subtree have
+     * no photos currently associated with them -- this never touches
+     * photo EXIF data, only the tag dictionary. If the tag (or any
+     * descendant) still has photos, the caller must remove the tag from
+     * those photos first (via the per-photo tag editor).
+     */
+    #[NoAdminRequired]
+    public function delete(string $path): Http\Response
+    {
+        return Util::guardEx(function () use ($path) {
+            if (!Util::isLoggedIn()) {
+                throw Exceptions::NotLoggedIn();
+            }
+
+            $path = trim($path, '/');
+            if ('' === $path) {
+                throw Exceptions::BadRequest('cannot delete the tag root');
+            }
+
+            if (!empty($this->backend->getPhotos($path, 1))) {
+                throw Exceptions::BadRequest('tag (or a sub-tag) still has photos -- remove the tag from all photos first');
+            }
+
+            $this->tw->deleteTagByPath(Util::getUID(), $path, true);
+
+            return new JSONResponse([], Http::STATUS_OK);
+        });
     }
 
     /**

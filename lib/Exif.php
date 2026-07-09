@@ -406,6 +406,30 @@ final class Exif
     }
 
     /**
+     * Check whether a flattened embedded tag path (as returned by
+     * extractEmbeddedTags($exif, true), e.g. "Family/Vacation/Beach") lies
+     * at or under a browsed tag path. Used for the embedded tags folder-style
+     * browsing view, both for the PHP-side EXIF filter fallback (non-MySQL
+     * DBs) and to keep semantics identical to the SQL-side matching.
+     *
+     * @param string $tagPath    full path of an embedded tag on a photo
+     * @param string $browsePath path currently being browsed
+     * @param bool   $recursive  whether tags anywhere under $browsePath count, not just exact matches
+     */
+    public static function embeddedTagPathMatches(string $tagPath, string $browsePath, bool $recursive): bool
+    {
+        if ('' === $browsePath) {
+            return true;
+        }
+
+        if (0 === strcasecmp($tagPath, $browsePath)) {
+            return true;
+        }
+
+        return $recursive && 0 === strncasecmp($tagPath, $browsePath.'/', \strlen($browsePath) + 1);
+    }
+
+    /**
      * Filter out tags that are components of hierarchical tags
      * For example, if we have "Country/Italy", don't also show "Country" or "Italy"
      */

@@ -6,7 +6,16 @@ declare module '@typings' {
     name: string;
   }
 
-  export type ClusterTypes = 'tags' | 'albums' | 'places' | 'recognize' | 'facerecognition' | 'plus';
+  export interface IEmbeddedTagFolder extends IPhoto {
+    /** Photos for preview images */
+    previews?: IPhoto[];
+    /** Name of this tag segment (leaf, not full path) */
+    name: string;
+    /** Full path of this tag, e.g. "Family/Vacation" */
+    path: string;
+  }
+
+  export type ClusterTypes = 'tags' | 'embeddedtag' | 'albums' | 'places' | 'recognize' | 'facerecognition' | 'plus';
 
   export interface ICluster {
     /** A unique identifier for the cluster */

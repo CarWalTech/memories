@@ -194,6 +194,13 @@ final class PageController extends Controller
 
     #[NoAdminRequired]
     #[NoCSRFRequired]
+    public function embeddedtags(): Response
+    {
+        return $this->main();
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function map(): Response
     {
         return $this->main();

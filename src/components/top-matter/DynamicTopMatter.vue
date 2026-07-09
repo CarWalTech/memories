@@ -13,6 +13,7 @@ import UserMixin from '@mixins/UserConfig';
 import AlbumDynamicTopMatter from './AlbumDynamicTopMatter.vue';
 import FolderDynamicTopMatter from './FolderDynamicTopMatter.vue';
 import PlacesDynamicTopMatterVue from './PlacesDynamicTopMatter.vue';
+import EmbeddedTagDynamicTopMatter from './EmbeddedTagDynamicTopMatter.vue';
 import OnThisDay from './OnThisDay.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 import * as strings from '@services/strings';
@@ -51,6 +52,8 @@ export default defineComponent({
     currentmatter(): Component | null {
       if (this.routeIsFolders || (this.routeIsFolderShare && this.initstate.shareType === 'folder')) {
         return FolderDynamicTopMatter;
+      } else if (this.routeIsEmbeddedTags) {
+        return EmbeddedTagDynamicTopMatter;
       } else if (this.routeIsPlaces) {
         return PlacesDynamicTopMatterVue;
       } else if (this.routeIsAlbums) {
@@ -76,7 +79,7 @@ export default defineComponent({
       }
 
       // Only static top matter for these routes
-      if (this.routeIsTags || this.routeIsPeople || this.routeIsPlaces) {
+      if (this.routeIsTags || this.routeIsPeople || this.routeIsPlaces || this.routeIsEmbeddedTags) {
         return String();
       }
 

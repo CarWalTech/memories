@@ -20,7 +20,18 @@
         :clusters="facerecognition"
       />
       <ClusterHList v-if="places.length" :title="t('memories', 'Places')" link="/places" :clusters="places" />
-      <ClusterHList v-if="tags.length" :title="t('memories', 'Tags')" link="/tags" :clusters="tags" />
+      <ClusterHList
+        v-if="embeddedTags.length"
+        :title="t('memories', 'Embedded Tags')"
+        link="/embeddedtags"
+        :clusters="embeddedTags"
+      />
+      <ClusterHList
+        v-if="tags.length"
+        :title="t('memories', 'Collaborative Tags')"
+        link="/tags"
+        :clusters="tags"
+      />
 
       <div class="link-list">
         <NcButton
@@ -87,6 +98,7 @@ export default defineComponent({
     facerecognition: [] as ICluster[],
     places: [] as ICluster[],
     tags: [] as ICluster[],
+    embeddedTags: [] as ICluster[],
 
     categories: [
       {
@@ -161,6 +173,8 @@ export default defineComponent({
       this.load(this.getTags);
     }
 
+    this.load(this.getEmbeddedTags);
+
     // Remove categories that should not be shown
     this.categories = this.categories.filter((c) => !c.if || c.if());
   },
@@ -191,6 +205,10 @@ export default defineComponent({
 
     async getTags() {
       this.tags = (await dav.getTags()).sort((a, b) => b.count - a.count).slice(0, 10);
+    },
+
+    async getEmbeddedTags() {
+      this.embeddedTags = (await dav.getEmbeddedTagClusters()).slice(0, 10);
     },
   },
 });

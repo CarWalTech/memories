@@ -134,6 +134,84 @@ class EmbeddedTagsQuery
     }
 
     /**
+     * Get the direct child tags of a given tag path for the current user.
+     *
+     * @param string $parentPath full path of the parent tag, or '' for root-level tags
+     *
+     * @return array List of {id, tag, path} rows
+     */
+    public function getChildTags(string $parentPath): array
+    {
+        $uid = Util::getUID();
+        $parentId = null;
+
+        if ('' !== $parentPath) {
+            // Resolve the parent's id as a plain value first: a correlated
+            // subquery built on a separate IQueryBuilder would generate its
+            // own :dcValueN placeholders whose bound values never get copied
+            // into the outer query's parameter bag (SQL::subquery() only
+            // splices in the SQL text, not the parameters), so it never binds.
+            $parentIdQuery = $this->getBuilder();
+            $found = $parentIdQuery->select('id')
+                ->from('memories_embedded_tags', 'pt')
+                ->where($parentIdQuery->expr()->eq('pt.user_id', $parentIdQuery->createNamedParameter($uid)))
+                ->andWhere($parentIdQuery->expr()->eq('pt.path', $parentIdQuery->createNamedParameter($parentPath)))
+                ->executeQuery()
+                ->fetchOne()
+            ;
+
+            if (false === $found) {
+                return [];
+            }
+
+            $parentId = (int) $found;
+        }
+
+        $query = $this->getBuilder();
+        $query->select('et.id', 'et.tag', 'et.path')
+            ->from('memories_embedded_tags', 'et')
+            ->where($query->expr()->eq('et.user_id', $query->createNamedParameter($uid)))
+        ;
+
+        if (null === $parentId) {
+            $query->andWhere($query->expr()->isNull('et.parent_tag_id'));
+        } else {
+            $query->andWhere($query->expr()->eq('et.parent_tag_id', $query->createNamedParameter($parentId, IQueryBuilder::PARAM_INT)));
+        }
+
+        $query->orderBy($query->func()->lower('et.tag'), 'ASC');
+
+        return $query->executeQuery()->fetchAll() ?: [];
+    }
+
+    /**
+     * Get every leaf tag path (a tag with no children) for the current user.
+     * Used for the flat "all embedded tags" cluster listing.
+     *
+     * @return array List of {id, path} rows
+     */
+    public function getLeafTagPaths(): array
+    {
+        $query = $this->getBuilder();
+        $uid = Util::getUID();
+
+        $childSq = $this->getBuilder();
+        $childSq->select($childSq->expr()->literal(1))
+            ->from('memories_embedded_tags', 'child')
+            ->where($childSq->expr()->eq('child.parent_tag_id', 'et.id'))
+        ;
+
+        $query->select('et.id', 'et.path')
+            ->from('memories_embedded_tags', 'et')
+            ->where($query->expr()->eq('et.user_id', $query->createNamedParameter($uid)))
+            ->andWhere(SQL::notExists($query, $childSq))
+            ->orderBy($query->func()->lower('et.path'), 'ASC')
+        ;
+
+        return $query->executeQuery()->fetchAll() ?: [];
+    }
+
+    /**
      * Build hierarchical structure from flat tags array
      *
      * @param array $tags Flat array of tags

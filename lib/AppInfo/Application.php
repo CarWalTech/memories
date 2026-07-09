@@ -93,6 +93,7 @@ final class Application extends App implements IBootstrap
         // Register clusters backends
         ClustersBackend\AlbumsBackend::register();
         ClustersBackend\TagsBackend::register();
+        ClustersBackend\EmbeddedTagsBackend::register();
         ClustersBackend\PlacesBackend::register();
         ClustersBackend\RecognizeBackend::register();
         ClustersBackend\FaceRecognitionBackend::register();

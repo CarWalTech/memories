@@ -30,6 +30,7 @@ return [
         w(['name' => 'Page#facerecognition', 'url' => '/facerecognition/{name}', 'verb' => 'GET'], 'name'),
         w(['name' => 'Page#places', 'url' => '/places/{id}', 'verb' => 'GET'], 'id'),
         w(['name' => 'Page#tags', 'url' => '/tags/{name}', 'verb' => 'GET'], 'name'),
+        w(['name' => 'Page#embeddedtags', 'url' => '/embeddedtags/{path}', 'verb' => 'GET'], 'path'),
 
         // Public folder share
         ['name' => 'Public#showAuthenticate', 'url' => '/s/{token}/authenticate/{redirect}', 'verb' => 'GET'],
@@ -56,6 +57,9 @@ return [
         ['name' => 'EmbeddedTags#flat', 'url' => '/api/embedded-tags/flat', 'verb' => 'GET'],
         ['name' => 'EmbeddedTags#hierarchical', 'url' => '/api/embedded-tags/hierarchical', 'verb' => 'GET'],
         ['name' => 'EmbeddedTags#count', 'url' => '/api/embedded-tags/count', 'verb' => 'GET'],
+        ['name' => 'EmbeddedTags#sub', 'url' => '/api/embedded-tags/sub', 'verb' => 'GET'],
+        ['name' => 'EmbeddedTags#create', 'url' => '/api/embedded-tags/create', 'verb' => 'POST'],
+        ['name' => 'EmbeddedTags#delete', 'url' => '/api/embedded-tags/delete', 'verb' => 'DELETE'],
 
         ['name' => 'Map#clusters', 'url' => '/api/map/clusters', 'verb' => 'GET'],
         ['name' => 'Map#init', 'url' => '/api/map/init', 'verb' => 'GET'],

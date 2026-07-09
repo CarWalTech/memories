@@ -29,6 +29,10 @@ export const enum DaysFilterType {
   PLACE = 'places',
   TAG = 'tags',
   EMBEDDED_TAGS = 'embeddedTags',
+  /** Gates ClustersBackend\Manager's dispatch to EmbeddedTagsBackend (matches its clusterType) */
+  EMBEDDED_TAG_ACTIVE = 'embeddedtag',
+  /** Carries the actual browsed path, separately, so an empty root path still gates as active */
+  EMBEDDED_TAG_PATH = 'embeddedtagpath',
   MAP_BOUNDS = 'mapbounds',
   RATING = 'minRating',
 
@@ -107,6 +111,10 @@ export class API {
     return gen(`${BASE}/clusters/tags`);
   }
 
+  static EMBEDDED_TAG_LIST() {
+    return gen(`${BASE}/clusters/embeddedtag`);
+  }
+
   static TAG_SET(fileid: string | number) {
     return gen(`${BASE}/tags/set/{fileid}`, { fileid });
   }
@@ -121,6 +129,18 @@ export class API {
 
   static EMBEDDED_TAGS_COUNT() {
     return gen(`${BASE}/embedded-tags/count`);
+  }
+
+  static EMBEDDED_TAGS_SUB() {
+    return gen(`${BASE}/embedded-tags/sub`);
+  }
+
+  static EMBEDDED_TAGS_CREATE() {
+    return gen(`${BASE}/embedded-tags/create`);
+  }
+
+  static EMBEDDED_TAGS_DELETE() {
+    return gen(`${BASE}/embedded-tags/delete`);
   }
 
   static FACE_LIST(app: 'recognize' | 'facerecognition') {

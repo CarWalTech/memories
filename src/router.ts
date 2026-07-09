@@ -26,6 +26,7 @@ export type RouteId =
   | 'FaceRecognition'
   | 'Places'
   | 'Tags'
+  | 'EmbeddedTags'
   | 'FolderShare'
   | 'AlbumShare'
   | 'Map'
@@ -114,7 +115,14 @@ export const routes: { [key in RouteId]: RouteConfig } = {
     path: '/tags/:name*',
     component: ClusterView,
     name: 'tags',
-    props: (route: Route) => ({ rootTitle: t('memories', 'Tags') }),
+    props: (route: Route) => ({ rootTitle: t('memories', 'Collaborative Tags') }),
+  },
+
+  EmbeddedTags: {
+    path: '/embeddedtags/:path*',
+    component: Timeline,
+    name: 'embeddedtags',
+    props: (route: Route) => ({ rootTitle: t('memories', 'Embedded Tags') }),
   },
 
   FolderShare: {

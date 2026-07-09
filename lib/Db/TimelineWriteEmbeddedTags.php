@@ -40,9 +40,21 @@ trait TimelineWriteEmbeddedTags
             $this->ensureTagExists($userId, $tagPath);
         }
     }
-    
 
-    
+    /**
+     * Create a (possibly empty) tag at the given full path for a user,
+     * creating any missing ancestor segments along the way. Used by the
+     * "New tag" action in the embedded tags browsing view -- this only
+     * touches the dictionary table, no photos are affected.
+     *
+     * @param string $userId   User ID
+     * @param string $fullPath Full tag path, e.g. "Family/Vacation"
+     */
+    public function createTag(string $userId, string $fullPath): void
+    {
+        $this->ensureTagExists($userId, explode('/', $fullPath));
+    }
+
     /**
      * Ensure a tag exists in the database
      *

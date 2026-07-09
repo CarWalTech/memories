@@ -658,6 +658,24 @@ export default defineComponent({
         }
       }
 
+      // Embedded tags (folder-style browsing)
+      if (this.routeIsEmbeddedTags) {
+        // Active flag gates ClustersBackend\Manager's dispatch to EmbeddedTagsBackend;
+        // the path is sent separately so an empty (root) path still counts as active
+        // and correctly yields zero timeline photos (only child tags live at the root).
+        set(DaysFilterType.EMBEDDED_TAG_ACTIVE);
+
+        let path: string[] | string = this.$route.params.path || [];
+        if (typeof path === 'string') {
+          path = path.split('/');
+        }
+        set(DaysFilterType.EMBEDDED_TAG_PATH, path.filter(Boolean).join('/'));
+
+        if (this.$route.query.recursive) {
+          set(DaysFilterType.RECURSIVE);
+        }
+      }
+
       // All Photos: dedicated signal, not the folder+recursive mechanism --
       // deliberately distinct from Folders-view browsing so configured path
       // exclusions only ever apply here, never to an ordinary folder browse.

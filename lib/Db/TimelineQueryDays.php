@@ -182,6 +182,31 @@ trait TimelineQueryDays
             $day = array_filter($day, fn ($photo) => count(array_intersect($embeddedTags, $photo['embedded_tags'] ?? [])) > 0);
         }
 
+        // Filter by embedded tag path (folder-style browsing view). Applied
+        // unconditionally here (not just in postProcessDaysWithFilters()) since
+        // this is the only place both the days-list preload and the actual
+        // per-day photo fetch (DaysController::day()/dayGet()) both go through;
+        // EmbeddedTagsBackend::transformDayQuery() only optimizes this at the
+        // SQL level on MySQL/MariaDB, so every other DB relies solely on this.
+        if (null !== $this->request->getParam('embeddedtag')) {
+            $embeddedTagPath = trim((string) $this->request->getParam('embeddedtagpath'));
+            $embeddedTagRecursive = null !== $this->request->getParam('recursive');
+
+            $day = array_filter($day, function ($photo) use ($embeddedTagPath, $embeddedTagRecursive) {
+                if ('' === $embeddedTagPath) {
+                    return false;
+                }
+
+                foreach ($photo['embedded_tags'] ?? [] as $tagPath) {
+                    if (Exif::embeddedTagPathMatches($tagPath, $embeddedTagPath, $embeddedTagRecursive)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+        }
+
         return $day;
     }
 
@@ -296,6 +321,9 @@ trait TimelineQueryDays
         // Get filter parameters from request
         $minRating = (int) $this->request->getParam('minRating') ?: 0;
         $embeddedTags = $this->getEmbeddedTagsFromRequest();
+        $embeddedTagActive = null !== $this->request->getParam('embeddedtag');
+        $embeddedTagPath = trim((string) $this->request->getParam('embeddedtagpath'));
+        $embeddedTagRecursive = null !== $this->request->getParam('recursive');
 
         // Get day IDs for filtering
         $dayIds = array_map(fn($row) => (int) $row['dayid'], $rows);
@@ -338,6 +366,23 @@ trait TimelineQueryDays
                 $dayPhotos = array_filter($dayPhotos, fn ($photo) =>
                     count(array_intersect($embeddedTags, $photo['embedded_tags'] ?? [])) === count($embeddedTags)
                 );
+            }
+
+            if ($embeddedTagActive) {
+                $dayPhotos = array_filter($dayPhotos, function ($photo) use ($embeddedTagPath, $embeddedTagRecursive) {
+                    // Root has no directly-associated photos -- only child tags do.
+                    if ('' === $embeddedTagPath) {
+                        return false;
+                    }
+
+                    foreach ($photo['embedded_tags'] ?? [] as $tagPath) {
+                        if (Exif::embeddedTagPathMatches($tagPath, $embeddedTagPath, $embeddedTagRecursive)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                });
             }
 
             // Only include days with qualifying photos

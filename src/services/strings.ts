@@ -28,7 +28,9 @@ export function emptyDescription(routeName: string): string {
     case _m.routes.Archive.name:
       return t('memories', "Archive photos you don't want to see in your timeline");
     case _m.routes.Tags.name:
-      return t('memories', 'Tag photos to find them easily');
+      return t('memories', 'Collaboratively tag photos to find them easily');
+    case _m.routes.EmbeddedTags.name:
+      return t('memories', 'Add hierarchical tags to your photos to find them easily');
     case _m.routes.Places.name:
       return t('memories', 'Places you have been to will appear here');
     default:
@@ -54,7 +56,9 @@ export function viewName(routeName: string): string {
     case _m.routes.ThisDay.name:
       return t('memories', 'On this day');
     case _m.routes.Tags.name:
-      return t('memories', 'Tags');
+      return t('memories', 'Collaborative Tags');
+    case _m.routes.EmbeddedTags.name:
+      return t('memories', 'Embedded Tags');
     case _m.routes.Places.name:
       return t('memories', 'Places');
     default:
