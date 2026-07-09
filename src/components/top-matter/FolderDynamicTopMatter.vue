@@ -27,6 +27,7 @@ export default defineComponent({
   data: () => ({
     folders: [] as IFolder[],
     currentFolder: '<none>',
+    requestId: 0,
   }),
 
   components: {
@@ -48,7 +49,7 @@ export default defineComponent({
     },
 
     isPicker(): boolean {
-      return utils.isFoldersRootPicker(this.config.folders_path);
+      return utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path);
     },
   },
 
@@ -76,14 +77,22 @@ export default defineComponent({
       // Get the URL: either the configured root picker, or ordinary subfolders
       const url = isPicker ? API.FOLDERS_ROOTS() : API.Q(API.FOLDERS_SUB(), { folder });
 
+      // Tag this call so a slower, older request (e.g. the picker's -- it
+      // queries previews for every configured root, so it can take longer
+      // than an ordinary subfolder listing -- or a background soft-refresh
+      // firing on the previous route) can't clobber a newer one's result
+      // if it resolves later.
+      const requestId = ++this.requestId;
+
       // Make API call to get the folders/roots
+      let folders: IFolder[];
       try {
         // Initialize the fields SelectionManager's Selection map needs at
         // runtime (the API response doesn't include them; IFolder only
         // requires them because it structurally extends IPhoto).
         if (isPicker) {
           const data = (await axios.get<IFolderRoot[]>(url)).data;
-          this.folders = data.map((f) => ({
+          folders = data.map((f) => ({
             ...f,
             flag: 0,
             key: `folder-${f.fileid}`,
@@ -91,12 +100,19 @@ export default defineComponent({
           }));
         } else {
           const data = (await axios.get<IFolder[]>(url)).data;
-          this.folders = data.map((f) => ({ ...f, flag: 0, key: `folder-${f.fileid}` }));
+          folders = data.map((f) => ({ ...f, flag: 0, key: `folder-${f.fileid}` }));
         }
       } catch (e) {
         console.error(e);
         return false;
       }
+
+      // A newer refresh() call has since started; this response is stale.
+      if (requestId !== this.requestId) {
+        return !!this.show;
+      }
+
+      this.folders = folders;
 
       // Root picker tiles are explicit configuration -- always shown,
       // and kept in the order the user configured them in Settings.

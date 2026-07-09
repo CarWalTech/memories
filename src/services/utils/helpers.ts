@@ -162,9 +162,17 @@ export function getFoldersRoots(basePath: string): string[] {
  * True when the Folders route is at the top level and multiple root
  * folders are configured, i.e. the root picker should be shown instead
  * of browsing a single folder.
+ *
+ * `routePath` must be passed in by the caller (e.g. `this.$route.params.path`)
+ * rather than read from the global `_m.route` here -- when this is called
+ * from within a Vue computed property, only reactive properties actually
+ * accessed *inside* the computed are tracked as dependencies. `_m.route` is
+ * a plain getter on the router instance, not a reactive property, so a
+ * computed reading it would cache its result on first evaluation and never
+ * re-run on navigation.
  */
-export function isFoldersRootPicker(basePath: string): boolean {
-  let path = (_m.route.params.path || []) as string | string[];
+export function isFoldersRootPicker(basePath: string, routePath: string | string[] | undefined): boolean {
+  let path = (routePath || []) as string | string[];
   path = typeof path === 'string' ? path.split('/') : path;
   const empty = path.filter(Boolean).length === 0;
   return empty && getFoldersRoots(basePath).length > 1;

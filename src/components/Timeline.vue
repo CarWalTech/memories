@@ -667,7 +667,7 @@ export default defineComponent({
         // the root tiles alone are the content. Throwing here is caught by
         // fetchDays' "likely invalid route" handling, which runs after the
         // dynamic top matter (the root tiles) has already refreshed.
-        if (this.routeIsFolders && utils.isFoldersRootPicker(this.config.folders_path)) {
+        if (this.routeIsFolders && utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path)) {
           throw new Error('Folders root picker: no folder selected');
         }
 

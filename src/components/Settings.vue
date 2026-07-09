@@ -8,32 +8,6 @@
       :name="names.header"
       @update:open="onClose"
     >
-      <NcAppSettingsSection id="root-folders-settings" :name="names.rootFolders">
-        <NcTextField
-          :label="t('memories', 'Folders Path')"
-          :label-visible="true"
-          v-model="config.folders_path"
-          @click="chooseFoldersPath"
-          readonly
-        />
-
-        <NcTextField
-          :label="t('memories', 'Timeline Path')"
-          :label-visible="true"
-          v-model="config.timeline_path"
-          @click="chooseTimelinePath"
-          readonly
-        />
-
-        <NcTextField
-          :label="t('memories', 'All Photos: Excluded Paths')"
-          :label-visible="true"
-          v-model="config.all_photos_exclude_paths"
-          @click="chooseAllPhotosExcludePaths"
-          readonly
-        />
-      </NcAppSettingsSection>
-
       <NcAppSettingsSection id="general-settings" :name="names.general">
         <NcCheckboxRadioSwitch :checked.sync="config.square_thumbs" @update:checked="updateSquareThumbs" type="switch">
           {{ t('memories', 'Square grid mode') }}
@@ -215,6 +189,30 @@
       </NcAppSettingsSection>
 
       <NcAppSettingsSection id="folders-settings" :name="names.folders">
+        <NcTextField
+          :label="t('memories', 'Folders Path')"
+          :label-visible="true"
+          v-model="config.folders_path"
+          @click="chooseFoldersPath"
+          readonly
+        />
+
+        <NcTextField
+          :label="t('memories', 'Timeline Path')"
+          :label-visible="true"
+          v-model="config.timeline_path"
+          @click="chooseTimelinePath"
+          readonly
+        />
+
+        <NcTextField
+          :label="t('memories', 'All Photos: Excluded Paths')"
+          :label-visible="true"
+          v-model="config.all_photos_exclude_paths"
+          @click="chooseAllPhotosExcludePaths"
+          readonly
+        />
+
         <NcCheckboxRadioSwitch
           :checked.sync="config.show_hidden_folders"
           @update:checked="updateShowHidden"
@@ -327,7 +325,6 @@ export default defineComponent({
     localFolders: [] as nativex.LocalFolderConfig[],
     names: {
       header: t('memories', 'Memories Settings'),
-      rootFolders: t('memories', 'Root Folders'),
       general: t('memories', 'General'),
       mobileNav: t('memories', 'Mobile Navigation'),
       viewer: t('memories', 'Photo Viewer'),

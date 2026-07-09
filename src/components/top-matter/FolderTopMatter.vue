@@ -122,13 +122,37 @@ export default defineComponent({
       if (typeof path === 'string') {
         path = path.split('/');
       }
+      path = path.filter(Boolean); // non-empty
 
-      return path
-        .filter(Boolean) // non-empty
-        .map((text, idx, arr) => {
-          const path = arr.slice(0, idx + 1);
-          return { text, path, idx };
-        });
+      // With multiple configured Folders roots, a root like "Dropmark/Uploads"
+      // is a single logical entry point -- collapse its own internal segments
+      // into one crumb (using its basename) instead of exposing "Dropmark" as
+      // a separate, misleading navigable level above it.
+      const roots = utils.getFoldersRoots(this.config.folders_path);
+      if (roots.length > 1) {
+        let matchedRoot: string[] | null = null;
+        for (const root of roots) {
+          const rootSegs = root.split('/').filter(Boolean);
+          const isMatch = rootSegs.length <= path.length && rootSegs.every((seg, i) => seg === (path as string[])[i]);
+          if (isMatch && (!matchedRoot || rootSegs.length > matchedRoot.length)) {
+            matchedRoot = rootSegs;
+          }
+        }
+
+        if (matchedRoot) {
+          const rootPath = matchedRoot;
+          const rest = path.slice(rootPath.length);
+          return [
+            { text: rootPath[rootPath.length - 1] ?? '', path: rootPath, idx: 0 },
+            ...rest.map((text, i) => ({ text, path: [...rootPath, ...rest.slice(0, i + 1)], idx: i + 1 })),
+          ];
+        }
+      }
+
+      return path.map((text, idx, arr) => {
+        const path = arr.slice(0, idx + 1);
+        return { text, path, idx };
+      });
     },
 
     recursive(): boolean {
@@ -148,7 +172,7 @@ export default defineComponent({
     },
 
     isRootPicker(): boolean {
-      return utils.isFoldersRootPicker(this.config.folders_path);
+      return utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path);
     },
   },
 
