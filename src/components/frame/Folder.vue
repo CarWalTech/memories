@@ -15,7 +15,7 @@
     @touchend.native="onTouchEnd"
     @touchcancel.native="onTouchEnd"
   >
-    <div class="select" v-if="!routeIsPublic" @click.stop.prevent="onToggleSelect">
+    <div class="select" v-if="!routeIsPublic && selectionManager" @click.stop.prevent="onToggleSelect">
       <CheckCircleIcon :size="18" />
     </div>
 
@@ -70,6 +70,15 @@ export default defineComponent({
   computed: {
     /** Open folder */
     target() {
+      // Root picker tiles carry their own full route path
+      if (this.data.path) {
+        return {
+          ...this.$route,
+          params: { path: this.data.path },
+          hash: undefined,
+        };
+      }
+
       let path: string[] | string = this.$route.params.path || [];
       if (typeof path === 'string') {
         path = path.split('/');

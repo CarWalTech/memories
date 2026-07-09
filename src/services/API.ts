@@ -93,6 +93,10 @@ export class API {
     return tok(gen(`${BASE}/folders/sub`));
   }
 
+  static FOLDERS_ROOTS() {
+    return tok(gen(`${BASE}/folders/roots`));
+  }
+
   static ALBUM_LIST() {
     return gen(`${BASE}/clusters/albums`);
   }

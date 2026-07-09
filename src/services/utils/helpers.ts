@@ -149,13 +149,44 @@ export function updatePhotoFromImageInfo(photo: IPhoto, imageInfo: IImageInfo) {
 }
 
 /**
+ * Parse a ';'-joined Folders Path config value into its root paths.
+ */
+export function getFoldersRoots(basePath: string): string[] {
+  return basePath
+    .split(';')
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/**
+ * True when the Folders route is at the top level and multiple root
+ * folders are configured, i.e. the root picker should be shown instead
+ * of browsing a single folder.
+ */
+export function isFoldersRootPicker(basePath: string): boolean {
+  let path = (_m.route.params.path || []) as string | string[];
+  path = typeof path === 'string' ? path.split('/') : path;
+  const empty = path.filter(Boolean).length === 0;
+  return empty && getFoldersRoots(basePath).length > 1;
+}
+
+/**
  * Get the path of the folder on folders route
  * This function does not check if this is the folder route
  */
 export function getFolderRoutePath(basePath: string) {
   let path = (_m.route.params.path || '/') as string | string[];
   path = typeof path === 'string' ? path : path.join('/');
-  path = basePath + '/' + path;
+
+  const roots = getFoldersRoots(basePath);
+  if (roots.length > 1) {
+    // Multiple roots: the route path already is the real account-relative
+    // path (see the root picker at the Folders view's top level)
+    path = '/' + path;
+  } else {
+    path = (roots[0] ?? '/') + '/' + path;
+  }
+
   path = path.replace(/\/\/+/, '/'); // Remove double slashes
   return path;
 }

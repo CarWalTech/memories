@@ -35,6 +35,8 @@ import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 
+import { showError } from '@nextcloud/dialogs';
+
 import Modal from './Modal.vue';
 import ModalMixin from './ModalMixin';
 
@@ -63,6 +65,11 @@ export default defineComponent({
     addPrompt: {
       type: String,
       default: () => t('memories', 'Add a root to your timeline'),
+    },
+
+    min: {
+      type: Number,
+      default: 0,
     },
   },
 
@@ -94,6 +101,15 @@ export default defineComponent({
     },
 
     remove(index: number) {
+      if (this.paths.length <= this.min) {
+        showError(
+          this.n('memories', 'At least {min} path is required', 'At least {min} paths are required', this.min, {
+            min: this.min,
+          }),
+        );
+        return;
+      }
+
       this.paths.splice(index, 1);
     },
   },

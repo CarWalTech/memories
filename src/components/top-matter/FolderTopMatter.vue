@@ -6,7 +6,7 @@
         <!-- Progress bar for upload -->
         <PublicUploadHandler ref="uploadHandler" v-if="allowPublicUpload" />
 
-        <NcActions :inline="3">
+        <NcActions :inline="3" v-if="!isRootPicker">
           <NcActionButton
             v-if="!routeIsPublic"
             :aria-label="t('memories', 'Share folder')"
@@ -145,6 +145,10 @@ export default defineComponent({
 
     allowPublicUpload(): boolean {
       return this.routeIsPublic && this.initstate.allow_upload === true;
+    },
+
+    isRootPicker(): boolean {
+      return utils.isFoldersRootPicker(this.config.folders_path);
     },
   },
 

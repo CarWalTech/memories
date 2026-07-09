@@ -327,6 +327,23 @@ final class Util
     }
 
     /**
+     * Get list of folders view root paths as array.
+     *
+     * @return string[] List of paths
+     */
+    public static function getFoldersPaths(string $uid): array
+    {
+        $paths = \OC::$server->get(\OCP\Config\IUserConfig::class)
+            ->getValueString($uid, Application::APPNAME, 'foldersPath') ?: '/';
+
+        return array_map(
+            static fn ($path) => self::sanitizePath(trim($path))
+                ?? throw new \InvalidArgumentException("Invalid folders path: {$path}"),
+            explode(';', $paths),
+        );
+    }
+
+    /**
      * Get list of paths excluded from the "All Photos" view.
      * Unlike getTimelinePaths(), invalid/empty entries are silently
      * dropped instead of throwing -- this list is optional and

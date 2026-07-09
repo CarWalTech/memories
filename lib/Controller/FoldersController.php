@@ -87,4 +87,50 @@ final class FoldersController extends GenericApiController
             return new Http\JSONResponse($list, Http::STATUS_OK);
         });
     }
+
+    /**
+     * List the configured Folders-view root paths, for the top-level
+     * root picker shown when more than one is configured.
+     */
+    #[NoAdminRequired]
+    public function roots(): Http\Response
+    {
+        return Util::guardEx(function () {
+            $uid = Util::getUID();
+            $userFolder = Util::getUserFolder($uid);
+
+            // Construct root for the base folder. This way we can reuse the
+            // root by filtering out the roots we don't want.
+            $baseRoot = new TimelineRoot();
+            $this->fs->populateRoot($baseRoot);
+
+            $list = [];
+            foreach (Util::getFoldersPaths($uid) as $path) {
+                try {
+                    $node = $userFolder->get($path);
+                } catch (\OCP\Files\NotFoundException) {
+                    continue; // configured root no longer exists; skip
+                }
+
+                if (!$node instanceof Folder) {
+                    continue;
+                }
+
+                // Base changes permanently remove any mounts outside the
+                // target folder, so we need to use a clone for each root
+                $root = clone $baseRoot;
+                $root->addFolder($node);
+                $root->baseChange($node->getPath());
+
+                $list[] = [
+                    'fileid' => $node->getId(),
+                    'name' => $node->getName(),
+                    'path' => trim($path, '/'),
+                    'previews' => $this->tq->getRootPreviews($root),
+                ];
+            }
+
+            return new Http\JSONResponse($list, Http::STATUS_OK);
+        });
+    }
 }

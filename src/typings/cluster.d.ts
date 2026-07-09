@@ -4,6 +4,8 @@ declare module '@typings' {
     previews?: IPhoto[];
     /** Name of folder */
     name: string;
+    /** Full route path segments, set only for Folders-view root picker tiles */
+    path?: string[];
   }
 
   export interface IEmbeddedTagFolder extends IPhoto {

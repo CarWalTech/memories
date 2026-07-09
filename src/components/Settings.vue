@@ -8,7 +8,15 @@
       :name="names.header"
       @update:open="onClose"
     >
-      <NcAppSettingsSection id="general-settings" :name="names.general">
+      <NcAppSettingsSection id="root-folders-settings" :name="names.rootFolders">
+        <NcTextField
+          :label="t('memories', 'Folders Path')"
+          :label-visible="true"
+          v-model="config.folders_path"
+          @click="chooseFoldersPath"
+          readonly
+        />
+
         <NcTextField
           :label="t('memories', 'Timeline Path')"
           :label-visible="true"
@@ -24,7 +32,9 @@
           @click="chooseAllPhotosExcludePaths"
           readonly
         />
+      </NcAppSettingsSection>
 
+      <NcAppSettingsSection id="general-settings" :name="names.general">
         <NcCheckboxRadioSwitch :checked.sync="config.square_thumbs" @update:checked="updateSquareThumbs" type="switch">
           {{ t('memories', 'Square grid mode') }}
         </NcCheckboxRadioSwitch>
@@ -205,14 +215,6 @@
       </NcAppSettingsSection>
 
       <NcAppSettingsSection id="folders-settings" :name="names.folders">
-        <NcTextField
-          :label="t('memories', 'Folders Path')"
-          :label-visible="true"
-          v-model="config.folders_path"
-          @click="chooseFoldersPath"
-          readonly
-        />
-
         <NcCheckboxRadioSwitch
           :checked.sync="config.show_hidden_folders"
           @update:checked="updateShowHidden"
@@ -257,7 +259,8 @@
       </NcAppSettingsSection>
     </NcAppSettingsDialog>
 
-    <MultiPathSelectionModal ref="multiPathModal" :title="pathSelTitle" @close="saveTimelinePath" />
+    <MultiPathSelectionModal ref="foldersPathModal" :title="foldersPathSelTitle" :min="1" @close="saveFoldersPath" />
+    <MultiPathSelectionModal ref="multiPathModal" :title="pathSelTitle" :min="1" @close="saveTimelinePath" />
     <MultiPathSelectionModal
       ref="excludePathsModal"
       :title="excludePathsSelTitle"
@@ -324,6 +327,7 @@ export default defineComponent({
     localFolders: [] as nativex.LocalFolderConfig[],
     names: {
       header: t('memories', 'Memories Settings'),
+      rootFolders: t('memories', 'Root Folders'),
       general: t('memories', 'General'),
       mobileNav: t('memories', 'Mobile Navigation'),
       viewer: t('memories', 'Photo Viewer'),
@@ -347,9 +351,14 @@ export default defineComponent({
   computed: {
     refs() {
       return this.$refs as {
+        foldersPathModal: InstanceType<typeof MultiPathSelectionModal>;
         multiPathModal: InstanceType<typeof MultiPathSelectionModal>;
         excludePathsModal: InstanceType<typeof MultiPathSelectionModal>;
       };
+    },
+
+    foldersPathSelTitle(): string {
+      return this.t('memories', 'Choose Folders Paths');
     },
 
     pathSelTitle(): string {
@@ -453,11 +462,13 @@ export default defineComponent({
     },
 
     async chooseFoldersPath() {
-      const newPath = await utils.chooseNcFolder(
-        this.t('memories', 'Choose the root for the folders view'),
-        this.config.folders_path,
-      );
+      this.refs.foldersPathModal.open(this.config.folders_path.split(';'));
+    },
 
+    async saveFoldersPath(paths: string[]) {
+      if (!paths || !paths.length) return;
+
+      const newPath = paths.join(';');
       if (newPath !== this.config.folders_path) {
         this.config.folders_path = newPath;
         await this.updateSetting('folders_path', 'foldersPath');

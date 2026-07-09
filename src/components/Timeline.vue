@@ -662,6 +662,15 @@ export default defineComponent({
 
       // Folder
       if (this.routeIsFolders || this.routeIsFolderShare) {
+        // At the Folders-view root picker (multiple roots configured, no
+        // folder chosen yet) there's no single folder to query photos for --
+        // the root tiles alone are the content. Throwing here is caught by
+        // fetchDays' "likely invalid route" handling, which runs after the
+        // dynamic top matter (the root tiles) has already refreshed.
+        if (this.routeIsFolders && utils.isFoldersRootPicker(this.config.folders_path)) {
+          throw new Error('Folders root picker: no folder selected');
+        }
+
         const path = utils.getFolderRoutePath(this.config.folders_path);
         set(DaysFilterType.FOLDER, path);
         if (this.$route.query.recursive) {

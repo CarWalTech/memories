@@ -208,20 +208,33 @@ final class PublicController extends AuthPublicShareController
         // Remove user folder path from start of node path
         $relPath = substr($node->getPath(), \strlen($userFolder->getPath()));
 
-        // Get the user's folders path
-        $foldersPath = $this->userConfig->getValueString($user->getUID(), Application::APPNAME, 'foldersPath') ?: '/';
+        // Get the user's configured folders view root(s)
+        $foldersPaths = Util::getFoldersPaths($user->getUID());
 
-        // Sanitize folders path ensuring leading and trailing slashes
-        $foldersPath = Util::sanitizePath('/'.$foldersPath.'/');
+        // Find which configured root (if any) contains this node
+        $matchedPrefix = null;
+        foreach ($foldersPaths as $foldersPath) {
+            // Sanitize folders path ensuring leading and trailing slashes
+            $prefix = Util::sanitizePath('/'.$foldersPath.'/');
+            if (!empty($prefix) && str_starts_with($relPath, $prefix)) {
+                $matchedPrefix = $prefix;
 
-        // Check if relPath starts with foldersPath
-        if (empty($foldersPath) || !str_starts_with($relPath, $foldersPath)) {
+                break;
+            }
+        }
+
+        if (null === $matchedPrefix) {
             return;
         }
 
-        /** @var string $foldersPath */
-        // Remove foldersPath from start of relPath
-        $relPath = substr($relPath, \strlen($foldersPath));
+        if (1 === \count($foldersPaths)) {
+            // Single root: strip the matched prefix (unchanged, back-compat route)
+            $relPath = substr($relPath, \strlen($matchedPrefix));
+        } else {
+            // Multiple roots: the frontend's routing scheme uses the full
+            // account-relative path directly, without any prefix stripped
+            $relPath = ltrim($relPath, '/');
+        }
 
         // Redirect to the local path
         $url = $this->urlGenerator->linkToRouteAbsolute('memories.Page.folder', [

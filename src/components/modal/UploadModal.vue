@@ -155,7 +155,9 @@ export default defineComponent({
 
       // choose current folder if in folders view
       if (this.routeIsFolders) {
-        this.uploadPath = utils.getFolderRoutePath(this.config.folders_path);
+        this.uploadPath = utils.isFoldersRootPicker(this.config.folders_path)
+          ? (this.config.folders_path.split(';')[0] ?? '/')
+          : utils.getFolderRoutePath(this.config.folders_path);
       }
 
       // prompt the user to select the files

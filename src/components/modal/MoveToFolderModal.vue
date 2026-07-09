@@ -68,7 +68,7 @@ export default defineComponent({
       let mode: Mode = Mode.Move as Mode;
       let destination = await utils.chooseNcFolder(
         this.t('memories', 'Choose a folder'),
-        this.config.folders_path,
+        this.config.folders_path.split(';')[0] ?? '/',
         () => [
           {
             label: 'Move and organise',
