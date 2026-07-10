@@ -1,5 +1,7 @@
 declare module '@typings' {
   type HighResCond = 'always' | 'zoom' | 'never';
+  type MetadataReadMode = 'sidecar_only' | 'prefer_sidecar' | 'prefer_file' | 'file_only';
+  type MetadataWriteMode = 'sidecar_only' | 'file_only' | 'file_and_sidecar';
 
   export type IConfig = {
     // general stuff
@@ -34,6 +36,10 @@ declare module '@typings' {
     metadata_in_slideshow: boolean;
     metadata_in_gallery: boolean;
     enable_exif_photo_rating_in_gallery: boolean;
+
+    // metadata settings
+    metadata_write_mode: MetadataWriteMode;
+    metadata_read_mode: MetadataReadMode;
 
     // folder settings
     folders_path: string;

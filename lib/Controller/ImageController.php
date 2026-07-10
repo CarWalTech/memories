@@ -238,7 +238,7 @@ final class ImageController extends GenericApiController
 
                 // Get latest exif data if requested
                 if ($current) {
-                    $info['current'] = Exif::getExifFromFile($file);
+                    $info['current'] = Exif::getExifFromFile($file, Exif::getUserReadMode($user->getUID()));
                 }
 
                 // Get clusters for this file
@@ -288,8 +288,16 @@ final class ImageController extends GenericApiController
                 throw Exceptions::Forbidden("Cannot edit file {$name} (blacklisted type {$mime})");
             }
 
+            // Resolve the acting user's write-mode preference.
+            // Public shares / anonymous access have no per-user preference to look up.
+            $uid = null;
+            try {
+                $uid = Util::getUID();
+            } catch (\Exception) {
+            }
+
             // Set the exif data
-            Exif::setFileExif($file, $raw);
+            Exif::setFileExif($file, $raw, Exif::getUserWriteMode($uid));
 
             // If rotation changed then update the previews
             if ($raw['Orientation'] ?? false) {

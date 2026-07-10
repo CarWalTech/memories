@@ -67,3 +67,16 @@ clean-dev:
 	rm -rf node_modules
 
 .PHONY: clean clean-dev
+
+# Deploying to a local dev instance
+NEXTCLOUD_CONTAINER ?= nextcloud-app-1
+
+bump-dev-version:
+	@perl -pi -e 's/(<version>\d+\.\d+\.\d+-DEV-)(\d+)(<\/version>)/$$1.($$2+1).$$3/e' appinfo/info.xml
+	@echo "Bumped version to $$(grep -oP '(?<=<version>).*(?=</version>)' appinfo/info.xml)"
+
+deploy-dev: bump-dev-version
+	$(MAKE) build-js
+	docker exec $(NEXTCLOUD_CONTAINER) php occ upgrade
+
+.PHONY: bump-dev-version deploy-dev

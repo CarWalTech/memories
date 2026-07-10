@@ -164,6 +164,72 @@
         </div>
       </NcAppSettingsSection>
 
+      <NcAppSettingsSection id="metadata-settings" :name="names.metadata">
+        <div class="radio-group">
+          <div class="title">{{ t('memories', 'Where to write edited metadata (dates, location, tags, rating)') }}</div>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_write_mode"
+            value="sidecar_only"
+            name="metadata_write_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataWriteMode($event)"
+            >{{ t('memories', 'Sidecars only (created if needed)') }}
+          </NcCheckboxRadioSwitch>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_write_mode"
+            value="file_only"
+            name="metadata_write_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataWriteMode($event)"
+            >{{ t('memories', 'Photo metadata only') }}
+          </NcCheckboxRadioSwitch>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_write_mode"
+            value="file_and_sidecar"
+            name="metadata_write_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataWriteMode($event)"
+            >{{ t('memories', 'Photo metadata and sidecars') }}
+          </NcCheckboxRadioSwitch>
+        </div>
+
+        <div class="radio-group">
+          <div class="title">{{ t('memories', 'Where to read metadata from, when a sidecar file exists') }}</div>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_read_mode"
+            value="sidecar_only"
+            name="metadata_read_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataReadMode($event)"
+            >{{ t('memories', 'Sidecar only (fall back to photo if no sidecar exists)') }}
+          </NcCheckboxRadioSwitch>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_read_mode"
+            value="prefer_sidecar"
+            name="metadata_read_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataReadMode($event)"
+            >{{ t('memories', 'Prioritize sidecar data') }}
+          </NcCheckboxRadioSwitch>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_read_mode"
+            value="prefer_file"
+            name="metadata_read_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataReadMode($event)"
+            >{{ t('memories', 'Prioritize photo metadata') }}
+          </NcCheckboxRadioSwitch>
+          <NcCheckboxRadioSwitch
+            :checked="config.metadata_read_mode"
+            value="file_only"
+            name="metadata_read_mode_radio"
+            type="radio"
+            @update:checked="updateMetadataReadMode($event)"
+            >{{ t('memories', 'Photo metadata only (ignore sidecars)') }}
+          </NcCheckboxRadioSwitch>
+        </div>
+      </NcAppSettingsSection>
+
       <NcAppSettingsSection id="account-settings" :name="names.account" v-if="isNative">
         {{ t('memories', 'Logged in as {user}', { user }) }}
         <NcButton @click="logout" id="sign-out">
@@ -328,6 +394,7 @@ export default defineComponent({
       general: t('memories', 'General'),
       mobileNav: t('memories', 'Mobile Navigation'),
       viewer: t('memories', 'Photo Viewer'),
+      metadata: t('memories', 'Metadata'),
       account: t('memories', 'Account'),
       folders: t('memories', 'Folders'),
       albums: t('memories', 'Albums'),
@@ -520,6 +587,16 @@ export default defineComponent({
 
     async updateSidebarFilepath() {
       await this.updateSetting('sidebar_filepath', 'sidebarFilepath');
+    },
+
+    async updateMetadataWriteMode(val: IConfig['metadata_write_mode']) {
+      this.config.metadata_write_mode = val;
+      await this.updateSetting('metadata_write_mode', 'metadataWriteMode');
+    },
+
+    async updateMetadataReadMode(val: IConfig['metadata_read_mode']) {
+      this.config.metadata_read_mode = val;
+      await this.updateSetting('metadata_read_mode', 'metadataReadMode');
     },
 
     async updateMetadataInSlideshow() {

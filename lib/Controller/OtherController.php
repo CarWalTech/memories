@@ -25,6 +25,7 @@ namespace OCA\Memories\Controller;
 
 use OCA\Memories\AppInfo\Application;
 use OCA\Memories\Exceptions;
+use OCA\Memories\Exif;
 use OCA\Memories\Settings\SystemConfig;
 use OCA\Memories\Util;
 use OCP\AppFramework\Http;
@@ -114,6 +115,10 @@ final class OtherController extends GenericApiController
                 'metadata_in_slideshow' => 'true' === $getAppConfig('metadataInSlideshow', 'false'),
                 'metadata_in_gallery' => 'true' === $getAppConfig('metadataInGallery', 'false'),
                 'enable_exif_photo_rating_in_gallery' => 'true' === $getAppConfig('enableExifPhotoRatingInGallery', 'false'),
+
+                // metadata settings
+                'metadata_write_mode' => $getAppConfig('metadataWriteMode', Exif::WRITE_MODE_FILE_ONLY),
+                'metadata_read_mode' => $getAppConfig('metadataReadMode', Exif::READ_MODE_SIDECAR_ONLY),
 
                 // folder settings
                 'folders_path' => $getAppConfig('foldersPath', '/'),

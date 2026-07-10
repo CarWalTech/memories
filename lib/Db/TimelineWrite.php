@@ -106,8 +106,12 @@ final class TimelineWrite
             return false;
         }
 
-        // Get exif data
-        $exif = Exif::getExifFromFile($file);
+        // Get exif data. Resolve the read-mode preference the same way embedded
+        // tags resolve their owning user: use the provided indexer-context user
+        // if given, otherwise fall back to the file owner (there is no "current
+        // user" during a cron/occ scan).
+        $readModeUserId = $userId ?? $file->getOwner()?->getUID();
+        $exif = Exif::getExifFromFile($file, Exif::getUserReadMode($readModeUserId));
 
         // Check if EXIF is blank, which is probably wrong
         if (0 === \count($exif)) {

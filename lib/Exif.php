@@ -17,6 +17,59 @@ final class Exif
     private const EXIFTOOL_TIMEOUT = 30000;
     private const EXIFTOOL_ARGS = ['-api', 'QuickTimeUTC=1', '-api', 'LargeFileSupport=1', '-n', '-json'];
 
+    /**
+     * Descriptive fields that come exclusively from a sidecar file when one exists
+     * (no per-field fallback to the embedded value). Structural fields (MIMEType,
+     * dimensions, video duration, ImageUniqueID, etc.) always come from the embedded
+     * file since a sidecar can't carry them.
+     *
+     * Orientation is deliberately excluded: Nextcloud's preview/thumbnail generation
+     * reads it straight from the file's bytes, not through this merged exif, so
+     * routing rotation edits to a sidecar would desync previews from what the app
+     * shows. Orientation is always written to (and read from) the embedded file.
+     */
+    private const SIDECAR_DESCRIPTIVE_FIELDS = [
+        'DateTimeOriginal', 'CreateDate', 'ModifyDate', 'SubSecDateTimeOriginal',
+        'OffsetTimeOriginal', 'OffsetTime',
+        'GPSLatitude', 'GPSLongitude', 'GPSLatitudeRef', 'GPSLongitudeRef',
+        'GPSCoordinates', 'GPSAltitude',
+        'Keywords', 'Subject', 'TagsList', 'HierarchicalSubject',
+        'Rating',
+    ];
+
+    /**
+     * Read-mode values for how descriptive fields (see SIDECAR_DESCRIPTIVE_FIELDS)
+     * are merged between a sidecar file and the embedded file, when both exist.
+     * Structural fields and Orientation are unaffected by the read mode -- they
+     * always come from the embedded file (see class-level docs above).
+     */
+    public const READ_MODE_SIDECAR_ONLY = 'sidecar_only'; // sidecar exclusive if it exists, else embedded
+    public const READ_MODE_PREFER_SIDECAR = 'prefer_sidecar'; // sidecar wins per-field, embedded fills gaps
+    public const READ_MODE_PREFER_FILE = 'prefer_file'; // embedded wins per-field, sidecar fills gaps
+    public const READ_MODE_FILE_ONLY = 'file_only'; // sidecar ignored entirely
+
+    private const READ_MODES = [
+        self::READ_MODE_SIDECAR_ONLY,
+        self::READ_MODE_PREFER_SIDECAR,
+        self::READ_MODE_PREFER_FILE,
+        self::READ_MODE_FILE_ONLY,
+    ];
+
+    /**
+     * Write-mode values for where a user's metadata edits are stored.
+     * Orientation always goes to the embedded file regardless of write mode
+     * (see SIDECAR_DESCRIPTIVE_FIELDS docs above).
+     */
+    public const WRITE_MODE_SIDECAR_ONLY = 'sidecar_only'; // descriptive fields to sidecar (created if needed) only
+    public const WRITE_MODE_FILE_ONLY = 'file_only'; // everything embedded in the file, no sidecar (legacy default)
+    public const WRITE_MODE_FILE_AND_SIDECAR = 'file_and_sidecar'; // descriptive fields written to both
+
+    private const WRITE_MODES = [
+        self::WRITE_MODE_SIDECAR_ONLY,
+        self::WRITE_MODE_FILE_ONLY,
+        self::WRITE_MODE_FILE_AND_SIDECAR,
+    ];
+
     /** Opened instance of exiftool when running in command mode */
     /** @var null|resource */
     private static $staticProc;
@@ -83,11 +136,52 @@ final class Exif
     }
 
     /**
+     * Resolve a user's metadata read-mode preference (falls back to
+     * READ_MODE_SIDECAR_ONLY if $userId is null, unset, or invalid).
+     */
+    public static function getUserReadMode(?string $userId): string
+    {
+        if (null === $userId) {
+            return self::READ_MODE_SIDECAR_ONLY;
+        }
+
+        try {
+            $userConfig = \OCP\Server::get(\OCP\Config\IUserConfig::class);
+            $mode = $userConfig->getValueString($userId, Application::APPNAME, 'metadataReadMode', self::READ_MODE_SIDECAR_ONLY);
+        } catch (\Exception) {
+            return self::READ_MODE_SIDECAR_ONLY;
+        }
+
+        return \in_array($mode, self::READ_MODES, true) ? $mode : self::READ_MODE_SIDECAR_ONLY;
+    }
+
+    /**
+     * Resolve a user's metadata write-mode preference (falls back to
+     * WRITE_MODE_FILE_ONLY -- today's legacy default -- if $userId is null,
+     * unset, or invalid).
+     */
+    public static function getUserWriteMode(?string $userId): string
+    {
+        if (null === $userId) {
+            return self::WRITE_MODE_FILE_ONLY;
+        }
+
+        try {
+            $userConfig = \OCP\Server::get(\OCP\Config\IUserConfig::class);
+            $mode = $userConfig->getValueString($userId, Application::APPNAME, 'metadataWriteMode', self::WRITE_MODE_FILE_ONLY);
+        } catch (\Exception) {
+            return self::WRITE_MODE_FILE_ONLY;
+        }
+
+        return \in_array($mode, self::WRITE_MODES, true) ? $mode : self::WRITE_MODE_FILE_ONLY;
+    }
+
+    /**
      * Get exif data as a JSON object from a Nextcloud file.
      *
      * @return array<string, mixed>
      */
-    public static function getExifFromFile(File $file): array
+    public static function getExifFromFile(File $file, string $readMode = self::READ_MODE_SIDECAR_ONLY): array
     {
         try {
             $path = $file->getStorage()->getLocalFile($file->getInternalPath());
@@ -128,7 +222,90 @@ final class Exif
             }
         }
 
+        // Merge in sidecar data per the requested read mode. Fail open on any
+        // error so a corrupt/unreadable sidecar can't break indexing or the
+        // info panel. READ_MODE_FILE_ONLY skips the sidecar lookup entirely.
+        if (self::READ_MODE_FILE_ONLY !== $readMode && ($sidecar = self::getSidecarFile($file))) {
+            try {
+                $sidecarExif = self::getSidecarExif($sidecar);
+                $exif = self::mergeSidecarExif($exif, $sidecarExif, $readMode);
+            } catch (\Throwable $ex) {
+                error_log("WARN: failed to read sidecar exif for {$file->getPath()}: {$ex->getMessage()}");
+            }
+        }
+
         return $exif;
+    }
+
+    /**
+     * Merge descriptive sidecar fields into the embedded exif per the read mode.
+     * $sidecarExif is already restricted to SIDECAR_DESCRIPTIVE_FIELDS by getSidecarExif().
+     *
+     * @param array<string, mixed> $embedded
+     * @param array<string, mixed> $sidecarExif
+     *
+     * @return array<string, mixed>
+     */
+    private static function mergeSidecarExif(array $embedded, array $sidecarExif, string $readMode): array
+    {
+        switch ($readMode) {
+            case self::READ_MODE_PREFER_FILE:
+                // Embedded wins per-field; sidecar only fills fields missing from embedded.
+                return array_merge($sidecarExif, $embedded);
+
+            case self::READ_MODE_PREFER_SIDECAR:
+                // Sidecar wins per-field; embedded fills fields missing from sidecar.
+                return array_merge($embedded, $sidecarExif);
+
+            case self::READ_MODE_SIDECAR_ONLY:
+            default:
+                // Sidecar is exclusive for descriptive fields, no per-field fallback.
+                foreach (self::SIDECAR_DESCRIPTIVE_FIELDS as $field) {
+                    unset($embedded[$field]);
+                }
+
+                return array_merge($embedded, $sidecarExif);
+        }
+    }
+
+    /**
+     * Get the XMP sidecar file for a given file, if one exists.
+     * Sidecar naming convention: <full filename>.xmp (e.g. IMG_1234.jpg.xmp),
+     * chosen to avoid collisions between RAW+JPEG pairs sharing a basename.
+     */
+    public static function getSidecarFile(File $file): ?File
+    {
+        try {
+            $parent = $file->getParent();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $name = $file->getName().'.xmp';
+        if (!$parent->nodeExists($name)) {
+            return null;
+        }
+
+        $node = $parent->get($name);
+
+        return $node instanceof File ? $node : null;
+    }
+
+    /**
+     * Read exif from a sidecar file, restricted to the descriptive-field allowlist.
+     *
+     * @return array<string, mixed>
+     */
+    private static function getSidecarExif(File $sidecar): array
+    {
+        $path = $sidecar->getStorage()->getLocalFile($sidecar->getInternalPath());
+        if (!\is_string($path) || !is_readable($path)) {
+            throw new \Exception('Sidecar file not readable');
+        }
+
+        $exif = self::getExifFromLocalPath($path);
+
+        return array_intersect_key($exif, array_flip(self::SIDECAR_DESCRIPTIVE_FIELDS));
     }
 
     /**
@@ -531,9 +708,70 @@ final class Exif
     /**
      * Set exif data using a raw array.
      *
+     * @param array<string, mixed> $data      exif data
+     * @param string                $writeMode one of the WRITE_MODE_* constants, controlling
+     *                                         where descriptive fields (dates, GPS, tags,
+     *                                         rating) get stored. Orientation always goes to
+     *                                         the embedded file regardless of write mode,
+     *                                         since preview generation reads it from the
+     *                                         file's bytes, not through this merged exif.
+     */
+    public static function setFileExif(File $file, array $data, string $writeMode = self::WRITE_MODE_FILE_ONLY): void
+    {
+        switch ($writeMode) {
+            case self::WRITE_MODE_SIDECAR_ONLY:
+                $sidecarData = array_intersect_key($data, array_flip(self::SIDECAR_DESCRIPTIVE_FIELDS));
+                $embeddedData = array_diff_key($data, $sidecarData);
+
+                if ($sidecarData) {
+                    self::setSidecarExif($file, $sidecarData);
+                }
+                if ($embeddedData) {
+                    self::writeEmbedded($file, $embeddedData);
+                }
+
+                break;
+
+            case self::WRITE_MODE_FILE_AND_SIDECAR:
+                $sidecarData = array_intersect_key($data, array_flip(self::SIDECAR_DESCRIPTIVE_FIELDS));
+                if ($sidecarData) {
+                    self::setSidecarExif($file, $sidecarData);
+                }
+
+                // Full data (including Orientation) still goes to the file too.
+                self::writeEmbedded($file, $data);
+
+                break;
+
+            case self::WRITE_MODE_FILE_ONLY:
+            default:
+                self::writeEmbedded($file, $data);
+
+                break;
+        }
+
+        // Dispatch NodeWrittenEvent to trigger processing by other apps
+        try {
+            $eventDispatcher = \OCP\Server::get(IEventDispatcher::class);
+            $eventDispatcher->dispatchTyped(new NodeWrittenEvent($file));
+        } catch (\Exception) {
+            // Not our problem
+        }
+
+        // Touch the file, triggering a reprocess through the hook.
+        // Critical in sidecar mode: the main file's bytes/mtime may not have
+        // changed on their own, but TimelineWrite::processFile compares mtime
+        // to decide whether to re-read exif, so this forces a re-index that
+        // picks up the (now different) sidecar-merged data.
+        $file->touch();
+    }
+
+    /**
+     * Write exif data directly into the given file (today's default behavior).
+     *
      * @param array<string, mixed> $data exif data
      */
-    public static function setFileExif(File $file, array $data): void
+    private static function writeEmbedded(File $file, array $data): void
     {
         // Get path to local file so we can skip reading
         $path = $file->getStorage()->getLocalFile($file->getInternalPath());
@@ -548,17 +786,67 @@ final class Exif
         if (!$file->getStorage()->isLocal()) {
             $file->putContent(fopen($path, 'r')); // closes the handler
         }
+    }
 
-        // Dispatch NodeWrittenEvent to trigger processing by other apps
-        try {
-            $eventDispatcher = \OCP\Server::get(IEventDispatcher::class);
-            $eventDispatcher->dispatchTyped(new NodeWrittenEvent($file));
-        } catch (\Exception) {
-            // Not our problem
+    /**
+     * Write descriptive exif data to the XMP sidecar file for $file,
+     * creating the sidecar if it does not already exist.
+     *
+     * @param array<string, mixed> $data exif data (already restricted to descriptive fields)
+     */
+    private static function setSidecarExif(File $file, array $data): void
+    {
+        // Let this throw naturally (write path, not fail-open like reads)
+        $parent = $file->getParent();
+        $name = $file->getName().'.xmp';
+
+        if ($parent->nodeExists($name)) {
+            $sidecar = $parent->get($name);
+            if (!$sidecar instanceof File) {
+                throw new \Exception("Sidecar path exists but is not a file: {$name}");
+            }
+
+            self::writeEmbedded($sidecar, $data);
+
+            return;
         }
 
-        // Touch the file, triggering a reprocess through the hook
-        $file->touch();
+        // Guard sidecar creation: two concurrent edits on a file with no sidecar
+        // yet must not both observe "missing" and both try to create the node.
+        $lockingProvider = \OCP\Server::get(\OCP\Lock\ILockingProvider::class);
+        $lockKey = 'memories/sidecar/'.$file->getId();
+        $lockingProvider->acquireLock($lockKey, \OCP\Lock\ILockingProvider::LOCK_EXCLUSIVE);
+
+        try {
+            // Re-check inside the lock in case another request just created it
+            if ($parent->nodeExists($name)) {
+                $sidecar = $parent->get($name);
+                if ($sidecar instanceof File) {
+                    self::writeEmbedded($sidecar, $data);
+
+                    return;
+                }
+            }
+
+            // Write to a local temp path first (exiftool creates a standalone XMP
+            // file from scratch when the target doesn't exist), then create the
+            // Nextcloud node from the result.
+            $tmpPath = BinExt::getTmpPath().'/memories-sidecar-'.bin2hex(random_bytes(8)).'.xmp';
+
+            try {
+                self::setExif($tmpPath, $data);
+
+                if (!is_readable($tmpPath)) {
+                    throw new \Exception('Exiftool did not produce a sidecar file');
+                }
+
+                $parent->newFile($name, file_get_contents($tmpPath));
+            } finally {
+                @unlink($tmpPath);
+            }
+        } finally {
+            $lockingProvider->releaseLock($lockKey, \OCP\Lock\ILockingProvider::LOCK_EXCLUSIVE);
+        }
     }
 
     public static function getBinaryExifProp(string $path, string $prop): string
