@@ -187,6 +187,14 @@ export class API {
     return tok(gen(`${BASE}/image/edit/{id}`, { id }));
   }
 
+  static INDEX_REFRESH() {
+    return gen(`${BASE}/index/refresh`);
+  }
+
+  static INDEX_REFRESH_FOLDER() {
+    return gen(`${BASE}/index/refresh-folder`);
+  }
+
   static IMAGE_DELETE(id: number) {
     return tok(gen(`${BASE}/image/delete/{id}`, { id }));
   }

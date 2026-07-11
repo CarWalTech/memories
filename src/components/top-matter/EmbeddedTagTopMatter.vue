@@ -22,6 +22,16 @@
             </template>
           </NcActionButton>
         </NcActions>
+
+        <!-- Kept as a standalone icon, not tucked inside the overflow menu above -->
+        <NcButton
+          type="tertiary-no-background"
+          :title="t('memories', 'Refresh index')"
+          :aria-label="t('memories', 'Refresh index')"
+          @click="requestFullIndexRefresh"
+        >
+          <template #icon> <RefreshIcon :size="20" /> </template>
+        </NcButton>
       </div>
     </div>
 
@@ -43,13 +53,16 @@ const NcBreadcrumbs = () => import('@nextcloud/vue/dist/Components/NcBreadcrumbs
 const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.js');
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 
 import * as dav from '@services/dav';
+import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import TagsIcon from 'vue-material-design-icons/Tag.vue';
 import TagPlusIcon from 'vue-material-design-icons/TagPlus.vue';
 import TagMinusIcon from 'vue-material-design-icons/TagMinus.vue';
 import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
+import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
 
 export default defineComponent({
   name: 'EmbeddedTagTopMatter',
@@ -59,10 +72,12 @@ export default defineComponent({
     NcBreadcrumb,
     NcActions,
     NcActionButton,
+    NcButton,
     TagsIcon,
     TagPlusIcon,
     TagMinusIcon,
     TimelineIcon,
+    RefreshIcon,
   },
 
   computed: {
@@ -129,6 +144,8 @@ export default defineComponent({
       // Navigate up to the parent tag
       this.$router.push(this.getRoute(this.pathParts.slice(0, -1)));
     },
+
+    requestFullIndexRefresh,
   },
 });
 </script>

@@ -32,6 +32,7 @@ use OCA\Memories\Util;
 use OCP\App\IAppManager;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\DB\QueryBuilder\IQueryFunction;
+use OCP\Files\Cache\IScanner;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
@@ -93,18 +94,7 @@ final class Index
         $root = $this->rootFolder->getUserFolder($uid);
 
         // Get paths of folders to index
-        $mode = SystemConfig::get('memories.index.mode');
-        if (null !== $path) {
-            $paths = [$path];
-        } elseif ('1' === $mode || '0' === $mode) { // everything (or nothing)
-            $paths = ['/'];
-        } elseif ('2' === $mode) { // timeline
-            $paths = Util::getTimelinePaths($uid);
-        } elseif ('3' === $mode) { // custom
-            $paths = [SystemConfig::get('memories.index.path')];
-        } else {
-            throw new \Exception('Invalid index mode');
-        }
+        $paths = $this->resolveIndexPaths($uid, $path);
 
         // If a folder is specified, traverse only that folder
         foreach ($paths as $path) {
@@ -125,6 +115,163 @@ final class Index
             } else {
                 throw new \Exception('Not a file or folder');
             }
+        }
+    }
+
+    /**
+     * Resolve the list of top-level paths to index for a user, honoring
+     * memories.index.mode, unless an explicit $path override is given.
+     *
+     * @return string[]
+     */
+    private function resolveIndexPaths(string $uid, ?string $path): array
+    {
+        if (null !== $path) {
+            return [$path];
+        }
+
+        $mode = SystemConfig::get('memories.index.mode');
+        if ('1' === $mode || '0' === $mode) { // everything (or nothing)
+            return ['/'];
+        }
+        if ('2' === $mode) { // timeline
+            return Util::getTimelinePaths($uid);
+        }
+        if ('3' === $mode) { // custom
+            return [SystemConfig::get('memories.index.path')];
+        }
+
+        throw new \Exception('Invalid index mode');
+    }
+
+    /**
+     * Force re-processing of already-indexed files for a user, scoped to $path
+     * (or the user's configured index root if $path is null). Marks the
+     * matching rows orphaned so TimelineWrite::processFile()'s mtime-based
+     * early-exit is bypassed, then reprocesses them.
+     *
+     * @param bool $recursive if false, only files directly in $path are
+     *                        reprocessed -- subfolders are left untouched.
+     *                        Has no effect when $path is null (that always
+     *                        indexes full configured roots, same as indexUser()).
+     *
+     * SAFETY: only ever orphans an explicit, pre-collected list of fileIds
+     * scoped to this user's own tree -- never calls orphanAll() with no fileIds.
+     */
+    public function forceReindexUser(IUser $user, ?string $path = null, bool $recursive = true): void
+    {
+        if (!$this->appManager->isEnabledForUser('memories', $user)) {
+            return;
+        }
+
+        $uid = $user->getUID();
+        $this->setupManager->tearDown();
+        $this->setupManager->setupForUser($user);
+        $root = $this->rootFolder->getUserFolder($uid);
+
+        $fileIds = [];
+        $files = []; // fileid => File, only needed for the non-recursive reprocess path
+        foreach ($this->resolveIndexPaths($uid, $path) as $p) {
+            try {
+                $node = $root->get($p);
+            } catch (\Exception) {
+                continue; // path may not exist, e.g. deleted custom index path
+            }
+
+            if ($node instanceof Folder) {
+                $this->collectFileIds($node, $fileIds, $files, $recursive);
+            } elseif ($node instanceof File && self::isSupported($node) && self::isPathAllowed($node->getPath())) {
+                $fileIds[] = $node->getId();
+                $files[$node->getId()] = $node;
+            }
+        }
+
+        foreach (array_chunk($fileIds, 250) as $chunk) {
+            $this->tw->orphanAll(true, $chunk);
+        }
+
+        if ($recursive) {
+            // Re-run the normal indexer; orphaned rows are now picked up as "needs reprocessing"
+            $this->indexUser($user, $path);
+        } else {
+            // Only reprocess the direct files we just orphaned -- do not recurse into subfolders
+            foreach ($files as $file) {
+                $this->ensureContinueOk();
+                $this->indexFile($file, $uid);
+            }
+        }
+    }
+
+    /**
+     * Collect fileIds (and File nodes) of supported, allowed files under $folder,
+     * mirroring indexFolder()'s own filtering (mimetype + isPathAllowed +
+     * .nomedia/.nomemories exclusion) so we only orphan files the real
+     * indexing pass would actually consider. When $recursive is false, only
+     * files directly in $folder are collected -- subfolders are not walked.
+     *
+     * @param int[]           $fileIds accumulator, passed by reference
+     * @param array<int,File> $files   fileid => File node accumulator, passed by reference
+     */
+    private function collectFileIds(Folder $folder, array &$fileIds, array &$files, bool $recursive): void
+    {
+        $path = $folder->getPath();
+        if (!self::isPathAllowed($path.'/')) {
+            return;
+        }
+
+        try {
+            if ($folder->nodeExists('.nomedia') || $folder->nodeExists('.nomemories')) {
+                return;
+            }
+
+            $this->rescanFolder($folder);
+
+            $mimes = self::getMimeList();
+            foreach ($folder->getDirectoryListing() as $n) {
+                if ($n instanceof File) {
+                    if (\in_array($n->getMimeType(), $mimes, true) && self::isPathAllowed($n->getPath())) {
+                        $fileIds[] = $n->getId();
+                        $files[$n->getId()] = $n;
+                    }
+                } elseif ($recursive && $n instanceof Folder) {
+                    $this->ensureContinueOk();
+                    $this->collectFileIds($n, $fileIds, $files, true);
+                }
+            }
+        } catch (ProcessClosedException $e) {
+            throw $e; // time-budget signal, not an error -- must propagate
+        } catch (\Throwable $e) {
+            // A folder can be unreadable for all sorts of reasons (permissions,
+            // a read-only/unavailable mount, a transient storage hiccup, ...).
+            // Mirrors indexFolder()'s own per-subfolder handling below -- skip
+            // it and keep going rather than losing everything collected so far
+            // over one bad folder.
+            $this->logger->warning("Skipping unreadable folder {$path}: {$e->getMessage()}", ['app' => Application::APPNAME]);
+        }
+    }
+
+    /**
+     * Force a fresh (shallow, this-folder-only) filesystem scan before trusting
+     * $folder's cached directory listing. Nextcloud's own filecache can drift
+     * out of sync with what's actually on disk -- especially over a slow or
+     * lazily-revalidated external storage mount -- leaving real files
+     * completely invisible to both this and the real indexing pass until
+     * something rescans them. This is exactly what `occ files:scan` does
+     * under the hood, just scoped to one folder via public OCP interfaces
+     * (Storage::getScanner()) instead of the CLI command's machinery.
+     *
+     * Deliberately shallow: subfolders get their own scan when collectFileIds()
+     * recurses into them (each call already goes through ensureContinueOk()),
+     * so a huge/slow tree still scans incrementally and resumes across
+     * multiple background-job runs instead of blocking on one giant recursive
+     * scan with no way to interrupt it partway through.
+     */
+    private function rescanFolder(Folder $folder): void
+    {
+        try {
+            $folder->getStorage()->getScanner()->scan($folder->getInternalPath(), IScanner::SCAN_SHALLOW);
+        } catch (\Throwable $e) {
+            $this->logger->warning("Failed to rescan {$folder->getPath()}: {$e->getMessage()}", ['app' => Application::APPNAME]);
         }
     }
 

@@ -78,6 +78,9 @@ return [
         ['name' => 'Video#transcode', 'url' => '/api/video/transcode/{client}/{fileid}/{profile}', 'verb' => 'GET'],
         ['name' => 'Video#livephoto', 'url' => '/api/video/livephoto/{fileid}', 'verb' => 'GET'],
 
+        ['name' => 'Index#refresh', 'url' => '/api/index/refresh', 'verb' => 'POST'],
+        ['name' => 'Index#refreshFolder', 'url' => '/api/index/refresh-folder', 'verb' => 'POST'],
+
         ['name' => 'Download#request', 'url' => '/api/download', 'verb' => 'POST'],
         ['name' => 'Download#file', 'url' => '/api/download/{handle}', 'verb' => 'GET'],
         ['name' => 'Download#one', 'url' => '/api/stream/{fileid}', 'verb' => 'GET'],

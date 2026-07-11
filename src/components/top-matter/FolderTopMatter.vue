@@ -9,22 +9,33 @@
         <NcActions :inline="3" v-if="!isRootPicker">
           <NcActionButton
             v-if="!routeIsPublic"
-            :aria-label="t('memories', 'Share folder')"
-            @click="share()"
-            close-after-click
-          >
-            {{ t('memories', 'Share folder') }}
-            <template #icon> <ShareIcon :size="20" /> </template>
-          </NcActionButton>
-
-          <NcActionButton
-            v-if="!routeIsPublic"
             :aria-label="t('memories', 'Upload files')"
             @click="upload()"
             close-after-click
           >
             {{ t('memories', 'Upload files') }}
             <template #icon> <UploadIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <!-- Public upload button -->
+          <NcActionButton
+            v-if="allowPublicUpload"
+            :aria-label="t('memories', 'Upload files')"
+            :disabled="uploadHandler()?.processing"
+            @click="uploadHandler()?.startUpload()"
+          >
+            {{ t('memories', 'Upload files') }}
+            <template #icon> <UploadIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <NcActionButton
+            v-if="!routeIsPublic"
+            :title="t('memories', 'Refresh this folder')"
+            :aria-label="t('memories', 'Refresh this folder')"
+            :disabled="refreshingIndex"
+            @click="refreshFolderIndex()"
+          >
+            <template #icon> <RefreshIcon :size="20" /> </template>
           </NcActionButton>
 
           <NcActionButton
@@ -37,15 +48,14 @@
             <template #icon> <NewFolderIcon :size="20" /> </template>
           </NcActionButton>
 
-          <!-- Public upload button -->
           <NcActionButton
-            v-if="allowPublicUpload"
-            :aria-label="t('memories', 'Upload files')"
-            :disabled="uploadHandler()?.processing"
-            @click="uploadHandler()?.startUpload()"
+            v-if="!routeIsPublic"
+            :aria-label="t('memories', 'Share folder')"
+            @click="share()"
+            close-after-click
           >
-            {{ t('memories', 'Upload files') }}
-            <template #icon> <UploadIcon :size="20" /> </template>
+            {{ t('memories', 'Share folder') }}
+            <template #icon> <ShareIcon :size="20" /> </template>
           </NcActionButton>
 
           <NcActionButton @click="toggleRecursive" close-after-click>
@@ -80,8 +90,13 @@ const NcBreadcrumbs = () => import('@nextcloud/vue/dist/Components/NcBreadcrumbs
 const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.js');
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 
+import axios from '@nextcloud/axios';
+import { showError, showSuccess } from '@nextcloud/dialogs';
+
+import { API } from '@services/API';
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
 import * as nativex from '@native';
@@ -92,6 +107,8 @@ import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
 import UploadIcon from 'vue-material-design-icons/Upload.vue';
 import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
+import FolderRefreshIcon from 'vue-material-design-icons/FolderRefresh.vue';
+import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
 
 export default defineComponent({
   name: 'FolderTopMatter',
@@ -101,6 +118,7 @@ export default defineComponent({
     NcBreadcrumb,
     NcActions,
     NcActionButton,
+    NcButton,
     PublicUploadHandler,
     HomeIcon,
     ShareIcon,
@@ -108,9 +126,15 @@ export default defineComponent({
     FoldersIcon,
     UploadIcon,
     NewFolderIcon,
+    FolderRefreshIcon,
+    RefreshIcon,
   },
 
   mixins: [UserConfig],
+
+  data: () => ({
+    refreshingIndex: false,
+  }),
 
   computed: {
     list(): {
@@ -218,6 +242,42 @@ export default defineComponent({
 
     uploadHandler(): InstanceType<typeof PublicUploadHandler> | null {
       return (this.$refs.uploadHandler as InstanceType<typeof PublicUploadHandler>) || null;
+    },
+
+    async refreshFolderIndex(): Promise<void> {
+      const recursive = await utils.confirmDestructive({
+        title: this.t('memories', 'Refresh folder index'),
+        message: this.t('memories', 'Include subfolders in this refresh?'),
+        confirm: this.t('memories', 'Include subfolders'),
+        confirmClasses: 'primary',
+        cancel: this.t('memories', 'This folder only'),
+      });
+
+      this.refreshingIndex = true;
+      try {
+        const path = utils.getFolderRoutePath(this.config.folders_path);
+        const res = await axios.post<{ done?: boolean; queued?: boolean }>(API.INDEX_REFRESH_FOLDER(), {
+          path,
+          recursive,
+        });
+
+        if (res.data.done) {
+          // Finished within the request itself (the common case for an
+          // ordinary-sized folder) -- refresh the view now that we know
+          // there's something new to show, instead of waiting on a
+          // background job that may not run for a while.
+          showSuccess(
+            recursive ? this.t('memories', 'Folder and subfolders reindexed') : this.t('memories', 'Folder reindexed'),
+          );
+          utils.bus.emit('memories:timeline:soft-refresh', null);
+        } else {
+          showSuccess(this.t('memories', 'This folder has a lot to index -- continuing in the background'));
+        }
+      } catch (e) {
+        showError(e?.response?.data?.message ?? this.t('memories', 'Failed to refresh folder index'));
+      } finally {
+        this.refreshingIndex = false;
+      }
     },
   },
 });

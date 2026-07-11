@@ -19,6 +19,7 @@ import FaceTopMatter from './FaceTopMatter.vue';
 import AlbumTopMatter from './AlbumTopMatter.vue';
 import PlacesTopMatter from './PlacesTopMatter.vue';
 import EmbeddedTagTopMatter from './EmbeddedTagTopMatter.vue';
+import IndexTopMatter from './IndexTopMatter.vue';
 
 import * as utils from '@services/utils';
 
@@ -30,6 +31,7 @@ export default defineComponent({
     FaceTopMatter,
     AlbumTopMatter,
     EmbeddedTagTopMatter,
+    IndexTopMatter,
   },
 
   data: () => ({
@@ -62,6 +64,9 @@ export default defineComponent({
         case _m.routes.Recognize.name:
         case _m.routes.FaceRecognition.name:
           return FaceTopMatter;
+        case _m.routes.Base.name:
+        case _m.routes.AllPhotos.name:
+          return IndexTopMatter;
         default:
           return null;
       }
