@@ -1,6 +1,5 @@
 <template>
   <div v-if="isMobile" class="mobile-actions">
-    <FilterDropdownButton />
     <NcButton
       class="memories-menu-item search-menu"
       variant="tertiary-no-background"
@@ -13,7 +12,6 @@
   </div>
 
   <div v-else class="desktop-actions">
-    <FilterDropdownButton />
     <Searchbar />
   </div>
 </template>
@@ -24,7 +22,6 @@ import { defineComponent } from 'vue';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 
 import Searchbar from '@components/header/Searchbar.vue';
-import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import * as utils from '@services/utils';
 
@@ -35,7 +32,6 @@ export default defineComponent({
   components: {
     NcButton,
     Searchbar,
-    FilterDropdownButton,
     MagnifyIcon,
   },
 

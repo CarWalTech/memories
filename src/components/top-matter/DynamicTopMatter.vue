@@ -79,11 +79,7 @@ export default defineComponent({
       }
 
       // Only static top matter for these routes
-      if (this.routeIsTags || this.routeIsPeople || this.routeIsPlaces || this.routeIsEmbeddedTags) {
-        return String();
-      }
-
-      return strings.viewName(this.$route.name!);
+      return String();
     },
   },
 

@@ -55,10 +55,15 @@ export default defineComponent({
   gap: 4px;
   padding: 4px 14px;
   width: 100%;
+  max-width: 220px;
+  box-sizing: border-box;
 
   .zoom-row-action__label {
     flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 }
 </style>

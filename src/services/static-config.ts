@@ -5,6 +5,7 @@ import { getBuilder } from '@nextcloud/browser-storage';
 import { API } from '@services/API';
 import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
+import { ZOOM_DEFAULT } from '@services/zoom';
 
 import type { IConfig } from '@typings';
 
@@ -167,7 +168,7 @@ class StaticConfig {
       high_res_cond: null,
       show_face_rect: false,
       mobile_nav_items: ['timeline', 'explore', 'albums'],
-      grid_zoom: 2,
+      grid_zoom: ZOOM_DEFAULT,
     };
 
     const set = <K extends keyof IConfig, V extends IConfig[K]>(key: K, value: string | null) => {

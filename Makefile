@@ -36,7 +36,29 @@ patch-external:
 watch-js:
 	npm run watch
 
-.PHONY: build-js patch-external watch-js
+# Same as watch-js, but after every rebuild forces Nextcloud to serve the
+# freshly built JS instead of a browser-cached copy. Nextcloud appends
+# `?v=<app-version>-<theming-cachebuster>` to every <script> URL; the main
+# entry filenames (memories-main.js etc.) don't change between builds, so
+# without bumping something the browser just keeps the old cached file.
+#
+# We used to bump the DEV version in appinfo/info.xml for this, but that also
+# flips Nextcloud's global needUpgrade() check (it compares every enabled
+# app's on-disk version against the DB), which then requires a full
+# `occ upgrade` to clear -- and running that on every save re-triggers app
+# repair/migration steps, which was corrupting the theming cache. Bumping
+# theming's own `cachebuster` config value produces the same cache-busting
+# URL suffix without any of that: it's a plain counter, no migrations
+# attached, and takes effect immediately.
+watch-js-dev:
+	npm run watch 2>&1 | while IFS= read -r line; do \
+		echo "$$line"; \
+		case "$$line" in *compiled*) \
+			docker exec $(NEXTCLOUD_CONTAINER) php occ config:app:set theming cachebuster --value="$$(date +%s)" ;; \
+		esac; \
+	done
+
+.PHONY: build-js patch-external watch-js watch-js-dev
 
 # Testing
 test:

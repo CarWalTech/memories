@@ -17,7 +17,7 @@
           </NcActionButton>
         </NcActions>
 
-        <ViewOptionsActions>
+        <ViewOptionsAction>
           <NcActionSeparator />
 
           <NcActionButton @click="toggleRecursive" close-after-click>
@@ -27,23 +27,9 @@
               <TimelineIcon v-else :size="20" />
             </template>
           </NcActionButton>
-        </ViewOptionsActions>
+        </ViewOptionsAction>
 
-        <NcActions :aria-label="t('memories', 'Sort options')">
-          <template #icon> <SortVariantIcon :size="20" /> </template>
-          <NcActionText :name="t('memories', 'WIP')" />
-        </NcActions>
-
-        <NcActions :aria-label="t('memories', 'Refresh')">
-          <template #icon> <RefreshIcon :size="20" /> </template>
-
-          <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
-            {{ t('memories', 'Refresh files') }}
-          </NcActionButton>
-          <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
-            {{ t('memories', 'Refresh untracked files') }}
-          </NcActionButton>
-        </NcActions>
+        <RefreshOptionsAction />
 
         <NcActions :aria-label="t('memories', 'Others')">
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
@@ -73,18 +59,16 @@ import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
-import ViewOptionsActions from '@components/ViewOptionsActions.vue';
+import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import * as dav from '@services/dav';
-import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import TagsIcon from 'vue-material-design-icons/Tag.vue';
 import TagPlusIcon from 'vue-material-design-icons/TagPlus.vue';
 import TagMinusIcon from 'vue-material-design-icons/TagMinus.vue';
 import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
-import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
-import SortVariantIcon from 'vue-material-design-icons/SortVariant.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 
 export default defineComponent({
@@ -98,14 +82,13 @@ export default defineComponent({
     NcActionSeparator,
     NcActionText,
     NcButton,
-    ViewOptionsActions,
+    ViewOptionsAction,
+    RefreshOptionsAction,
     FilterDropdownButton,
     TagsIcon,
     TagPlusIcon,
     TagMinusIcon,
     TimelineIcon,
-    RefreshIcon,
-    SortVariantIcon,
     DotsHorizontalIcon,
   },
 
@@ -173,8 +156,6 @@ export default defineComponent({
       // Navigate up to the parent tag
       this.$router.push(this.getRoute(this.pathParts.slice(0, -1)));
     },
-
-    requestFullIndexRefresh,
   },
 });
 </script>

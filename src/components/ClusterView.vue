@@ -29,6 +29,7 @@ import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
 
 import * as dav from '@services/dav';
 import * as utils from '@services/utils';
+import { zoomScale } from '@services/zoom';
 
 import type { ICluster } from '@typings';
 
@@ -66,7 +67,8 @@ export default defineComponent({
     },
 
     maxSize() {
-      return this.routeIsAlbums ? 250 : 180;
+      const base = this.routeIsAlbums ? 250 : 180;
+      return Math.round(base * zoomScale(this.config.grid_zoom));
     },
   },
 

@@ -30,8 +30,10 @@
             </NcActionButton>
           </NcActions>
 
-          <ViewOptionsActions>
+          <ViewOptionsAction>
             <NcActionSeparator />
+
+            <NcActionCaption name="Folder options"></NcActionCaption>
 
             <NcActionCheckbox :checked="config.show_empty_folders" @update:checked="toggleShowEmptyFolders">
               {{ t('memories', 'Show empty folders') }}
@@ -39,6 +41,10 @@
 
             <NcActionCheckbox :checked="config.show_hidden_folders" @update:checked="toggleShowHiddenFolders">
               {{ t('memories', 'Show hidden folders') }}
+            </NcActionCheckbox>
+
+            <NcActionCheckbox :checked="config.sort_folder_month" @update:checked="toggleSortFolderMonth">
+              {{ t('memories', 'Sort folders oldest first') }}
             </NcActionCheckbox>
 
             <NcActionSeparator />
@@ -50,43 +56,9 @@
                 <TimelineIcon v-else :size="20" />
               </template>
             </NcActionButton>
-          </ViewOptionsActions>
-
+          </ViewOptionsAction>
           <FilterDropdownButton v-if="!routeIsPublic" />
-
-          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Sort options')">
-            <template #icon> <SortVariantIcon :size="20" /> </template>
-
-            <NcActionText :name="t('memories', 'WIP')" />
-
-            <NcActionSeparator />
-
-            <NcActionCheckbox :checked="config.sort_folder_month" @update:checked="toggleSortFolderMonth">
-              {{ t('memories', 'Sort folders oldest first') }}
-            </NcActionCheckbox>
-          </NcActions>
-
-          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Refresh')">
-            <template #icon> <RefreshIcon :size="20" /> </template>
-
-            <NcActionCaption :name="t('memories', 'Refresh untracked files')" />
-            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', false)">
-              {{ t('memories', 'Refresh Folder') }}
-            </NcActionButton>
-            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', true)">
-              {{ t('memories', 'Refresh Folder + Subfolders') }}
-            </NcActionButton>
-
-            <NcActionSeparator />
-
-            <NcActionCaption :name="t('memories', 'Refresh all files')" />
-            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', false)">
-              {{ t('memories', 'Refresh Folder') }}
-            </NcActionButton>
-            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', true)">
-              {{ t('memories', 'Refresh Folder + Subfolders') }}
-            </NcActionButton>
-          </NcActions>
+          <RefreshFolderOptionsAction v-if="!routeIsPublic" />
 
           <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
             <template #icon> <DotsHorizontalIcon :size="20" /> </template>
@@ -127,18 +99,14 @@ const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.j
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
-import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
-import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
+import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
-import ViewOptionsActions from '@components/ViewOptionsActions.vue';
+import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import RefreshFolderOptionsAction from '@components/top-actions/RefreshFolderOptionsAction.vue';
 import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
-import axios from '@nextcloud/axios';
-import { showError, showSuccess } from '@nextcloud/dialogs';
-
-import { API } from '@services/API';
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
 import * as nativex from '@native';
@@ -149,8 +117,6 @@ import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
 import UploadIcon from 'vue-material-design-icons/Upload.vue';
 import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
-import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
-import SortVariantIcon from 'vue-material-design-icons/SortVariant.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 
 export default defineComponent({
@@ -162,12 +128,12 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     NcActionCheckbox,
-    NcActionSeparator,
     NcActionCaption,
-    NcActionText,
+    NcActionSeparator,
     NcButton,
     PublicUploadHandler,
-    ViewOptionsActions,
+    ViewOptionsAction,
+    RefreshFolderOptionsAction,
     FilterDropdownButton,
     HomeIcon,
     ShareIcon,
@@ -175,16 +141,10 @@ export default defineComponent({
     FoldersIcon,
     UploadIcon,
     NewFolderIcon,
-    RefreshIcon,
-    SortVariantIcon,
     DotsHorizontalIcon,
   },
 
   mixins: [UserConfig],
-
-  data: () => ({
-    refreshingIndex: false,
-  }),
 
   computed: {
     list(): {
@@ -292,35 +252,6 @@ export default defineComponent({
 
     uploadHandler(): InstanceType<typeof PublicUploadHandler> | null {
       return (this.$refs.uploadHandler as InstanceType<typeof PublicUploadHandler>) || null;
-    },
-
-    async doRefresh(mode: 'all' | 'untracked', recursive: boolean): Promise<void> {
-      this.refreshingIndex = true;
-      try {
-        const path = utils.getFolderRoutePath(this.config.folders_path);
-        const res = await axios.post<{ done?: boolean; queued?: boolean }>(API.INDEX_REFRESH_FOLDER(), {
-          path,
-          recursive,
-          mode,
-        });
-
-        if (res.data.done) {
-          // Finished within the request itself (the common case for an
-          // ordinary-sized folder) -- refresh the view now that we know
-          // there's something new to show, instead of waiting on a
-          // background job that may not run for a while.
-          showSuccess(
-            recursive ? this.t('memories', 'Folder and subfolders reindexed') : this.t('memories', 'Folder reindexed'),
-          );
-          utils.bus.emit('memories:timeline:soft-refresh', null);
-        } else {
-          showSuccess(this.t('memories', 'This folder has a lot to index -- continuing in the background'));
-        }
-      } catch (e) {
-        showError(e?.response?.data?.message ?? this.t('memories', 'Failed to refresh folder index'));
-      } finally {
-        this.refreshingIndex = false;
-      }
     },
 
     toggleShowEmptyFolders(): void {

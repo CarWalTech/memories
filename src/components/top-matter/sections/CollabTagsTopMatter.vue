@@ -10,23 +10,9 @@
       <span class="name">{{ name || viewname }}</span>
 
       <div class="right-actions">
-        <ViewOptionsActions />
+        <ViewOptionsAction />
         <FilterDropdownButton />
-        <NcActions :aria-label="t('memories', 'Sort options')">
-          <template #icon> <SortVariantIcon :size="20" /> </template>
-          <NcActionText :name="t('memories', 'WIP')" />
-        </NcActions>
-
-        <NcActions :aria-label="t('memories', 'Refresh')">
-          <template #icon> <RefreshIcon :size="20" /> </template>
-
-          <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
-            {{ t('memories', 'Refresh files') }}
-          </NcActionButton>
-          <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
-            {{ t('memories', 'Refresh untracked files') }}
-          </NcActionButton>
-        </NcActions>
+        <RefreshOptionsAction />
       </div>
     </div>
   </div>
@@ -37,26 +23,23 @@ import { defineComponent } from 'vue';
 
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
-import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
-import ViewOptionsActions from '@components/ViewOptionsActions.vue';
+import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
+import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import * as strings from '@services/strings';
-import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import BackIcon from 'vue-material-design-icons/ArrowLeft.vue';
-import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
-import SortVariantIcon from 'vue-material-design-icons/SortVariant.vue';
 
 export default defineComponent({
   name: 'CollabTagsTopMatter',
   components: {
     NcActions,
     NcActionButton,
-    NcActionText,
-    ViewOptionsActions,
+    ViewOptionsAction,
+    RefreshOptionsAction,
+    FilterDropdownButton,
     BackIcon,
-    RefreshIcon,
-    SortVariantIcon,
   },
 
   computed: {
@@ -78,8 +61,6 @@ export default defineComponent({
     back() {
       this.$router.go(-1);
     },
-
-    requestFullIndexRefresh,
   },
 });
 </script>
@@ -87,6 +68,14 @@ export default defineComponent({
 <style lang="scss" scoped>
 .top-matter {
   padding: 8px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+  > .text {
+    flex-grow: 1;
+    line-height: 42px;
+    padding-left: 8px;
+  }
 
   .top-row {
     display: flex;
@@ -97,8 +86,6 @@ export default defineComponent({
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-grow: 1;
-    justify-content: flex-end;
   }
 }
 </style>
