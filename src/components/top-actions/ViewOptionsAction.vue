@@ -58,6 +58,10 @@
       {{ t('memories', 'Metadata') }}
     </NcActionCheckbox>
 
+    <NcActionCheckbox :checked="config.show_filename_in_gallery" @update:checked="toggle('show_filename_in_gallery')">
+      {{ t('memories', 'Filename') }}
+    </NcActionCheckbox>
+
     <!-- View-specific extras -->
     <slot />
   </NcActions>

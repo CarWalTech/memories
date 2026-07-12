@@ -36,6 +36,7 @@ declare module '@typings' {
     metadata_in_slideshow: boolean;
     metadata_in_gallery: boolean;
     enable_exif_photo_rating_in_gallery: boolean;
+    show_filename_in_gallery: boolean;
 
     // metadata settings
     metadata_write_mode: MetadataWriteMode;

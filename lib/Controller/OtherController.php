@@ -115,6 +115,7 @@ final class OtherController extends GenericApiController
                 'metadata_in_slideshow' => 'true' === $getAppConfig('metadataInSlideshow', 'false'),
                 'metadata_in_gallery' => 'true' === $getAppConfig('metadataInGallery', 'false'),
                 'enable_exif_photo_rating_in_gallery' => 'true' === $getAppConfig('enableExifPhotoRatingInGallery', 'false'),
+                'show_filename_in_gallery' => 'true' === $getAppConfig('showFilenameInGallery', 'false'),
 
                 // metadata settings
                 'metadata_write_mode' => $getAppConfig('metadataWriteMode', Exif::WRITE_MODE_FILE_ONLY),

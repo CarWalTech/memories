@@ -147,6 +147,7 @@ class StaticConfig {
       metadata_in_slideshow: false,
       metadata_in_gallery: false,
       enable_exif_photo_rating_in_gallery: false,
+      show_filename_in_gallery: false,
 
       // metadata settings
       metadata_write_mode: 'file_only',
