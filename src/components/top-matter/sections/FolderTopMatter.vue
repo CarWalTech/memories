@@ -132,7 +132,7 @@ import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
-import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
+import ViewOptionsActions from '@components/ViewOptionsActions.vue';
 import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import axios from '@nextcloud/axios';

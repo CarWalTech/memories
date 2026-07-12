@@ -14,12 +14,12 @@ import AlbumDynamicTopMatter from './sections/AlbumDynamicTopMatter.vue';
 import FolderDynamicTopMatter from './sections/FolderDynamicTopMatter.vue';
 import PlacesDynamicTopMatterVue from './sections/PlacesDynamicTopMatter.vue';
 import EmbeddedTagDynamicTopMatter from './sections/EmbeddedTagDynamicTopMatter.vue';
-import OnThisDay from './shared/OnThisDay.vue';
+import OnThisDay from '../OnThisDay.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 import * as strings from '@services/strings';
 
 // Auto-hide top header on public shares if redundant
-import './shared/PublicShareHeader';
+import '../PublicShareHeader';
 
 export default defineComponent({
   name: 'DynamicTopMatter',

@@ -8,7 +8,7 @@ import { defineComponent } from 'vue';
 import axios from '@nextcloud/axios';
 import { getLanguage } from '@nextcloud/l10n';
 
-import EmbeddedTagGrid from '../shared/EmbeddedTagGrid.vue';
+import EmbeddedTagGrid from '../../EmbeddedTagGrid.vue';
 
 import { API } from '@services/API';
 

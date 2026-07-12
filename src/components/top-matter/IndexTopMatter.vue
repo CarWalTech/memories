@@ -30,7 +30,7 @@ import { defineComponent } from 'vue';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
-import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
+import ViewOptionsActions from '@components/ViewOptionsActions.vue';
 import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import { requestFullIndexRefresh } from '@services/index-refresh';

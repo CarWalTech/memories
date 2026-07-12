@@ -73,7 +73,7 @@ import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
-import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
+import ViewOptionsActions from '@components/ViewOptionsActions.vue';
 import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import * as dav from '@services/dav';

@@ -46,7 +46,7 @@ import { defineComponent } from 'vue';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
-import ZoomRowAction from '@components/top-matter/shared/ZoomRowAction.vue';
+import ZoomRowAction from '@components/ZoomRowAction.vue';
 
 import UserConfig from '@mixins/UserConfig';
 import { zoomLabel, clampZoom, ZOOM_MIN, ZOOM_MAX } from '@services/zoom';

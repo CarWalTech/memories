@@ -164,7 +164,7 @@ import axios from '@nextcloud/axios';
 
 import AlbumCreateModal from '@components/modal/AlbumCreateModal.vue';
 import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
-import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
+import ViewOptionsActions from '@components/ViewOptionsActions.vue';
 
 import { downloadWithHandle } from '@services/dav';
 import { API } from '@services/API';
