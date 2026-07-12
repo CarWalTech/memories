@@ -16,7 +16,7 @@ import type SelectionManager from '@components/SelectionManager.vue';
 import type { IFolder } from '@typings';
 
 export default defineComponent({
-  name: 'ClusterGrid',
+  name: 'FolderGrid',
 
   components: {
     Folder,

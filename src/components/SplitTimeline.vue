@@ -30,7 +30,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import Timeline from './Timeline.vue';
-const MapSplitMatter = () => import('./top-matter/views/map/MapSplitMatter.vue');
+const MapSplitMatter = () => import('./top-matter/sections/MapSplitMatter.vue');
 import Hammer from 'hammerjs';
 
 import * as utils from '@services/utils';

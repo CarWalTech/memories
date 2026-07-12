@@ -13,12 +13,12 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-import FolderTopMatter from './views/folders/FolderTopMatter.vue';
-import CollabTagsTopMatter from './views/collab_tags/CollabTagsTopMatter.vue';
-import FaceTopMatter from './views/faces/FaceTopMatter.vue';
-import AlbumTopMatter from './views/albums/AlbumTopMatter.vue';
-import PlacesTopMatter from './views/places/PlacesTopMatter.vue';
-import EmbeddedTagTopMatter from './views/tags/EmbeddedTagTopMatter.vue';
+import FolderTopMatter from './sections/FolderTopMatter.vue';
+import CollabTagsTopMatter from './sections/CollabTagsTopMatter.vue';
+import FaceTopMatter from './sections/FaceTopMatter.vue';
+import AlbumTopMatter from './sections/AlbumTopMatter.vue';
+import PlacesTopMatter from './sections/PlacesTopMatter.vue';
+import EmbeddedTagTopMatter from './sections/EmbeddedTagTopMatter.vue';
 import IndexTopMatter from './IndexTopMatter.vue';
 
 import * as utils from '@services/utils';

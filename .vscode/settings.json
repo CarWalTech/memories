@@ -99,6 +99,8 @@
   },
   "git.alwaysSignOff": true,
   "editor.formatOnSave": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "javascript.updateImportsOnFileMove.enabled": "always",
   "psalm.configPaths": [
     "psalm-ls.xml"
   ],
