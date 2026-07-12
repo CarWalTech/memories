@@ -79,7 +79,7 @@ final class VideoController extends GenericApiController
             }
 
             // Request and check data was received
-            return Util::guardExDirect(function (Http\IOutput $out) use ($client, $path, $profile) {
+            return Util::guardExDirect(function (Http\IOutput $out) use ($client, $path, $profile): void {
                 try {
                     $status = $this->getUpstream($client, $path, $profile);
                     if (409 === $status || -1 === $status) {
@@ -211,7 +211,7 @@ final class VideoController extends GenericApiController
 
                 // If this is H.264 it won't get transcoded anyway
                 if ($liveVideoPath) {
-                    return Util::guardExDirect(function ($out) use ($transcode, $liveVideoPath) {
+                    return Util::guardExDirect(function ($out) use ($transcode, $liveVideoPath): void {
                         $this->getUpstream($transcode, $liveVideoPath, 'max.mp4');
                     });
                 }

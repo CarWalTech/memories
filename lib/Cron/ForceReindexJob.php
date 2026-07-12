@@ -38,10 +38,12 @@ use Psr\Log\LoggerInterface;
  * added programmatically with a specific uid argument, not auto-enqueued
  * at install/upgrade.
  *
- * Argument shape: ['uid' => string, 'path' => ?string, 'recursive' => bool].
- * 'path'/'recursive' are optional -- omitting 'path' (or passing null) means
- * the full configured index root(s) for the user, matching
- * Service\Index::forceReindexUser()'s own defaults.
+ * Argument shape: ['uid' => string, 'path' => ?string, 'recursive' => bool,
+ * 'mode' => 'all'|'untracked']. 'path'/'recursive' are optional -- omitting
+ * 'path' (or passing null) means the full configured index root(s) for the
+ * user, matching Service\Index::forceReindexUser()'s own defaults. 'mode'
+ * defaults to 'all' (today's force-reindex-everything behavior); 'untracked'
+ * runs the cheaper Service\Index::scanForUntrackedFiles() instead.
  */
 final class ForceReindexJob extends QueuedJob
 {
@@ -78,6 +80,7 @@ final class ForceReindexJob extends QueuedJob
 
         $path = \is_array($argument) ? ($argument['path'] ?? null) : null;
         $recursive = \is_array($argument) ? (bool) ($argument['recursive'] ?? true) : true;
+        $mode = \is_array($argument) && 'untracked' === ($argument['mode'] ?? null) ? 'untracked' : 'all';
 
         $user = $this->userManager->get($uid);
         if (null === $user) {
@@ -94,7 +97,11 @@ final class ForceReindexJob extends QueuedJob
 
         try {
             \OCA\Memories\Exif::ensureStaticExiftoolProc();
-            $this->service->forceReindexUser($user, $path, $recursive);
+            if ('untracked' === $mode) {
+                $this->service->scanForUntrackedFiles($user, $path, $recursive);
+            } else {
+                $this->service->forceReindexUser($user, $path, $recursive);
+            }
         } catch (Service\ProcessClosedException) {
             // Ran out of time before finishing a large scope. Already-
             // reprocessed files are no longer orphaned, so re-queueing the

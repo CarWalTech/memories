@@ -6,66 +6,102 @@
         <!-- Progress bar for upload -->
         <PublicUploadHandler ref="uploadHandler" v-if="allowPublicUpload" />
 
-        <NcActions :inline="3" v-if="!isRootPicker">
-          <NcActionButton
-            v-if="!routeIsPublic"
-            :aria-label="t('memories', 'Upload files')"
-            @click="upload()"
-            close-after-click
-          >
-            {{ t('memories', 'Upload files') }}
-            <template #icon> <UploadIcon :size="20" /> </template>
-          </NcActionButton>
+        <template v-if="!isRootPicker">
+          <NcActions v-if="!routeIsPublic || allowPublicUpload" :inline="1">
+            <NcActionButton
+              v-if="!routeIsPublic"
+              :aria-label="t('memories', 'Upload files')"
+              @click="upload()"
+              close-after-click
+            >
+              {{ t('memories', 'Upload files') }}
+              <template #icon> <UploadIcon :size="20" /> </template>
+            </NcActionButton>
 
-          <!-- Public upload button -->
-          <NcActionButton
-            v-if="allowPublicUpload"
-            :aria-label="t('memories', 'Upload files')"
-            :disabled="uploadHandler()?.processing"
-            @click="uploadHandler()?.startUpload()"
-          >
-            {{ t('memories', 'Upload files') }}
-            <template #icon> <UploadIcon :size="20" /> </template>
-          </NcActionButton>
+            <!-- Public upload button -->
+            <NcActionButton
+              v-if="allowPublicUpload"
+              :aria-label="t('memories', 'Upload files')"
+              :disabled="uploadHandler()?.processing"
+              @click="uploadHandler()?.startUpload()"
+            >
+              {{ t('memories', 'Upload files') }}
+              <template #icon> <UploadIcon :size="20" /> </template>
+            </NcActionButton>
+          </NcActions>
 
-          <NcActionButton
-            v-if="!routeIsPublic"
-            :title="t('memories', 'Refresh this folder')"
-            :aria-label="t('memories', 'Refresh this folder')"
-            :disabled="refreshingIndex"
-            @click="refreshFolderIndex()"
-          >
+          <ViewOptionsActions>
+            <NcActionSeparator />
+
+            <NcActionCheckbox :checked="config.show_empty_folders" @update:checked="toggleShowEmptyFolders">
+              {{ t('memories', 'Show empty folders') }}
+            </NcActionCheckbox>
+
+            <NcActionCheckbox :checked="config.show_hidden_folders" @update:checked="toggleShowHiddenFolders">
+              {{ t('memories', 'Show hidden folders') }}
+            </NcActionCheckbox>
+
+            <NcActionSeparator />
+
+            <NcActionButton @click="toggleRecursive" close-after-click>
+              {{ recursive ? t('memories', 'Folder view') : t('memories', 'Timeline view') }}
+              <template #icon>
+                <FoldersIcon v-if="recursive" :size="20" />
+                <TimelineIcon v-else :size="20" />
+              </template>
+            </NcActionButton>
+          </ViewOptionsActions>
+
+          <FilterDropdownButton v-if="!routeIsPublic" />
+
+          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Sort options')">
+            <template #icon> <SortVariantIcon :size="20" /> </template>
+
+            <NcActionText :name="t('memories', 'WIP')" />
+
+            <NcActionSeparator />
+
+            <NcActionCheckbox :checked="config.sort_folder_month" @update:checked="toggleSortFolderMonth">
+              {{ t('memories', 'Sort folders oldest first') }}
+            </NcActionCheckbox>
+          </NcActions>
+
+          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Refresh')">
             <template #icon> <RefreshIcon :size="20" /> </template>
-          </NcActionButton>
 
-          <NcActionButton
-            v-if="!routeIsPublic"
-            :aria-label="t('memories', 'New folder')"
-            @click="createFolder()"
-            close-after-click
-          >
-            {{ t('memories', 'New folder') }}
-            <template #icon> <NewFolderIcon :size="20" /> </template>
-          </NcActionButton>
+            <NcActionCaption :name="t('memories', 'Refresh untracked files')" />
+            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', false)">
+              {{ t('memories', 'Refresh Folder') }}
+            </NcActionButton>
+            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', true)">
+              {{ t('memories', 'Refresh Folder + Subfolders') }}
+            </NcActionButton>
 
-          <NcActionButton
-            v-if="!routeIsPublic"
-            :aria-label="t('memories', 'Share folder')"
-            @click="share()"
-            close-after-click
-          >
-            {{ t('memories', 'Share folder') }}
-            <template #icon> <ShareIcon :size="20" /> </template>
-          </NcActionButton>
+            <NcActionSeparator />
 
-          <NcActionButton @click="toggleRecursive" close-after-click>
-            {{ recursive ? t('memories', 'Folder view') : t('memories', 'Timeline view') }}
-            <template #icon>
-              <FoldersIcon v-if="recursive" :size="20" />
-              <TimelineIcon v-else :size="20" />
-            </template>
-          </NcActionButton>
-        </NcActions>
+            <NcActionCaption :name="t('memories', 'Refresh all files')" />
+            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', false)">
+              {{ t('memories', 'Refresh Folder') }}
+            </NcActionButton>
+            <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', true)">
+              {{ t('memories', 'Refresh Folder + Subfolders') }}
+            </NcActionButton>
+          </NcActions>
+
+          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
+            <template #icon> <DotsHorizontalIcon :size="20" /> </template>
+
+            <NcActionButton :aria-label="t('memories', 'New folder')" @click="createFolder()" close-after-click>
+              {{ t('memories', 'New folder') }}
+              <template #icon> <NewFolderIcon :size="20" /> </template>
+            </NcActionButton>
+
+            <NcActionButton :aria-label="t('memories', 'Share folder')" @click="share()" close-after-click>
+              {{ t('memories', 'Share folder') }}
+              <template #icon> <ShareIcon :size="20" /> </template>
+            </NcActionButton>
+          </NcActions>
+        </template>
       </div>
     </div>
 
@@ -90,8 +126,14 @@ const NcBreadcrumbs = () => import('@nextcloud/vue/dist/Components/NcBreadcrumbs
 const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.js');
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
+import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
+import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
+import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
+import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
+import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
+import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import axios from '@nextcloud/axios';
 import { showError, showSuccess } from '@nextcloud/dialogs';
@@ -107,8 +149,9 @@ import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
 import UploadIcon from 'vue-material-design-icons/Upload.vue';
 import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
-import FolderRefreshIcon from 'vue-material-design-icons/FolderRefresh.vue';
 import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
+import SortVariantIcon from 'vue-material-design-icons/SortVariant.vue';
+import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 
 export default defineComponent({
   name: 'FolderTopMatter',
@@ -118,16 +161,23 @@ export default defineComponent({
     NcBreadcrumb,
     NcActions,
     NcActionButton,
+    NcActionCheckbox,
+    NcActionSeparator,
+    NcActionCaption,
+    NcActionText,
     NcButton,
     PublicUploadHandler,
+    ViewOptionsActions,
+    FilterDropdownButton,
     HomeIcon,
     ShareIcon,
     TimelineIcon,
     FoldersIcon,
     UploadIcon,
     NewFolderIcon,
-    FolderRefreshIcon,
     RefreshIcon,
+    SortVariantIcon,
+    DotsHorizontalIcon,
   },
 
   mixins: [UserConfig],
@@ -244,21 +294,14 @@ export default defineComponent({
       return (this.$refs.uploadHandler as InstanceType<typeof PublicUploadHandler>) || null;
     },
 
-    async refreshFolderIndex(): Promise<void> {
-      const recursive = await utils.confirmDestructive({
-        title: this.t('memories', 'Refresh folder index'),
-        message: this.t('memories', 'Include subfolders in this refresh?'),
-        confirm: this.t('memories', 'Include subfolders'),
-        confirmClasses: 'primary',
-        cancel: this.t('memories', 'This folder only'),
-      });
-
+    async doRefresh(mode: 'all' | 'untracked', recursive: boolean): Promise<void> {
       this.refreshingIndex = true;
       try {
         const path = utils.getFolderRoutePath(this.config.folders_path);
         const res = await axios.post<{ done?: boolean; queued?: boolean }>(API.INDEX_REFRESH_FOLDER(), {
           path,
           recursive,
+          mode,
         });
 
         if (res.data.done) {
@@ -278,6 +321,21 @@ export default defineComponent({
       } finally {
         this.refreshingIndex = false;
       }
+    },
+
+    toggleShowEmptyFolders(): void {
+      this.config.show_empty_folders = !this.config.show_empty_folders;
+      this.updateSetting('show_empty_folders');
+    },
+
+    toggleShowHiddenFolders(): void {
+      this.config.show_hidden_folders = !this.config.show_hidden_folders;
+      this.updateSetting('show_hidden_folders');
+    },
+
+    toggleSortFolderMonth(): void {
+      this.config.sort_folder_month = !this.config.sort_folder_month;
+      this.updateSetting('sort_folder_month');
     },
   },
 });

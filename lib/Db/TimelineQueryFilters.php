@@ -11,8 +11,6 @@ use OCP\ITags;
 
 trait TimelineQueryFilters
 {
-
-
     public function transformMinRatingFilter(IQueryBuilder &$query, bool $aggregate, int $minRating): void
     {
         if ($minRating <= 0) {
@@ -40,16 +38,16 @@ trait TimelineQueryFilters
         }
 
         $fields = ['Keywords', 'Subject', 'TagsList', 'HierarchicalSubject'];
-        
+
         foreach ($embeddedTags as $index => $tag) {
             $tagParam = "tag_{$index}";
             $or = $query->expr()->orX();
-            
+
             foreach ($fields as $field) {
                 // Check if the field contains this specific tag
                 $or->add("JSON_CONTAINS(JSON_EXTRACT(m.exif, '$.{$field}'), JSON_QUOTE(:{$tagParam}))");
             }
-            
+
             // Add AND condition for this tag
             $query->andWhere($or);
             $query->setParameter($tagParam, $tag, IQueryBuilder::PARAM_STR);
@@ -116,5 +114,3 @@ trait TimelineQueryFilters
         return SQL::subquery($query, $sub);
     }
 }
-
-

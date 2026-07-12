@@ -167,6 +167,7 @@ class StaticConfig {
       high_res_cond: null,
       show_face_rect: false,
       mobile_nav_items: ['timeline', 'explore', 'albums'],
+      grid_zoom: 2,
     };
 
     const set = <K extends keyof IConfig, V extends IConfig[K]>(key: K, value: string | null) => {

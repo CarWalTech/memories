@@ -19,11 +19,11 @@ const TRUNCATE_TABLES = ['memories_mapclusters'];
 
 final class TimelineWrite
 {
+    use TimelineWriteEmbeddedTags;
     use TimelineWriteFailures;
     use TimelineWriteMap;
     use TimelineWriteOrphans;
     use TimelineWritePlaces;
-    use TimelineWriteEmbeddedTags;
 
     public function __construct(
         protected IDBConnection $connection,
@@ -38,7 +38,7 @@ final class TimelineWrite
      * @param File        $file   File node to process
      * @param bool        $lock   Lock the file before processing
      * @param bool        $force  Update the record even if the file has not changed
-     * @param string|null $userId User to store embedded tags for (null = file owner)
+     * @param null|string $userId User to store embedded tags for (null = file owner)
      *
      * @return bool True if the file was processed
      *

@@ -11,9 +11,11 @@ declare module '*.vue' {
 }
 
 // External components cannot be imported with .vue extension
+// Typed as `any` (not DefineComponent) because these ship as compiled .mjs/.cjs,
+// so Volar can't introspect their slots and would otherwise type them as `{}`,
+// flagging every named slot (e.g. #icon) as nonexistent.
 declare module '@nextcloud/vue/dist/Components/*.js' {
-  import type { DefineComponent } from 'vue';
-  const component: DefineComponent<{}, {}, any>;
+  const component: any;
   export default component;
 }
 

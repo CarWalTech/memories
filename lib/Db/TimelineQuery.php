@@ -19,11 +19,6 @@ final class TimelineQuery
     use TimelineQueryNativeX;
     use TimelineQuerySingleItem;
 
-    // Flag to control whether EXIF filtering happens at SQL level or PHP level
-    // SQL level is faster but only available on MySQL/MariaDB
-    // Set to false to force PHP-level filtering for debugging or compatibility
-    protected bool $filterExifBySQL = true;
-
     public const TIMELINE_SELECT = [
         'm.datetaken', 'm.dayid',
         'm.w', 'm.h', 'm.liveid',
@@ -33,6 +28,11 @@ final class TimelineQuery
         'f.size', 'm.epoch', // auid
         'mimetypes.mimetype',
     ];
+
+    // Flag to control whether EXIF filtering happens at SQL level or PHP level
+    // SQL level is faster but only available on MySQL/MariaDB
+    // Set to false to force PHP-level filtering for debugging or compatibility
+    protected bool $filterExifBySQL = true;
 
     protected ?TimelineRoot $_root = null; // cache
     protected bool $_rootEmptyAllowed = false;
@@ -44,7 +44,7 @@ final class TimelineQuery
     ) {}
 
     /**
-     * Set whether EXIF filtering should happen at SQL level
+     * Set whether EXIF filtering should happen at SQL level.
      */
     public function setFilterExifBySQL(bool $value): void
     {
@@ -52,7 +52,7 @@ final class TimelineQuery
     }
 
     /**
-     * Check if we should filter EXIF at SQL level based on flag and database provider
+     * Check if we should filter EXIF at SQL level based on flag and database provider.
      */
     public function shouldFilterExifBySQL(): bool
     {
@@ -63,16 +63,19 @@ final class TimelineQuery
         /** @var \OCP\IDBConnection $db */
         $dbProvider = $this->connection->getDatabaseProvider();
 
-        if ($dbProvider === 'pgsql') {
+        if ('pgsql' === $dbProvider) {
             // PostgreSQL - could implement later if needed
             return false;
-        } elseif ($dbProvider === 'mysql') {
+        }
+        if ('mysql' === $dbProvider) {
             // MySQL/MariaDB - supports JSON operations
             return true;
-        } elseif ($dbProvider === 'sqlite') {
+        }
+        if ('sqlite' === $dbProvider) {
             // SQLite - limited JSON support
             return false;
-        } elseif ($dbProvider === 'oci') {
+        }
+        if ('oci' === $dbProvider) {
             // Oracle - complex JSON support
             return false;
         }

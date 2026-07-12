@@ -3,6 +3,8 @@
     <div class="top-row">
       <div class="name">{{ t('memories', 'Embedded Tags') }}</div>
       <div class="right-actions">
+        <FilterDropdownButton />
+
         <NcActions :inline="2">
           <NcActionButton :aria-label="t('memories', 'New tag')" @click="createTag" close-after-click>
             {{ t('memories', 'New tag') }}
@@ -13,6 +15,10 @@
             {{ t('memories', 'Delete tag') }}
             <template #icon> <TagMinusIcon :size="20" /> </template>
           </NcActionButton>
+        </NcActions>
+
+        <ViewOptionsActions>
+          <NcActionSeparator />
 
           <NcActionButton @click="toggleRecursive" close-after-click>
             {{ recursive ? t('memories', 'Tag view') : t('memories', 'Timeline view') }}
@@ -21,17 +27,28 @@
               <TimelineIcon v-else :size="20" />
             </template>
           </NcActionButton>
+        </ViewOptionsActions>
+
+        <NcActions :aria-label="t('memories', 'Sort options')">
+          <template #icon> <SortVariantIcon :size="20" /> </template>
+          <NcActionText :name="t('memories', 'WIP')" />
         </NcActions>
 
-        <!-- Kept as a standalone icon, not tucked inside the overflow menu above -->
-        <NcButton
-          type="tertiary-no-background"
-          :title="t('memories', 'Refresh index')"
-          :aria-label="t('memories', 'Refresh index')"
-          @click="requestFullIndexRefresh"
-        >
+        <NcActions :aria-label="t('memories', 'Refresh')">
           <template #icon> <RefreshIcon :size="20" /> </template>
-        </NcButton>
+
+          <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
+            {{ t('memories', 'Refresh files') }}
+          </NcActionButton>
+          <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
+            {{ t('memories', 'Refresh untracked files') }}
+          </NcActionButton>
+        </NcActions>
+
+        <NcActions :aria-label="t('memories', 'Others')">
+          <template #icon> <DotsHorizontalIcon :size="20" /> </template>
+          <NcActionText :name="t('memories', 'More actions coming soon')" />
+        </NcActions>
       </div>
     </div>
 
@@ -53,7 +70,11 @@ const NcBreadcrumbs = () => import('@nextcloud/vue/dist/Components/NcBreadcrumbs
 const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.js');
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
+import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
+import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
+import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
+import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import * as dav from '@services/dav';
 import { requestFullIndexRefresh } from '@services/index-refresh';
@@ -63,6 +84,8 @@ import TagPlusIcon from 'vue-material-design-icons/TagPlus.vue';
 import TagMinusIcon from 'vue-material-design-icons/TagMinus.vue';
 import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
+import SortVariantIcon from 'vue-material-design-icons/SortVariant.vue';
+import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 
 export default defineComponent({
   name: 'EmbeddedTagTopMatter',
@@ -72,12 +95,18 @@ export default defineComponent({
     NcBreadcrumb,
     NcActions,
     NcActionButton,
+    NcActionSeparator,
+    NcActionText,
     NcButton,
+    ViewOptionsActions,
+    FilterDropdownButton,
     TagsIcon,
     TagPlusIcon,
     TagMinusIcon,
     TimelineIcon,
     RefreshIcon,
+    SortVariantIcon,
+    DotsHorizontalIcon,
   },
 
   computed: {

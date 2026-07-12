@@ -198,7 +198,7 @@ final class DaysController extends GenericApiController
             $dayData = $drefMap[$dayId];
             if (isset($dayData['fileIds']) && !empty($dayData['fileIds'])) {
                 $photoFileId = (int) $photo['fileid'];
-                if (!in_array($photoFileId, $dayData['fileIds'], true)) {
+                if (!\in_array($photoFileId, $dayData['fileIds'], true)) {
                     continue;
                 }
             }
@@ -252,8 +252,10 @@ final class DaysController extends GenericApiController
         if ($embeddedTagsParam) {
             // Decode URI-encoded string before splitting
             $decoded = urldecode($embeddedTagsParam);
+
             return explode(',', $decoded);
         }
+
         return [];
     }
 }

@@ -10,7 +10,13 @@ import type { IConfig } from '@typings';
 
 const eventName: keyof utils.BusEvent = 'memories:user-config-changed';
 
-const localSettings: (keyof IConfig)[] = ['square_thumbs', 'high_res_cond', 'show_face_rect', 'mobile_nav_items'];
+const localSettings: (keyof IConfig)[] = [
+  'square_thumbs',
+  'high_res_cond',
+  'show_face_rect',
+  'mobile_nav_items',
+  'grid_zoom',
+];
 
 export default defineComponent({
   name: 'UserConfig',

@@ -119,29 +119,42 @@ final class Index
     }
 
     /**
-     * Resolve the list of top-level paths to index for a user, honoring
-     * memories.index.mode, unless an explicit $path override is given.
+     * Rescan the filesystem and index new/changed files under $path (or the
+     * user's configured index root if $path is null), without forcing
+     * already-indexed files to be reprocessed. Lightweight counterpart to
+     * forceReindexUser() -- surfaces filecache drift (e.g. a stale external
+     * storage mount) without paying the cost of re-reading metadata that
+     * hasn't actually changed. Relies entirely on indexFolder()'s existing
+     * mtime-skip logic; nothing is orphaned here.
      *
-     * @return string[]
+     * @param bool $recursive if false, only files directly in $path are
+     *                        scanned/indexed -- subfolders are left untouched.
+     *                        Has no effect when $path is null.
      */
-    private function resolveIndexPaths(string $uid, ?string $path): array
+    public function scanForUntrackedFiles(IUser $user, ?string $path = null, bool $recursive = true): void
     {
-        if (null !== $path) {
-            return [$path];
+        if (!$this->appManager->isEnabledForUser('memories', $user)) {
+            return;
         }
 
-        $mode = SystemConfig::get('memories.index.mode');
-        if ('1' === $mode || '0' === $mode) { // everything (or nothing)
-            return ['/'];
-        }
-        if ('2' === $mode) { // timeline
-            return Util::getTimelinePaths($uid);
-        }
-        if ('3' === $mode) { // custom
-            return [SystemConfig::get('memories.index.path')];
-        }
+        $uid = $user->getUID();
+        $this->setupManager->tearDown();
+        $this->setupManager->setupForUser($user);
+        $root = $this->rootFolder->getUserFolder($uid);
 
-        throw new \Exception('Invalid index mode');
+        foreach ($this->resolveIndexPaths($uid, $path) as $p) {
+            try {
+                $node = $root->get($p);
+            } catch (\Exception) {
+                continue; // path may not exist, e.g. deleted custom index path
+            }
+
+            if ($node instanceof Folder) {
+                $this->indexFolder($node, $uid, $recursive, rescan: true);
+            } elseif ($node instanceof File) {
+                $this->indexFile($node, $uid);
+            }
+        }
     }
 
     /**
@@ -203,85 +216,18 @@ final class Index
     }
 
     /**
-     * Collect fileIds (and File nodes) of supported, allowed files under $folder,
-     * mirroring indexFolder()'s own filtering (mimetype + isPathAllowed +
-     * .nomedia/.nomemories exclusion) so we only orphan files the real
-     * indexing pass would actually consider. When $recursive is false, only
-     * files directly in $folder are collected -- subfolders are not walked.
-     *
-     * @param int[]           $fileIds accumulator, passed by reference
-     * @param array<int,File> $files   fileid => File node accumulator, passed by reference
-     */
-    private function collectFileIds(Folder $folder, array &$fileIds, array &$files, bool $recursive): void
-    {
-        $path = $folder->getPath();
-        if (!self::isPathAllowed($path.'/')) {
-            return;
-        }
-
-        try {
-            if ($folder->nodeExists('.nomedia') || $folder->nodeExists('.nomemories')) {
-                return;
-            }
-
-            $this->rescanFolder($folder);
-
-            $mimes = self::getMimeList();
-            foreach ($folder->getDirectoryListing() as $n) {
-                if ($n instanceof File) {
-                    if (\in_array($n->getMimeType(), $mimes, true) && self::isPathAllowed($n->getPath())) {
-                        $fileIds[] = $n->getId();
-                        $files[$n->getId()] = $n;
-                    }
-                } elseif ($recursive && $n instanceof Folder) {
-                    $this->ensureContinueOk();
-                    $this->collectFileIds($n, $fileIds, $files, true);
-                }
-            }
-        } catch (ProcessClosedException $e) {
-            throw $e; // time-budget signal, not an error -- must propagate
-        } catch (\Throwable $e) {
-            // A folder can be unreadable for all sorts of reasons (permissions,
-            // a read-only/unavailable mount, a transient storage hiccup, ...).
-            // Mirrors indexFolder()'s own per-subfolder handling below -- skip
-            // it and keep going rather than losing everything collected so far
-            // over one bad folder.
-            $this->logger->warning("Skipping unreadable folder {$path}: {$e->getMessage()}", ['app' => Application::APPNAME]);
-        }
-    }
-
-    /**
-     * Force a fresh (shallow, this-folder-only) filesystem scan before trusting
-     * $folder's cached directory listing. Nextcloud's own filecache can drift
-     * out of sync with what's actually on disk -- especially over a slow or
-     * lazily-revalidated external storage mount -- leaving real files
-     * completely invisible to both this and the real indexing pass until
-     * something rescans them. This is exactly what `occ files:scan` does
-     * under the hood, just scoped to one folder via public OCP interfaces
-     * (Storage::getScanner()) instead of the CLI command's machinery.
-     *
-     * Deliberately shallow: subfolders get their own scan when collectFileIds()
-     * recurses into them (each call already goes through ensureContinueOk()),
-     * so a huge/slow tree still scans incrementally and resumes across
-     * multiple background-job runs instead of blocking on one giant recursive
-     * scan with no way to interrupt it partway through.
-     */
-    private function rescanFolder(Folder $folder): void
-    {
-        try {
-            $folder->getStorage()->getScanner()->scan($folder->getInternalPath(), IScanner::SCAN_SHALLOW);
-        } catch (\Throwable $e) {
-            $this->logger->warning("Failed to rescan {$folder->getPath()}: {$e->getMessage()}", ['app' => Application::APPNAME]);
-        }
-    }
-
-    /**
      * Index all files in a folder.
      *
-     * @param Folder $folder folder to index
-     * @param string $userId user being indexed (for embedded tags ownership)
+     * @param Folder $folder    folder to index
+     * @param string $userId    user being indexed (for embedded tags ownership)
+     * @param bool   $recursive if false, subfolders are not walked -- only
+     *                          the files directly in $folder are indexed
+     * @param bool   $rescan    force a fresh filesystem scan of $folder before
+     *                          trusting its cached directory listing (see
+     *                          rescanFolder()) -- off by default since the
+     *                          regular cron/CLI indexing pass should stay cheap
      */
-    public function indexFolder(Folder $folder, ?string $userId = null): void
+    public function indexFolder(Folder $folder, ?string $userId = null, bool $recursive = true, bool $rescan = false): void
     {
         $path = $folder->getPath();
         $this->log("Indexing folder {$path}", true);
@@ -298,6 +244,10 @@ final class Index
             $this->log("Skipping folder {$path} (.nomedia / .nomemories)".PHP_EOL, true);
 
             return;
+        }
+
+        if ($rescan) {
+            $this->rescanFolder($folder);
         }
 
         // Get all files and folders in this folders
@@ -407,16 +357,18 @@ final class Index
         }
 
         // All folders
-        $folders = array_filter($nodes, static fn ($n) => $n instanceof Folder);
-        foreach ($folders as $folder) {
-            $this->ensureContinueOk();
+        if ($recursive) {
+            $folders = array_filter($nodes, static fn ($n) => $n instanceof Folder);
+            foreach ($folders as $subfolder) {
+                $this->ensureContinueOk();
 
-            try {
-                $this->indexFolder($folder, $userId);
-            } catch (ProcessClosedException $e) {
-                throw $e;
-            } catch (\Exception $e) {
-                $this->error("Failed to index folder {$folder->getPath()}: {$e->getMessage()}");
+                try {
+                    $this->indexFolder($subfolder, $userId, true, $rescan);
+                } catch (ProcessClosedException $e) {
+                    throw $e;
+                } catch (\Exception $e) {
+                    $this->error("Failed to index folder {$subfolder->getPath()}: {$e->getMessage()}");
+                }
             }
         }
     }
@@ -540,6 +492,105 @@ final class Index
         }
 
         return empty($pattern) || !preg_match("/{$pattern}/", $path);
+    }
+
+    /**
+     * Resolve the list of top-level paths to index for a user, honoring
+     * memories.index.mode, unless an explicit $path override is given.
+     *
+     * @return string[]
+     */
+    private function resolveIndexPaths(string $uid, ?string $path): array
+    {
+        if (null !== $path) {
+            return [$path];
+        }
+
+        $mode = SystemConfig::get('memories.index.mode');
+        if ('1' === $mode || '0' === $mode) { // everything (or nothing)
+            return ['/'];
+        }
+        if ('2' === $mode) { // timeline
+            return Util::getTimelinePaths($uid);
+        }
+        if ('3' === $mode) { // custom
+            return [SystemConfig::get('memories.index.path')];
+        }
+
+        throw new \Exception('Invalid index mode');
+    }
+
+    /**
+     * Collect fileIds (and File nodes) of supported, allowed files under $folder,
+     * mirroring indexFolder()'s own filtering (mimetype + isPathAllowed +
+     * .nomedia/.nomemories exclusion) so we only orphan files the real
+     * indexing pass would actually consider. When $recursive is false, only
+     * files directly in $folder are collected -- subfolders are not walked.
+     *
+     * @param int[]           $fileIds accumulator, passed by reference
+     * @param array<int,File> $files   fileid => File node accumulator, passed by reference
+     */
+    private function collectFileIds(Folder $folder, array &$fileIds, array &$files, bool $recursive): void
+    {
+        $path = $folder->getPath();
+        if (!self::isPathAllowed($path.'/')) {
+            return;
+        }
+
+        try {
+            if ($folder->nodeExists('.nomedia') || $folder->nodeExists('.nomemories')) {
+                return;
+            }
+
+            $this->rescanFolder($folder);
+
+            $mimes = self::getMimeList();
+            foreach ($folder->getDirectoryListing() as $n) {
+                if ($n instanceof File) {
+                    if (\in_array($n->getMimeType(), $mimes, true) && self::isPathAllowed($n->getPath())) {
+                        $fileIds[] = $n->getId();
+                        $files[$n->getId()] = $n;
+                    }
+                } elseif ($recursive && $n instanceof Folder) {
+                    $this->ensureContinueOk();
+                    $this->collectFileIds($n, $fileIds, $files, true);
+                }
+            }
+        } catch (ProcessClosedException $e) {
+            throw $e; // time-budget signal, not an error -- must propagate
+        } catch (\Throwable $e) {
+            // A folder can be unreadable for all sorts of reasons (permissions,
+            // a read-only/unavailable mount, a transient storage hiccup, ...).
+            // Mirrors indexFolder()'s own per-subfolder handling below -- skip
+            // it and keep going rather than losing everything collected so far
+            // over one bad folder.
+            $this->logger->warning("Skipping unreadable folder {$path}: {$e->getMessage()}", ['app' => Application::APPNAME]);
+        }
+    }
+
+    /**
+     * Force a fresh (shallow, this-folder-only) filesystem scan before trusting
+     * $folder's cached directory listing. Nextcloud's own filecache can drift
+     * out of sync with what's actually on disk -- especially over a slow or
+     * lazily-revalidated external storage mount -- leaving real files
+     * completely invisible to both this and the real indexing pass until
+     * something rescans them. This is exactly what `occ files:scan` does
+     * under the hood, just scoped to one folder via public OCP interfaces
+     * (Storage::getScanner()) instead of the CLI command's machinery.
+     *
+     * Deliberately shallow: subfolders get their own scan when collectFileIds()
+     * recurses into them (each call already goes through ensureContinueOk()),
+     * so a huge/slow tree still scans incrementally and resumes across
+     * multiple background-job runs instead of blocking on one giant recursive
+     * scan with no way to interrupt it partway through.
+     */
+    private function rescanFolder(Folder $folder): void
+    {
+        try {
+            $folder->getStorage()->getScanner()->scan($folder->getInternalPath(), IScanner::SCAN_SHALLOW);
+        } catch (\Throwable $e) {
+            $this->logger->warning("Failed to rescan {$folder->getPath()}: {$e->getMessage()}", ['app' => Application::APPNAME]);
+        }
     }
 
     /**

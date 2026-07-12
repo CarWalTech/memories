@@ -119,7 +119,7 @@ final class DownloadController extends GenericApiController
     #[PublicPage]
     public function one(int $fileid, bool $resumable = true): Http\Response
     {
-        return Util::guardExDirect(function (Http\IOutput $out) use ($fileid, $resumable) {
+        return Util::guardExDirect(function (Http\IOutput $out) use ($fileid, $resumable): void {
             $file = $this->fs->getUserFile($fileid);
 
             // Check if we're allowed to download the file
@@ -242,7 +242,7 @@ final class DownloadController extends GenericApiController
      */
     private function multiple(string $name, array $fileIds): Http\Response
     {
-        return Util::guardExDirect(function ($out) use ($name, $fileIds) {
+        return Util::guardExDirect(function ($out) use ($name, $fileIds): void {
             // Disable time limit
             @set_time_limit(0);
 

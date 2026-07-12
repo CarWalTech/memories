@@ -57,5 +57,6 @@ declare module '@typings' {
     show_face_rect: boolean;
     album_list_sort: number;
     mobile_nav_items: string[];
+    grid_zoom: number;
   };
 }

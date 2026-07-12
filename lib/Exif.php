@@ -13,6 +13,25 @@ use OCP\Files\File;
 
 final class Exif
 {
+    /**
+     * Read-mode values for how descriptive fields (see SIDECAR_DESCRIPTIVE_FIELDS)
+     * are merged between a sidecar file and the embedded file, when both exist.
+     * Structural fields and Orientation are unaffected by the read mode -- they
+     * always come from the embedded file (see class-level docs above).
+     */
+    public const READ_MODE_SIDECAR_ONLY = 'sidecar_only'; // sidecar exclusive if it exists, else embedded
+    public const READ_MODE_PREFER_SIDECAR = 'prefer_sidecar'; // sidecar wins per-field, embedded fills gaps
+    public const READ_MODE_PREFER_FILE = 'prefer_file'; // embedded wins per-field, sidecar fills gaps
+    public const READ_MODE_FILE_ONLY = 'file_only'; // sidecar ignored entirely
+
+    /**
+     * Write-mode values for where a user's metadata edits are stored.
+     * Orientation always goes to the embedded file regardless of write mode
+     * (see SIDECAR_DESCRIPTIVE_FIELDS docs above).
+     */
+    public const WRITE_MODE_SIDECAR_ONLY = 'sidecar_only'; // descriptive fields to sidecar (created if needed) only
+    public const WRITE_MODE_FILE_ONLY = 'file_only'; // everything embedded in the file, no sidecar (legacy default)
+    public const WRITE_MODE_FILE_AND_SIDECAR = 'file_and_sidecar'; // descriptive fields written to both
     private const FORBIDDEN_EDIT_MIMES = ['image/bmp', 'image/x-dcraw', 'video/MP2T']; // also update const.ts
     private const EXIFTOOL_TIMEOUT = 30000;
     private const EXIFTOOL_ARGS = ['-api', 'QuickTimeUTC=1', '-api', 'LargeFileSupport=1', '-n', '-json'];
@@ -37,32 +56,12 @@ final class Exif
         'Rating',
     ];
 
-    /**
-     * Read-mode values for how descriptive fields (see SIDECAR_DESCRIPTIVE_FIELDS)
-     * are merged between a sidecar file and the embedded file, when both exist.
-     * Structural fields and Orientation are unaffected by the read mode -- they
-     * always come from the embedded file (see class-level docs above).
-     */
-    public const READ_MODE_SIDECAR_ONLY = 'sidecar_only'; // sidecar exclusive if it exists, else embedded
-    public const READ_MODE_PREFER_SIDECAR = 'prefer_sidecar'; // sidecar wins per-field, embedded fills gaps
-    public const READ_MODE_PREFER_FILE = 'prefer_file'; // embedded wins per-field, sidecar fills gaps
-    public const READ_MODE_FILE_ONLY = 'file_only'; // sidecar ignored entirely
-
     private const READ_MODES = [
         self::READ_MODE_SIDECAR_ONLY,
         self::READ_MODE_PREFER_SIDECAR,
         self::READ_MODE_PREFER_FILE,
         self::READ_MODE_FILE_ONLY,
     ];
-
-    /**
-     * Write-mode values for where a user's metadata edits are stored.
-     * Orientation always goes to the embedded file regardless of write mode
-     * (see SIDECAR_DESCRIPTIVE_FIELDS docs above).
-     */
-    public const WRITE_MODE_SIDECAR_ONLY = 'sidecar_only'; // descriptive fields to sidecar (created if needed) only
-    public const WRITE_MODE_FILE_ONLY = 'file_only'; // everything embedded in the file, no sidecar (legacy default)
-    public const WRITE_MODE_FILE_AND_SIDECAR = 'file_and_sidecar'; // descriptive fields written to both
 
     private const WRITE_MODES = [
         self::WRITE_MODE_SIDECAR_ONLY,
@@ -238,37 +237,6 @@ final class Exif
     }
 
     /**
-     * Merge descriptive sidecar fields into the embedded exif per the read mode.
-     * $sidecarExif is already restricted to SIDECAR_DESCRIPTIVE_FIELDS by getSidecarExif().
-     *
-     * @param array<string, mixed> $embedded
-     * @param array<string, mixed> $sidecarExif
-     *
-     * @return array<string, mixed>
-     */
-    private static function mergeSidecarExif(array $embedded, array $sidecarExif, string $readMode): array
-    {
-        switch ($readMode) {
-            case self::READ_MODE_PREFER_FILE:
-                // Embedded wins per-field; sidecar only fills fields missing from embedded.
-                return array_merge($sidecarExif, $embedded);
-
-            case self::READ_MODE_PREFER_SIDECAR:
-                // Sidecar wins per-field; embedded fills fields missing from sidecar.
-                return array_merge($embedded, $sidecarExif);
-
-            case self::READ_MODE_SIDECAR_ONLY:
-            default:
-                // Sidecar is exclusive for descriptive fields, no per-field fallback.
-                foreach (self::SIDECAR_DESCRIPTIVE_FIELDS as $field) {
-                    unset($embedded[$field]);
-                }
-
-                return array_merge($embedded, $sidecarExif);
-        }
-    }
-
-    /**
      * Get the XMP sidecar file for a given file, if one exists.
      * Sidecar naming convention: <full filename>.xmp (e.g. IMG_1234.jpg.xmp),
      * chosen to avoid collisions between RAW+JPEG pairs sharing a basename.
@@ -289,23 +257,6 @@ final class Exif
         $node = $parent->get($name);
 
         return $node instanceof File ? $node : null;
-    }
-
-    /**
-     * Read exif from a sidecar file, restricted to the descriptive-field allowlist.
-     *
-     * @return array<string, mixed>
-     */
-    private static function getSidecarExif(File $sidecar): array
-    {
-        $path = $sidecar->getStorage()->getLocalFile($sidecar->getInternalPath());
-        if (!\is_string($path) || !is_readable($path)) {
-            throw new \Exception('Sidecar file not readable');
-        }
-
-        $exif = self::getExifFromLocalPath($path);
-
-        return array_intersect_key($exif, array_flip(self::SIDECAR_DESCRIPTIVE_FIELDS));
     }
 
     /**
@@ -502,66 +453,68 @@ final class Exif
     }
 
     /**
-     * Extract embedded tags from EXIF data
-     * 
-     * @param array $exif EXIF data
-     * @param bool $flatten Whether to flatten the tags into a single array (hierarchy is represented by /)
+     * Extract embedded tags from EXIF data.
+     *
+     * @param array $exif    EXIF data
+     * @param bool  $flatten Whether to flatten the tags into a single array (hierarchy is represented by /)
+     *
      * @return array Array of tag paths
      */
     public static function extractEmbeddedTags(array $exif, bool $flatten = false): array
     {
         $embeddedTags = [];
         $tagSet = []; // For deduplication
-        
+
         // Helper function to ensure we have an array
-        $ensureArray = function ($value) {
+        $ensureArray = static function ($value) {
             if (empty($value)) {
                 return [];
             }
-            return is_array($value) ? $value : [$value];
+
+            return \is_array($value) ? $value : [$value];
         };
-        
+
         // Helper function to add tags with normalization and deduplication
-        $addTags = function ($tags, $separator = '/') use (&$embeddedTags, &$tagSet) {
+        $addTags = static function ($tags, $separator = '/') use (&$embeddedTags, &$tagSet): void {
             foreach ($tags as $tag) {
-                $tagPath = is_array($tag) ? $tag : explode($separator, $tag);
+                $tagPath = \is_array($tag) ? $tag : explode($separator, $tag);
                 // Normalize to '/' and lowercase for deduplication
                 $normalizedKey = strtolower(implode('/', $tagPath));
-                
+
                 if (!isset($tagSet[$normalizedKey])) {
                     $tagSet[$normalizedKey] = true;
                     $embeddedTags[] = $tagPath;
                 }
             }
         };
-        
+
         // Extract from TagsList (split by '/')
         if (!empty($exif['TagsList'])) {
             $tagsList = $ensureArray($exif['TagsList']);
             $addTags($tagsList, '/');
         }
-        
+
         // Extract from HierarchicalSubject (split by '|')
         if (!empty($exif['HierarchicalSubject'])) {
             $hierarchicalSubject = $ensureArray($exif['HierarchicalSubject']);
             $addTags($hierarchicalSubject, '|');
         }
-        
+
         // Extract from Keywords (might contain paths with '/' or '|')
         if (!empty($exif['Keywords'])) {
             $keywords = $ensureArray($exif['Keywords']);
             foreach ($keywords as $keyword) {
                 // Keywords might contain paths with '/' or '|' separator
-                if (strpos($keyword, '/') !== false) {
+                if (str_contains($keyword, '/')) {
                     $addTags([$keyword], '/');
-                } elseif (strpos($keyword, '|') !== false) {
+                } elseif (str_contains($keyword, '|')) {
                     $addTags([$keyword], '|');
                 } else {
                     $addTags([[$keyword]], '/');
                 }
             }
         }
-        
+
         // Extract from Subject (as individual tags)
         if (!empty($exif['Subject'])) {
             $subject = $ensureArray($exif['Subject']);
@@ -574,11 +527,11 @@ final class Exif
         $embeddedTags = self::filterComponentTags($embeddedTags);
 
         if ($flatten) {
-            $embeddedTags = array_map(function ($tag) {
+            $embeddedTags = array_map(static function ($tag) {
                 return implode('/', $tag);
             }, $embeddedTags);
         }
-        
+
         return $embeddedTags;
     }
 
@@ -604,56 +557,6 @@ final class Exif
         }
 
         return $recursive && 0 === strncasecmp($tagPath, $browsePath.'/', \strlen($browsePath) + 1);
-    }
-
-    /**
-     * Filter out tags that are components of hierarchical tags
-     * For example, if we have "Country/Italy", don't also show "Country" or "Italy"
-     */
-    private static function filterComponentTags(array $tags): array
-    {
-        if (empty($tags)) {
-            return $tags;
-        }
-        
-        // Step 1: Collect all tags into normalized collections
-        $flatTags = []; // Single-part tags (no separator)
-        $hierarchicalTags = []; // Multi-part tags (length > 1)
-        $hierarchicalTagParts = []; // All parts from hierarchical tags
-        
-        foreach ($tags as $tag) {
-            $normalized = array_map('strtolower', $tag);
-            
-            if (count($normalized) === 1) {
-                // Single-part tag
-                $flatTags[$normalized[0]] = $tag;
-            } else {
-                // Multi-part hierarchical tag
-                $hierarchicalTags[] = $tag;
-                
-                // Add all parts to hierarchicalTagParts
-                foreach ($normalized as $part) {
-                    $hierarchicalTagParts[$part] = true;
-                }
-            }
-        }
-        
-        // Step 2: Combination - remove flat tags that are parts of hierarchical tags
-        $result = [];
-        
-        // Add flat tags that are NOT components of hierarchical tags
-        foreach ($flatTags as $flatTagKey => $originalTag) {
-            if (!isset($hierarchicalTagParts[$flatTagKey])) {
-                $result[] = $originalTag;
-            }
-        }
-        
-        // Add all hierarchical tags
-        foreach ($hierarchicalTags as $hierarchicalTag) {
-            $result[] = $hierarchicalTag;
-        }
-        
-        return $result;
     }
 
     /**
@@ -709,12 +612,12 @@ final class Exif
      * Set exif data using a raw array.
      *
      * @param array<string, mixed> $data      exif data
-     * @param string                $writeMode one of the WRITE_MODE_* constants, controlling
-     *                                         where descriptive fields (dates, GPS, tags,
-     *                                         rating) get stored. Orientation always goes to
-     *                                         the embedded file regardless of write mode,
-     *                                         since preview generation reads it from the
-     *                                         file's bytes, not through this merged exif.
+     * @param string               $writeMode one of the WRITE_MODE_* constants, controlling
+     *                                        where descriptive fields (dates, GPS, tags,
+     *                                        rating) get stored. Orientation always goes to
+     *                                        the embedded file regardless of write mode,
+     *                                        since preview generation reads it from the
+     *                                        file's bytes, not through this merged exif.
      */
     public static function setFileExif(File $file, array $data, string $writeMode = self::WRITE_MODE_FILE_ONLY): void
     {
@@ -764,6 +667,122 @@ final class Exif
         // to decide whether to re-read exif, so this forces a re-index that
         // picks up the (now different) sidecar-merged data.
         $file->touch();
+    }
+
+    public static function getBinaryExifProp(string $path, string $prop): string
+    {
+        $cmd = array_merge(self::getExiftool(), [$prop, '-n', '-b', $path]);
+
+        try {
+            return Util::execSafe($cmd, self::EXIFTOOL_TIMEOUT) ?? '';
+        } catch (\Exception $ex) {
+            error_log("Timeout reading from exiftool: [{$path}]");
+
+            throw $ex;
+        }
+    }
+
+    public static function getExifWithDuplicates(string $path): array
+    {
+        return self::getExifFromLocalPathWithSeparateProc($path, ['-U', '-G4']);
+    }
+
+    /**
+     * Merge descriptive sidecar fields into the embedded exif per the read mode.
+     * $sidecarExif is already restricted to SIDECAR_DESCRIPTIVE_FIELDS by getSidecarExif().
+     *
+     * @param array<string, mixed> $embedded
+     * @param array<string, mixed> $sidecarExif
+     *
+     * @return array<string, mixed>
+     */
+    private static function mergeSidecarExif(array $embedded, array $sidecarExif, string $readMode): array
+    {
+        switch ($readMode) {
+            case self::READ_MODE_PREFER_FILE:
+                // Embedded wins per-field; sidecar only fills fields missing from embedded.
+                return array_merge($sidecarExif, $embedded);
+
+            case self::READ_MODE_PREFER_SIDECAR:
+                // Sidecar wins per-field; embedded fills fields missing from sidecar.
+                return array_merge($embedded, $sidecarExif);
+
+            case self::READ_MODE_SIDECAR_ONLY:
+            default:
+                // Sidecar is exclusive for descriptive fields, no per-field fallback.
+                foreach (self::SIDECAR_DESCRIPTIVE_FIELDS as $field) {
+                    unset($embedded[$field]);
+                }
+
+                return array_merge($embedded, $sidecarExif);
+        }
+    }
+
+    /**
+     * Read exif from a sidecar file, restricted to the descriptive-field allowlist.
+     *
+     * @return array<string, mixed>
+     */
+    private static function getSidecarExif(File $sidecar): array
+    {
+        $path = $sidecar->getStorage()->getLocalFile($sidecar->getInternalPath());
+        if (!\is_string($path) || !is_readable($path)) {
+            throw new \Exception('Sidecar file not readable');
+        }
+
+        $exif = self::getExifFromLocalPath($path);
+
+        return array_intersect_key($exif, array_flip(self::SIDECAR_DESCRIPTIVE_FIELDS));
+    }
+
+    /**
+     * Filter out tags that are components of hierarchical tags
+     * For example, if we have "Country/Italy", don't also show "Country" or "Italy".
+     */
+    private static function filterComponentTags(array $tags): array
+    {
+        if (empty($tags)) {
+            return $tags;
+        }
+
+        // Step 1: Collect all tags into normalized collections
+        $flatTags = []; // Single-part tags (no separator)
+        $hierarchicalTags = []; // Multi-part tags (length > 1)
+        $hierarchicalTagParts = []; // All parts from hierarchical tags
+
+        foreach ($tags as $tag) {
+            $normalized = array_map('strtolower', $tag);
+
+            if (1 === \count($normalized)) {
+                // Single-part tag
+                $flatTags[$normalized[0]] = $tag;
+            } else {
+                // Multi-part hierarchical tag
+                $hierarchicalTags[] = $tag;
+
+                // Add all parts to hierarchicalTagParts
+                foreach ($normalized as $part) {
+                    $hierarchicalTagParts[$part] = true;
+                }
+            }
+        }
+
+        // Step 2: Combination - remove flat tags that are parts of hierarchical tags
+        $result = [];
+
+        // Add flat tags that are NOT components of hierarchical tags
+        foreach ($flatTags as $flatTagKey => $originalTag) {
+            if (!isset($hierarchicalTagParts[$flatTagKey])) {
+                $result[] = $originalTag;
+            }
+        }
+
+        // Add all hierarchical tags
+        foreach ($hierarchicalTags as $hierarchicalTag) {
+            $result[] = $hierarchicalTag;
+        }
+
+        return $result;
     }
 
     /**
@@ -847,24 +866,6 @@ final class Exif
         } finally {
             $lockingProvider->releaseLock($lockKey, \OCP\Lock\ILockingProvider::LOCK_EXCLUSIVE);
         }
-    }
-
-    public static function getBinaryExifProp(string $path, string $prop): string
-    {
-        $cmd = array_merge(self::getExiftool(), [$prop, '-n', '-b', $path]);
-
-        try {
-            return Util::execSafe($cmd, self::EXIFTOOL_TIMEOUT) ?? '';
-        } catch (\Exception $ex) {
-            error_log("Timeout reading from exiftool: [{$path}]");
-
-            throw $ex;
-        }
-    }
-
-    public static function getExifWithDuplicates(string $path): array
-    {
-        return self::getExifFromLocalPathWithSeparateProc($path, ['-U', '-G4']);
     }
 
     private static function getExiftool(): array

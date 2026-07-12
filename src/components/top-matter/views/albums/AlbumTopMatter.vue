@@ -10,6 +10,19 @@
     <div class="name">{{ name }}</div>
 
     <div class="right-actions">
+      <ViewOptionsActions />
+
+      <NcActions :aria-label="t('memories', 'Refresh')">
+        <template #icon> <RefreshIcon :size="20" /> </template>
+
+        <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
+          {{ t('memories', 'Refresh files') }}
+        </NcActionButton>
+        <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
+          {{ t('memories', 'Refresh untracked files') }}
+        </NcActionButton>
+      </NcActions>
+
       <NcActions v-if="isAlbumList" :title="t('memories', 'Sorting order')" :forceMenu="true">
         <template #icon>
           <template v-if="isDateSort">
@@ -151,12 +164,15 @@ import axios from '@nextcloud/axios';
 
 import AlbumCreateModal from '@components/modal/AlbumCreateModal.vue';
 import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
+import ViewOptionsActions from '@components/top-matter/shared/ViewOptionsActions.vue';
 
 import { downloadWithHandle } from '@services/dav';
 import { API } from '@services/API';
 import * as utils from '@services/utils';
+import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import BackIcon from 'vue-material-design-icons/ArrowLeft.vue';
+import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
 import DownloadIcon from 'vue-material-design-icons/Download.vue';
 import EditIcon from 'vue-material-design-icons/Pencil.vue';
 import DeleteIcon from 'vue-material-design-icons/TrashCanOutline.vue';
@@ -179,8 +195,10 @@ export default defineComponent({
 
     AlbumCreateModal,
     AlbumDeleteModal,
+    ViewOptionsActions,
 
     BackIcon,
+    RefreshIcon,
     DownloadIcon,
     EditIcon,
     DeleteIcon,
@@ -236,6 +254,8 @@ export default defineComponent({
     back() {
       this.$router.go(-1);
     },
+
+    requestFullIndexRefresh,
 
     openShareModal() {
       _m.modals.albumShare(this.$route.params.user, this.$route.params.name);

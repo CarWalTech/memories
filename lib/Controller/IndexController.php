@@ -51,16 +51,22 @@ final class IndexController extends GenericApiController
      * Queue a full, forced re-index of the current user's own library.
      * Runs as a background job (not synchronously) since a whole library
      * can be tens of thousands of files.
+     *
+     * @param string $mode 'all' (default, force re-read every file's metadata)
+     *                     or 'untracked' (cheap: only scan for and index
+     *                     new/missing files, skip already-indexed ones)
      */
     #[NoAdminRequired]
-    public function refresh(IJobList $jobList): Http\Response
+    public function refresh(IJobList $jobList, string $mode = 'all'): Http\Response
     {
-        return Util::guardEx(function () use ($jobList) {
+        return Util::guardEx(static function () use ($jobList, $mode) {
+            $mode = 'untracked' === $mode ? 'untracked' : 'all';
             $uid = Util::getUID();
 
             // Avoid piling up duplicate jobs if the user double-clicks.
-            if (!$jobList->has(ForceReindexJob::class, ['uid' => $uid])) {
-                $jobList->add(ForceReindexJob::class, ['uid' => $uid]);
+            $argument = ['uid' => $uid, 'mode' => $mode];
+            if (!$jobList->has(ForceReindexJob::class, $argument)) {
+                $jobList->add(ForceReindexJob::class, $argument);
             }
 
             return new JSONResponse(['queued' => true], Http::STATUS_ACCEPTED);
@@ -84,11 +90,16 @@ final class IndexController extends GenericApiController
      * (e.g. a server restart) -- it'll simply find nothing left to do if the
      * continuation already finished (already-reprocessed files are no longer
      * orphaned).
+     *
+     * @param string $mode 'all' (default, force re-read every file's metadata)
+     *                     or 'untracked' (cheap: only scan for and index
+     *                     new/missing files, skip already-indexed ones)
      */
     #[NoAdminRequired]
-    public function refreshFolder(string $path, bool $recursive, Service\Index $indexer, IJobList $jobList): Http\Response
+    public function refreshFolder(string $path, bool $recursive, Service\Index $indexer, IJobList $jobList, string $mode = 'all'): Http\Response
     {
-        return Util::guardEx(function () use ($path, $recursive, $indexer, $jobList) {
+        return Util::guardEx(function () use ($path, $recursive, $indexer, $jobList, $mode) {
+            $mode = 'untracked' === $mode ? 'untracked' : 'all';
             $user = Util::getUser();
             $uid = $user->getUID();
 
@@ -115,12 +126,21 @@ final class IndexController extends GenericApiController
             Exif::ensureStaticExiftoolProc();
             $needsBackground = false;
 
-            try {
+            $doReindex = static function () use ($indexer, $user, $sanitized, $recursive, $mode): void {
                 // Pass the validated, user-relative path -- forceReindexUser()/
-                // resolveIndexPaths() resolve paths via $root->get($path) where
-                // $root is this same user's root folder, same convention as the
-                // CLI's --path option (relative, not the Node's absolute getPath()).
-                $indexer->forceReindexUser($user, $sanitized, $recursive);
+                // scanForUntrackedFiles()/resolveIndexPaths() resolve paths via
+                // $root->get($path) where $root is this same user's root folder,
+                // same convention as the CLI's --path option (relative, not the
+                // Node's absolute getPath()).
+                if ('untracked' === $mode) {
+                    $indexer->scanForUntrackedFiles($user, $sanitized, $recursive);
+                } else {
+                    $indexer->forceReindexUser($user, $sanitized, $recursive);
+                }
+            };
+
+            try {
+                $doReindex();
             } catch (Service\ProcessClosedException) {
                 $needsBackground = true;
             }
@@ -133,7 +153,7 @@ final class IndexController extends GenericApiController
 
             // Queue the durable safety-net job regardless of whether we can
             // also continue immediately below.
-            $argument = ['uid' => $uid, 'path' => $sanitized, 'recursive' => $recursive];
+            $argument = ['uid' => $uid, 'path' => $sanitized, 'recursive' => $recursive, 'mode' => $mode];
             if (!$jobList->has(ForceReindexJob::class, $argument)) {
                 $jobList->add(ForceReindexJob::class, $argument);
             }
@@ -146,7 +166,7 @@ final class IndexController extends GenericApiController
                 return new JSONResponse(['queued' => true], Http::STATUS_ACCEPTED);
             }
 
-            return Util::guardExDirect(function (Http\IOutput $out) use ($indexer, $user, $sanitized, $recursive) {
+            return Util::guardExDirect(function (Http\IOutput $out) use ($indexer, $doReindex): void {
                 $out->setHttpResponseCode(Http::STATUS_ACCEPTED);
                 $out->setHeader('Content-Type: application/json');
                 $out->setOutput(json_encode(['queued' => true, 'background' => true]));
@@ -159,7 +179,7 @@ final class IndexController extends GenericApiController
                 $indexer->continueCheck = null;
 
                 try {
-                    $indexer->forceReindexUser($user, $sanitized, $recursive);
+                    $doReindex();
                 } catch (\Exception $e) {
                     $this->logger->error('Background continuation of folder refresh failed: '.$e->getMessage(), ['app' => Application::APPNAME]);
                 } finally {

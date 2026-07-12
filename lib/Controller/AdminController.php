@@ -188,7 +188,7 @@ final class AdminController extends GenericApiController
     #[NoCSRFRequired]
     public function getFailureLogs(): Http\Response
     {
-        return Util::guardExDirect(static function (Http\IOutput $out) {
+        return Util::guardExDirect(static function (Http\IOutput $out): void {
             $tw = \OC::$server->get(\OCA\Memories\Db\TimelineWrite::class);
 
             $out->setHeader('Content-Type: text/plain');
@@ -218,7 +218,7 @@ final class AdminController extends GenericApiController
         // Reset action token
         $this->actionToken(true);
 
-        return Util::guardExDirect(static function (Http\IOutput $out) {
+        return Util::guardExDirect(static function (Http\IOutput $out): void {
             try {
                 // Set PHP timeout to infinite
                 set_time_limit(0);

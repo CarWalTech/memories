@@ -164,7 +164,7 @@ final class AlbumsBackend extends Backend
 
         $userManager = \OC::$server->get(\OCP\IUserManager::class);
 
-        array_walk($list, static function (array &$item) use ($userManager) {
+        array_walk($list, static function (array &$item) use ($userManager): void {
             // Fall back cover to cover_owner if available
             if (empty($item['cover']) && !empty($item['cover_owner'] ?? null)) {
                 $item['cover'] = $item['cover_owner'];

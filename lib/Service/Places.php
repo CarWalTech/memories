@@ -408,7 +408,7 @@ final class Places
         flush();
 
         $count = 0;
-        $this->tw->orphanAndRun(['fileid', 'lat', 'lon'], 20, function (array $row) use (&$count) {
+        $this->tw->orphanAndRun(['fileid', 'lat', 'lon'], 20, function (array $row) use (&$count): void {
             ++$count;
 
             // Only proceed if we have a valid location

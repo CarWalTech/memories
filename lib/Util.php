@@ -354,7 +354,8 @@ final class Util
     public static function getAllPhotosExcludePaths(string $uid): array
     {
         $paths = \OC::$server->get(\OCP\Config\IUserConfig::class)
-            ->getValueString($uid, Application::APPNAME, 'allPhotosExcludePaths');
+            ->getValueString($uid, Application::APPNAME, 'allPhotosExcludePaths')
+        ;
 
         if ('' === $paths) {
             return [];

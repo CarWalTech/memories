@@ -47,7 +47,11 @@
           <div class="mobile-header-top-gap"></div>
 
           <!-- Route-specific top matter -->
-          <DynamicTopMatter ref="dtm" :selection-manager="refs.selectionManager" @load="refs.scrollerManager.adjust()" />
+          <DynamicTopMatter
+            ref="dtm"
+            :selection-manager="refs.selectionManager"
+            @load="refs.scrollerManager.adjust()"
+          />
         </div>
       </template>
 
@@ -111,6 +115,7 @@ import axios from '@nextcloud/axios';
 import { showError } from '@nextcloud/dialogs';
 
 import { getLayout } from '@services/layout';
+import { DESKTOP_ROW_HEIGHTS, MOBILE_ROW_HEIGHTS, clampZoom } from '@services/zoom';
 
 import UserConfig from '@mixins/UserConfig';
 import RowHead from '@components/frame/RowHead.vue';
@@ -120,10 +125,10 @@ import SelectionManager from '@components/SelectionManager.vue';
 import Viewer from '@components/viewer/Viewer.vue';
 import SwipeRefresh from './SwipeRefresh.vue';
 
-import EmptyContent from '@components/top-matter/EmptyContent.vue';
+import EmptyContent from '@components/top-matter/shared/EmptyContent.vue';
 import TopMatter from '@components/top-matter/TopMatter.vue';
 import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
-import TimelineTopOverlay from '@components/top-matter/TimelineTopOverlay.vue';
+import TimelineTopOverlay from '@components/top-matter/views/timeline/TimelineTopOverlay.vue';
 
 import * as dav from '@services/dav';
 import * as utils from '@services/utils';
@@ -134,8 +139,6 @@ import { API, DaysFilterType } from '@services/API';
 import type { IDay, IHeadRow, IPhoto, IRow, IFilters } from '@typings';
 
 const SCROLL_LOAD_DELAY = 100; // Delay in loading data when scrolling
-const DESKTOP_ROW_HEIGHT = 200; // Height of row on desktop
-const MOBILE_ROW_HEIGHT = 120; // Approx row height on mobile
 const ROW_NUM_LPAD = 16; // Number of rows to load before and after viewport
 
 export default defineComponent({
@@ -236,7 +239,7 @@ export default defineComponent({
   },
 
   created() {
-    utils.bus.on('memories:user-config-changed', this.softRefresh);
+    utils.bus.on('memories:user-config-changed', this.onUserConfigChanged);
     utils.bus.on('files:file:created', this.softRefresh);
     utils.bus.on('memories:window:resize', this.handleResizeWithDelay);
     utils.bus.on('memories:timeline:fetch-day', this.fetchDay);
@@ -247,7 +250,7 @@ export default defineComponent({
   },
 
   beforeDestroy() {
-    utils.bus.off('memories:user-config-changed', this.softRefresh);
+    utils.bus.off('memories:user-config-changed', this.onUserConfigChanged);
     utils.bus.off('files:file:created', this.softRefresh);
     utils.bus.off('memories:window:resize', this.handleResizeWithDelay);
     utils.bus.off('memories:timeline:fetch-day', this.fetchDay);
@@ -428,6 +431,17 @@ export default defineComponent({
       this._softRefreshInternal(false);
     },
 
+    /**
+     * A user config setting changed -- force a grid recompute (e.g. zoom
+     * level or square-thumbs, neither of which affects the container's own
+     * size, so recomputeSizes() would otherwise no-op) in addition to the
+     * regular data refresh.
+     */
+    onUserConfigChanged() {
+      this.recomputeSizes(true);
+      this.softRefresh();
+    },
+
     /** Fetch and re-process days (sync can be awaited) */
     async softRefreshSync() {
       await this._softRefreshInternal(true);
@@ -454,8 +468,24 @@ export default defineComponent({
       utils.setRenewingTimeout(this, 'resizeTimer', this.recomputeSizes, 100);
     },
 
-    /** Recompute static sizes of containers */
-    recomputeSizes() {
+    /** Row height preset (px) for the current zoom level, clamped to the valid range */
+    desktopRowHeight(): number {
+      return DESKTOP_ROW_HEIGHTS[clampZoom(this.config.grid_zoom)];
+    },
+
+    /** Row height preset (px) for the current zoom level, mobile variant */
+    mobileRowHeight(): number {
+      return MOBILE_ROW_HEIGHTS[clampZoom(this.config.grid_zoom)];
+    },
+
+    /**
+     * Recompute static sizes of containers.
+     * @param force recompute the grid even if the container size itself
+     *              hasn't changed -- needed when only the zoom level or
+     *              square-thumbs setting changed (e.g. from the View Options
+     *              menu), since neither affects the container's own size.
+     */
+    recomputeSizes(force: boolean = false) {
       // Get the container element
       const container = this.refs.container?.$el;
       if (!container) return;
@@ -487,7 +517,7 @@ export default defineComponent({
         this.rowWidth = targetWidth;
       }
 
-      if (!heightChanged && !widthChanged) {
+      if (!force && !heightChanged && !widthChanged) {
         // If the target size is the same, nothing else could have
         // possibly changed either, so just skip
         return;
@@ -495,16 +525,18 @@ export default defineComponent({
 
       if (this.isMobileLayout()) {
         // Mobile
-        this.numCols = Math.max(3, Math.floor(this.rowWidth / MOBILE_ROW_HEIGHT));
+        const rowHeight = this.mobileRowHeight();
+        this.numCols = Math.max(3, Math.floor(this.rowWidth / rowHeight));
         this.rowHeight = Math.floor(this.rowWidth / this.numCols);
       } else {
         // Desktop
+        const rowHeight = this.desktopRowHeight();
         if (this.config.square_thumbs) {
-          this.numCols = Math.max(3, Math.floor(this.rowWidth / DESKTOP_ROW_HEIGHT));
+          this.numCols = Math.max(3, Math.floor(this.rowWidth / rowHeight));
           this.rowHeight = Math.floor(this.rowWidth / this.numCols);
         } else {
           // As a heuristic, assume all images are 4:3 landscape
-          this.rowHeight = DESKTOP_ROW_HEIGHT;
+          this.rowHeight = rowHeight;
           this.numCols = Math.ceil(this.rowWidth / ((this.rowHeight * 4) / 3));
         }
       }

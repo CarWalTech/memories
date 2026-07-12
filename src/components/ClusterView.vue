@@ -24,7 +24,7 @@ import UserConfig from '@mixins/UserConfig';
 import TopMatter from '@components/top-matter/TopMatter.vue';
 import ClusterGrid from '@components/ClusterGrid.vue';
 import Timeline from '@components/Timeline.vue';
-import EmptyContent from '@components/top-matter/EmptyContent.vue';
+import EmptyContent from '@components/top-matter/shared/EmptyContent.vue';
 import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
 
 import * as dav from '@services/dav';

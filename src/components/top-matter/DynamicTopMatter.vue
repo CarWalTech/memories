@@ -10,16 +10,16 @@ import { defineComponent, type Component, type PropType } from 'vue';
 
 import UserMixin from '@mixins/UserConfig';
 
-import AlbumDynamicTopMatter from './AlbumDynamicTopMatter.vue';
-import FolderDynamicTopMatter from './FolderDynamicTopMatter.vue';
-import PlacesDynamicTopMatterVue from './PlacesDynamicTopMatter.vue';
-import EmbeddedTagDynamicTopMatter from './EmbeddedTagDynamicTopMatter.vue';
-import OnThisDay from './OnThisDay.vue';
+import AlbumDynamicTopMatter from './views/albums/AlbumDynamicTopMatter.vue';
+import FolderDynamicTopMatter from './views/folders/FolderDynamicTopMatter.vue';
+import PlacesDynamicTopMatterVue from './views/places/PlacesDynamicTopMatter.vue';
+import EmbeddedTagDynamicTopMatter from './views/tags/EmbeddedTagDynamicTopMatter.vue';
+import OnThisDay from './shared/OnThisDay.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 import * as strings from '@services/strings';
 
 // Auto-hide top header on public shares if redundant
-import './PublicShareHeader';
+import './shared/PublicShareHeader';
 
 export default defineComponent({
   name: 'DynamicTopMatter',

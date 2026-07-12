@@ -51,7 +51,6 @@ final class ExifFields
         'Keywords' => true,
         'Subject' => true,
         'HierarchicalSubject' => true,
-        
 
         // GPS info
         'GPSLatitude' => true,

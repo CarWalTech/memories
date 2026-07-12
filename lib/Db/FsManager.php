@@ -180,25 +180,6 @@ final class FsManager
     }
 
     /**
-     * Resolve the configured "All Photos" exclude paths to fileids.
-     *
-     * @return int[]
-     */
-    private function resolveExcludedFolderIds(string $uid, Folder $userFolder): array
-    {
-        $ids = [];
-        foreach (Util::getAllPhotosExcludePaths($uid) as $path) {
-            try {
-                $ids[] = $userFolder->get($path)->getId();
-            } catch (\OCP\Files\NotFoundException) {
-                // Skip paths that no longer exist
-            }
-        }
-
-        return $ids;
-    }
-
-    /**
      * Get list of folders with .nomedia file.
      *
      * @param Folder $root root folder
@@ -459,6 +440,25 @@ final class FsManager
         }
 
         return true;
+    }
+
+    /**
+     * Resolve the configured "All Photos" exclude paths to fileids.
+     *
+     * @return int[]
+     */
+    private function resolveExcludedFolderIds(string $uid, Folder $userFolder): array
+    {
+        $ids = [];
+        foreach (Util::getAllPhotosExcludePaths($uid) as $path) {
+            try {
+                $ids[] = $userFolder->get($path)->getId();
+            } catch (\OCP\Files\NotFoundException) {
+                // Skip paths that no longer exist
+            }
+        }
+
+        return $ids;
     }
 
     /**

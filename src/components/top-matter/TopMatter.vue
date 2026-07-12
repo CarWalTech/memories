@@ -13,12 +13,12 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-import FolderTopMatter from './FolderTopMatter.vue';
-import ClusterTopMatter from './ClusterTopMatter.vue';
-import FaceTopMatter from './FaceTopMatter.vue';
-import AlbumTopMatter from './AlbumTopMatter.vue';
-import PlacesTopMatter from './PlacesTopMatter.vue';
-import EmbeddedTagTopMatter from './EmbeddedTagTopMatter.vue';
+import FolderTopMatter from './views/folders/FolderTopMatter.vue';
+import CollabTagsTopMatter from './views/collab_tags/CollabTagsTopMatter.vue';
+import FaceTopMatter from './views/faces/FaceTopMatter.vue';
+import AlbumTopMatter from './views/albums/AlbumTopMatter.vue';
+import PlacesTopMatter from './views/places/PlacesTopMatter.vue';
+import EmbeddedTagTopMatter from './views/tags/EmbeddedTagTopMatter.vue';
 import IndexTopMatter from './IndexTopMatter.vue';
 
 import * as utils from '@services/utils';
@@ -27,7 +27,7 @@ export default defineComponent({
   name: 'TopMatter',
   components: {
     FolderTopMatter,
-    ClusterTopMatter,
+    CollabTagsTopMatter,
     FaceTopMatter,
     AlbumTopMatter,
     EmbeddedTagTopMatter,
@@ -58,7 +58,7 @@ export default defineComponent({
         case _m.routes.Places.name:
           return PlacesTopMatter;
         case _m.routes.Tags.name:
-          return ClusterTopMatter;
+          return CollabTagsTopMatter;
         case _m.routes.EmbeddedTags.name:
           return EmbeddedTagTopMatter;
         case _m.routes.Recognize.name:
@@ -66,6 +66,10 @@ export default defineComponent({
           return FaceTopMatter;
         case _m.routes.Base.name:
         case _m.routes.AllPhotos.name:
+        case _m.routes.Favorites.name:
+        case _m.routes.Archive.name:
+        case _m.routes.ThisDay.name:
+        case _m.routes.Map.name:
           return IndexTopMatter;
         default:
           return null;
