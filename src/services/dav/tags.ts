@@ -1,11 +1,11 @@
 import { getLanguage } from '@nextcloud/l10n';
 import axios from '@nextcloud/axios';
-import { showError } from '@nextcloud/dialogs';
+import { showError, showSuccess } from '@nextcloud/dialogs';
 
 import client from './client';
 
 import { API } from '@services/API';
-import { translate as t } from '@services/l10n';
+import { translate as t, translatePlural as n } from '@services/l10n';
 import * as utils from '@services/utils';
 
 import type { ICluster } from '@typings';
@@ -109,6 +109,43 @@ export async function deleteEmbeddedTagWithConfirm(path: string, displayName: st
   }
 
   return true;
+}
+
+/**
+ * Confirm and delete every embedded tag (and its whole subtree) that
+ * currently has no photos. Only touches the tag dictionary -- no photo
+ * EXIF data is ever affected.
+ */
+export async function pruneEmptyEmbeddedTagsWithConfirm(): Promise<void> {
+  const confirmed = await utils.confirmDestructive({
+    title: t('memories', 'Prune empty tags'),
+    message: t('memories', 'Delete every tag that currently has no photos? This cannot be undone.'),
+  });
+
+  if (!confirmed) return;
+
+  try {
+    const { data } = await axios.post<{ deleted: number }>(API.EMBEDDED_TAGS_PRUNE_EMPTY());
+    showSuccess(n('memories', 'Deleted {count} empty tag', 'Deleted {count} empty tags', data.deleted, { count: data.deleted }));
+    utils.bus.emit('memories:embedded-tags:changed', null);
+  } catch (e: any) {
+    showError(t('memories', 'Failed to prune empty tags'));
+  }
+}
+
+/**
+ * Scan every indexed photo's stored EXIF data and add any embedded tag
+ * found on it to the tag dictionary that isn't already there. Never reads
+ * files from disk or touches photo EXIF data, only the tag dictionary.
+ */
+export async function findMissingEmbeddedTags(): Promise<void> {
+  try {
+    const { data } = await axios.post<{ added: number }>(API.EMBEDDED_TAGS_FIND_MISSING());
+    showSuccess(n('memories', 'Added {count} missing tag', 'Added {count} missing tags', data.added, { count: data.added }));
+    utils.bus.emit('memories:embedded-tags:changed', null);
+  } catch (e: any) {
+    showError(t('memories', 'Failed to find missing tags'));
+  }
 }
 
 /**

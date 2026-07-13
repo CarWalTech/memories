@@ -7,6 +7,7 @@ namespace OCA\Memories\ClustersBackend;
 use OCA\Memories\Db\EmbeddedTagsQuery;
 use OCA\Memories\Db\TimelineQuery;
 use OCA\Memories\Db\TimelineRoot;
+use OCA\Memories\Db\TimelineWrite;
 use OCA\Memories\Exif;
 use OCA\Memories\Util;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -27,6 +28,7 @@ final class EmbeddedTagsBackend extends Backend
     public function __construct(
         protected TimelineQuery $tq,
         protected EmbeddedTagsQuery $etq,
+        protected TimelineWrite $tw,
         protected IRequest $request,
     ) {}
 
@@ -149,6 +151,85 @@ final class EmbeddedTagsBackend extends Backend
         }
 
         return !empty($this->getPhotosPHP($path, 1, null, true, $root));
+    }
+
+    /**
+     * Delete every tag (and its whole subtree) that currently has no photos,
+     * for the current user. Processes root-first so that once a subtree is
+     * confirmed empty it's deleted (and its descendants skipped) in one go,
+     * instead of re-checking each descendant individually.
+     *
+     * @return int number of tag dictionary entries deleted
+     */
+    public function pruneEmptyTags(): int
+    {
+        $uid = Util::getUID();
+        $tags = $this->etq->getTagsFlat();
+
+        // Order shallowest-first so an empty ancestor is deleted (recursively,
+        // taking its descendants with it) before its descendants are visited
+        usort($tags, static fn ($a, $b) => $a['level'] <=> $b['level']);
+
+        $deleted = 0;
+        $prunedPrefixes = [];
+
+        foreach ($tags as $tag) {
+            $path = $tag['path'];
+
+            // Skip anything already removed as part of an ancestor's subtree
+            foreach ($prunedPrefixes as $prefix) {
+                if ($path === $prefix || str_starts_with($path, $prefix.'/')) {
+                    continue 2;
+                }
+            }
+
+            if (!$this->hasAnyPhotos($path)) {
+                $this->tw->deleteTagByPath($uid, $path, true);
+                $prunedPrefixes[] = $path;
+                ++$deleted;
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Scan every indexed photo in the whole account (including archived/
+     * hidden ones) and ensure any embedded tag found in its stored EXIF data
+     * exists in the current user's tag dictionary. This never reads files
+     * from disk -- it only reuses the EXIF already cached in the `memories`
+     * table -- so it's cheap to run on demand to repair a dictionary that
+     * has drifted out of sync with the photos' actual tags (e.g. tags added
+     * to a migration that ran before the dictionary table existed).
+     *
+     * @return int number of new tag dictionary entries created
+     */
+    public function findMissingTags(): int
+    {
+        $uid = Util::getUID();
+        $before = $this->etq->getTagsCount();
+
+        $query = $this->tq->getBuilder();
+        $query->select('m.exif')->from('memories', 'm');
+        $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
+        $query = $this->tq->filterFilecache($query, $this->wholeAccountRoot(), true, false, true);
+
+        $rows = $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
+
+        foreach ($rows as $row) {
+            if (empty($row['exif'])) {
+                continue;
+            }
+
+            $exif = json_decode((string) $row['exif'], true);
+            if (!\is_array($exif)) {
+                continue;
+            }
+
+            $this->tw->processEmbeddedTagsForUser($uid, $exif);
+        }
+
+        return $this->etq->getTagsCount() - $before;
     }
 
     /**

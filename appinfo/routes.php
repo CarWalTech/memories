@@ -61,6 +61,8 @@ return [
         ['name' => 'EmbeddedTags#sub', 'url' => '/api/embedded-tags/sub', 'verb' => 'GET'],
         ['name' => 'EmbeddedTags#create', 'url' => '/api/embedded-tags/create', 'verb' => 'POST'],
         ['name' => 'EmbeddedTags#delete', 'url' => '/api/embedded-tags/delete', 'verb' => 'DELETE'],
+        ['name' => 'EmbeddedTags#pruneEmpty', 'url' => '/api/embedded-tags/prune-empty', 'verb' => 'POST'],
+        ['name' => 'EmbeddedTags#findMissing', 'url' => '/api/embedded-tags/find-missing', 'verb' => 'POST'],
 
         ['name' => 'Map#clusters', 'url' => '/api/map/clusters', 'verb' => 'GET'],
         ['name' => 'Map#init', 'url' => '/api/map/init', 'verb' => 'GET'],

@@ -27,7 +27,20 @@ trait TimelineWriteEmbeddedTags
             $userId = $owner->getUID();
         }
 
-        // Extract embedded tags from EXIF data
+        $this->processEmbeddedTagsForUser($userId, $exif);
+    }
+
+    /**
+     * Same as processEmbeddedTags(), but takes a user id directly instead of
+     * deriving it from a file's owner. Used to (re-)build the tag dictionary
+     * straight from already-indexed EXIF data (the `memories` table), without
+     * needing a File node for every row -- see EmbeddedTagsBackend::findMissingTags().
+     *
+     * @param string $userId User ID
+     * @param array  $exif   EXIF data extracted from the file
+     */
+    public function processEmbeddedTagsForUser(string $userId, array $exif): void
+    {
         $embeddedTags = Exif::extractEmbeddedTags($exif);
 
         if (empty($embeddedTags)) {

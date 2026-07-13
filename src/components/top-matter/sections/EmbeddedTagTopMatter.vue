@@ -33,7 +33,16 @@
 
         <NcActions :aria-label="t('memories', 'Others')">
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
-          <NcActionText :name="t('memories', 'More actions coming soon')" />
+
+          <NcActionButton :aria-label="t('memories', 'Prune empty tags')" @click="pruneEmpty" close-after-click>
+            {{ t('memories', 'Prune empty tags') }}
+            <template #icon> <TagOffIcon :size="20" /> </template>
+          </NcActionButton>
+
+          <NcActionButton :aria-label="t('memories', 'Find missing tags')" @click="findMissing" close-after-click>
+            {{ t('memories', 'Find missing tags') }}
+            <template #icon> <TagSearchIcon :size="20" /> </template>
+          </NcActionButton>
         </NcActions>
       </div>
     </div>
@@ -46,7 +55,6 @@ import { defineComponent } from 'vue';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
-import NcActionText from '@nextcloud/vue/dist/Components/NcActionText.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
@@ -57,6 +65,8 @@ import * as dav from '@services/dav';
 import TagsIcon from 'vue-material-design-icons/Tag.vue';
 import TagPlusIcon from 'vue-material-design-icons/TagPlus.vue';
 import TagMinusIcon from 'vue-material-design-icons/TagMinus.vue';
+import TagOffIcon from 'vue-material-design-icons/TagOff.vue';
+import TagSearchIcon from 'vue-material-design-icons/TagSearch.vue';
 import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 
@@ -67,7 +77,6 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     NcActionSeparator,
-    NcActionText,
     NcButton,
     ViewOptionsAction,
     RefreshOptionsAction,
@@ -75,6 +84,8 @@ export default defineComponent({
     TagsIcon,
     TagPlusIcon,
     TagMinusIcon,
+    TagOffIcon,
+    TagSearchIcon,
     TimelineIcon,
     DotsHorizontalIcon,
   },
@@ -131,6 +142,14 @@ export default defineComponent({
 
       // Navigate up to the parent tag
       this.$router.push(this.getRoute(this.pathParts.slice(0, -1)));
+    },
+
+    async pruneEmpty(): Promise<void> {
+      await dav.pruneEmptyEmbeddedTagsWithConfirm();
+    },
+
+    async findMissing(): Promise<void> {
+      await dav.findMissingEmbeddedTags();
     },
   },
 });

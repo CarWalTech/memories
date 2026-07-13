@@ -10,6 +10,7 @@ import { getLanguage } from '@nextcloud/l10n';
 
 import EmbeddedTagGrid from '../../EmbeddedTagGrid.vue';
 
+import * as utils from '@services/utils';
 import { API } from '@services/API';
 
 import type { IEmbeddedTagFolder } from '@typings';
@@ -24,6 +25,14 @@ export default defineComponent({
 
   components: {
     EmbeddedTagGrid,
+  },
+
+  created() {
+    utils.bus.on('memories:embedded-tags:changed', this.refresh);
+  },
+
+  beforeDestroy() {
+    utils.bus.off('memories:embedded-tags:changed', this.refresh);
   },
 
   computed: {

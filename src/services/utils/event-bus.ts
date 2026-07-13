@@ -59,6 +59,9 @@ export type BusEvent = {
   /** A folder was renamed in the Folders view (re-sort signal only) */
   'memories:folders:renamed': null;
 
+  /** Embedded tags were bulk-changed (pruned/found-missing) -- re-fetch the current listing */
+  'memories:embedded-tags:changed': null;
+
   /** NativeX database was updated */
   'nativex:db:updated': null;
 } & {

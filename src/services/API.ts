@@ -147,6 +147,14 @@ export class API {
     return gen(`${BASE}/embedded-tags/delete`);
   }
 
+  static EMBEDDED_TAGS_PRUNE_EMPTY() {
+    return gen(`${BASE}/embedded-tags/prune-empty`);
+  }
+
+  static EMBEDDED_TAGS_FIND_MISSING() {
+    return gen(`${BASE}/embedded-tags/find-missing`);
+  }
+
   static FACE_LIST(app: 'recognize' | 'facerecognition') {
     return gen(`${BASE}/clusters/${app}`);
   }

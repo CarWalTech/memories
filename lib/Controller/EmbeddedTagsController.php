@@ -159,6 +159,39 @@ class EmbeddedTagsController extends GenericApiController
     }
 
     /**
+     * Delete every tag (and its whole subtree) that currently has no photos.
+     * Never touches photo EXIF data, only the tag dictionary.
+     */
+    #[NoAdminRequired]
+    public function pruneEmpty(): Http\Response
+    {
+        return Util::guardEx(function () {
+            if (!Util::isLoggedIn()) {
+                throw Exceptions::NotLoggedIn();
+            }
+
+            return new JSONResponse(['deleted' => $this->backend->pruneEmptyTags()], Http::STATUS_OK);
+        });
+    }
+
+    /**
+     * Scan every indexed photo's stored EXIF data and ensure any embedded
+     * tag found on it exists in the tag dictionary. Never reads files from
+     * disk or touches photo EXIF data, only the tag dictionary.
+     */
+    #[NoAdminRequired]
+    public function findMissing(): Http\Response
+    {
+        return Util::guardEx(function () {
+            if (!Util::isLoggedIn()) {
+                throw Exceptions::NotLoggedIn();
+            }
+
+            return new JSONResponse(['added' => $this->backend->findMissingTags()], Http::STATUS_OK);
+        });
+    }
+
+    /**
      * Get tags in flat manner with optional filtering and pagination.
      */
     #[NoAdminRequired]
