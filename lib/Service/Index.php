@@ -108,12 +108,24 @@ final class Index
                 continue;
             }
 
-            if ($node instanceof Folder) {
-                $this->indexFolder($node, $uid);
-            } elseif ($node instanceof File) {
-                $this->indexFile($node, $uid);
-            } else {
-                throw new \Exception('Not a file or folder');
+            try {
+                MountRecovery::retry($node->getPath(), function () use ($node, $uid): void {
+                    if ($node instanceof Folder) {
+                        $this->indexFolder($node, $uid);
+                    } elseif ($node instanceof File) {
+                        $this->indexFile($node, $uid);
+                    } else {
+                        throw new \Exception('Not a file or folder');
+                    }
+                }, $this->logger);
+            } catch (ProcessClosedException $e) {
+                throw $e; // time-budget signal, not an error -- must propagate
+            } catch (\Throwable $e) {
+                // This path can be on a mount that's temporarily unavailable
+                // (offline external storage, transient hiccup, ...). Don't let
+                // it abort indexing of this user's other timeline paths -- skip
+                // it and retry on the next scheduled run instead.
+                $this->error("Failed to index {$path} for {$uid}: {$e->getMessage()}");
             }
         }
     }

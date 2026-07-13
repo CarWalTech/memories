@@ -6,6 +6,7 @@ namespace OCA\Memories\Controller;
 
 use OCA\Memories\Db\TimelineRoot;
 use OCA\Memories\Exceptions;
+use OCA\Memories\Service\MountRecovery;
 use OCA\Memories\Util;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -68,21 +69,32 @@ final class FoldersController extends GenericApiController
             $this->fs->populateRoot($root);
 
             // Process to response type
-            $list = array_map(function ($node) use ($root) {
-                // Base changes permanently remove any mounts outside the
-                // target folder, so we need to use a clone for each subfolder
-                $root = clone $root;
+            $list = [];
+            foreach ($folders as $node) {
+                try {
+                    $list[] = MountRecovery::retry($node->getPath(), function () use ($root, $node) {
+                        // Base changes permanently remove any mounts outside the
+                        // target folder, so we need to use a clone for each subfolder
+                        $subRoot = clone $root;
 
-                // Switch the cloned root to use only this folder
-                $root->addFolder($node);
-                $root->baseChange($node->getPath());
+                        // Switch the cloned root to use only this folder
+                        $subRoot->addFolder($node);
+                        $subRoot->baseChange($node->getPath());
 
-                return [
-                    'fileid' => $node->getId(),
-                    'name' => $node->getName(),
-                    'previews' => $this->tq->getRootPreviews($root),
-                ];
-            }, $folders);
+                        return [
+                            'fileid' => $node->getId(),
+                            'name' => $node->getName(),
+                            'previews' => $this->tq->getRootPreviews($subRoot),
+                        ];
+                    }, $this->logger);
+                } catch (\Throwable $e) {
+                    // A subfolder can be an unreachable mount (offline external
+                    // storage, transient hiccup, ...). Skip just this one entry
+                    // instead of failing the whole directory listing -- it
+                    // starts showing up again on its own once available.
+                    $this->logger->warning("Skipping unreachable subfolder {$node->getPath()}: {$e->getMessage()}", ['app' => 'memories']);
+                }
+            }
 
             return new Http\JSONResponse($list, Http::STATUS_OK);
         });
@@ -116,18 +128,29 @@ final class FoldersController extends GenericApiController
                     continue;
                 }
 
-                // Base changes permanently remove any mounts outside the
-                // target folder, so we need to use a clone for each root
-                $root = clone $baseRoot;
-                $root->addFolder($node);
-                $root->baseChange($node->getPath());
+                try {
+                    $list[] = MountRecovery::retry($node->getPath(), function () use ($baseRoot, $node, $path) {
+                        // Base changes permanently remove any mounts outside the
+                        // target folder, so we need to use a clone for each root
+                        $root = clone $baseRoot;
+                        $root->addFolder($node);
+                        $root->baseChange($node->getPath());
 
-                $list[] = [
-                    'fileid' => $node->getId(),
-                    'name' => $node->getName(),
-                    'path' => trim($path, '/'),
-                    'previews' => $this->tq->getRootPreviews($root),
-                ];
+                        return [
+                            'fileid' => $node->getId(),
+                            'name' => $node->getName(),
+                            'path' => trim($path, '/'),
+                            'previews' => $this->tq->getRootPreviews($root),
+                        ];
+                    }, $this->logger);
+                } catch (\Throwable $e) {
+                    // A root can be on a mount that's temporarily unreachable
+                    // (offline external storage, transient hiccup, ...). Skip
+                    // just this one root instead of failing the whole list --
+                    // there's no state to fix up once the mount is back, so it
+                    // starts showing up again on its own on the next request.
+                    $this->logger->warning("Skipping unreachable root {$path}: {$e->getMessage()}", ['app' => 'memories']);
+                }
             }
 
             return new Http\JSONResponse($list, Http::STATUS_OK);
@@ -157,24 +180,32 @@ final class FoldersController extends GenericApiController
                     continue;
                 }
 
-                // Unlike roots()/sub(), do NOT go through FsManager::populateRoot():
-                // with no `folder`/`all` request param it scopes to the *entire*
-                // timeline path and recursively touches every mount under it via
-                // addMountPoints(), including unrelated external storages -- and
-                // this endpoint is hit on every visit to the Favorites page, not
-                // just when browsing Folders. Build a root scoped to just this one
-                // favorited folder instead, so only mounts nested inside it (if
-                // any) are ever touched.
-                $root = new TimelineRoot();
-                $root->addFolder($node);
-                $root->addMountPoints();
+                try {
+                    $list[] = MountRecovery::retry($node->getPath(), function () use ($node, $path) {
+                        // Unlike roots()/sub(), do NOT go through FsManager::populateRoot():
+                        // with no `folder`/`all` request param it scopes to the *entire*
+                        // timeline path and recursively touches every mount under it via
+                        // addMountPoints(), including unrelated external storages -- and
+                        // this endpoint is hit on every visit to the Favorites page, not
+                        // just when browsing Folders. Build a root scoped to just this one
+                        // favorited folder instead, so only mounts nested inside it (if
+                        // any) are ever touched.
+                        $root = new TimelineRoot();
+                        $root->addFolder($node);
+                        $root->addMountPoints();
 
-                $list[] = [
-                    'fileid' => $node->getId(),
-                    'name' => $node->getName(),
-                    'path' => trim($path, '/'),
-                    'previews' => $this->tq->getRootPreviews($root),
-                ];
+                        return [
+                            'fileid' => $node->getId(),
+                            'name' => $node->getName(),
+                            'path' => trim($path, '/'),
+                            'previews' => $this->tq->getRootPreviews($root),
+                        ];
+                    }, $this->logger);
+                } catch (\Throwable $e) {
+                    // Same reasoning as roots() above: a favorited folder living
+                    // on an unavailable mount shouldn't break the whole tile grid.
+                    $this->logger->warning("Skipping unreachable favorite {$path}: {$e->getMessage()}", ['app' => 'memories']);
+                }
             }
 
             return new Http\JSONResponse($list, Http::STATUS_OK);
