@@ -7,95 +7,168 @@
         placeholder: data.flag & c.FLAG_PLACEHOLDER,
         leaving: data.flag & c.FLAG_LEAVING,
         error: data.flag & c.FLAG_LOAD_FAIL,
+        'list-view': isListView,
       }"
     >
-      <div
-        class="select"
-        v-once
-        v-if="!(data.flag & c.FLAG_PLACEHOLDER)"
-        @pointerdown.passive="$emit('select', $event)"
-      >
-        <CheckCircleIcon :size="18" />
-      </div>
-
-      <!-- Interactive rating overlay -->
-      <div class="interactive-rating" v-if="showInteractiveRating">
-        <div class="rating-bubble">
-          <RatingStars :rating="currentRating" :size="14" readonly />
-        </div>
-      </div>
-
-      <div class="flag top-right">
-        <RawIcon class="raw" v-if="isRaw" :size="28" />
-        <div class="video" v-if="data.flag & c.FLAG_IS_VIDEO">
-          <span class="time" v-if="data.video_duration">{{ videoDuration }}</span>
-          <VideoIcon :size="22" />
-        </div>
+      <!-- Compact list row layout -->
+      <template v-if="isListView">
         <div
-          class="livephoto"
-          v-if="data.liveid"
-          @mouseenter.passive="playVideo"
-          @mouseleave.passive="stopVideo"
-          @touchstart.passive="touchVideo"
+          class="list-select"
+          v-if="!(data.flag & c.FLAG_PLACEHOLDER)"
+          @pointerdown.passive="$emit('select', $event)"
         >
-          <LivePhotoIcon :size="22" :spin="liveState.waiting" :playing="liveState.playing" />
+          <CheckCircleIcon :size="18" />
         </div>
-      </div>
 
-      <div class="flag bottom-right">
-        <StarIcon :size="22" v-if="data.flag & c.FLAG_IS_FAVORITE" />
-        <LocalIcon :size="22" v-if="data.flag & c.FLAG_IS_LOCAL" />
-      </div>
+        <div
+          class="list-main"
+          @contextmenu="contextmenu"
+          @pointerdown.passive="$emit('pointerdown', $event)"
+          @touchstart.passive="$emit('touchstart', $event)"
+          @touchmove="$emit('touchmove', $event)"
+          @touchend.passive="$emit('touchend', $event)"
+          @touchcancel.passive="$emit('touchend', $event)"
+        >
+          <div class="list-thumb">
+            <XImg
+              v-if="src"
+              ref="ximg"
+              draggable="false"
+              class="ximg fill-block no-user-select"
+              :class="[`memories-thumb-${data.key}`]"
+              :src="src"
+              :key="data.fileid"
+              @load="load"
+              @error="error"
+            />
+            <video
+              ref="video"
+              v-if="videoUrl"
+              :src="videoUrl"
+              preload="none"
+              muted
+              playsinline
+              disableRemotePlayback
+            ></video>
+          </div>
 
-      <div class="flag bottom-left">
-        <span class="shared-by" v-if="showOwnerName && sharedBy">{{ sharedBy }}</span>
-      </div>
+          <div class="list-info">
+            <span class="list-filename">{{ data.basename }}</span>
+            <span class="list-meta" v-if="listMetaStr">{{ listMetaStr }}</span>
+          </div>
 
-      <div
-        class="img-outer fill-block"
-        :class="{ 'memories-livephoto': data.liveid }"
-        @contextmenu="contextmenu"
-        @pointerdown.passive="$emit('pointerdown', $event)"
-        @touchstart.passive="$emit('touchstart', $event)"
-        @touchmove="$emit('touchmove', $event)"
-        @touchend.passive="$emit('touchend', $event)"
-        @touchcancel.passive="$emit('touchend', $event)"
-      >
-        <XImg
-          v-if="src"
-          ref="ximg"
-          draggable="false"
-          class="ximg fill-block no-user-select"
-          :class="[`memories-thumb-${data.key}`]"
-          :src="src"
-          :key="data.fileid"
-          @load="load"
-          @error="error"
-        />
-        <video
-          ref="video"
-          v-if="videoUrl"
-          :src="videoUrl"
-          preload="none"
-          muted
-          playsinline
-          disableRemotePlayback
-        ></video>
-        <div class="overlay top-left fill-block"></div>
-      </div>
+          <div class="list-flags">
+            <RawIcon v-if="isRaw" :size="18" />
+            <span class="video" v-if="data.flag & c.FLAG_IS_VIDEO">
+              <span class="time" v-if="data.video_duration">{{ videoDuration }}</span>
+              <VideoIcon :size="18" />
+            </span>
+            <span
+              class="livephoto"
+              v-if="data.liveid"
+              @mouseenter.passive="playVideo"
+              @mouseleave.passive="stopVideo"
+              @touchstart.passive="touchVideo"
+            >
+              <LivePhotoIcon :size="18" :spin="liveState.waiting" :playing="liveState.playing" />
+            </span>
+            <StarIcon :size="18" v-if="data.flag & c.FLAG_IS_FAVORITE" />
+            <LocalIcon :size="18" v-if="data.flag & c.FLAG_IS_LOCAL" />
+            <span class="shared-by" v-if="showOwnerName && sharedBy">{{ sharedBy }}</span>
+          </div>
+        </div>
+      </template>
 
-      <!-- Metadata overlay -->
-      <div class="metadata-overlay" v-if="showMetadataOverlay">
-        <div class="filename" v-if="showFilename">{{ data.basename }}</div>
-        <RatingTags
-          v-if="showRatingTags"
-          :rating="currentRating"
-          :tags="currentTags"
-          :compact="true"
-          :max-tags="3"
-          :hide-stars="config.enable_exif_photo_rating_in_gallery"
-        />
-      </div>
+      <!-- Regular grid/square tile layout -->
+      <template v-else>
+        <div
+          class="select"
+          v-once
+          v-if="!(data.flag & c.FLAG_PLACEHOLDER)"
+          @pointerdown.passive="$emit('select', $event)"
+        >
+          <CheckCircleIcon :size="18" />
+        </div>
+
+        <!-- Interactive rating overlay -->
+        <div class="interactive-rating" v-if="showInteractiveRating">
+          <div class="rating-bubble">
+            <RatingStars :rating="currentRating" :size="14" readonly />
+          </div>
+        </div>
+
+        <div class="flag top-right">
+          <RawIcon class="raw" v-if="isRaw" :size="28" />
+          <div class="video" v-if="data.flag & c.FLAG_IS_VIDEO">
+            <span class="time" v-if="data.video_duration">{{ videoDuration }}</span>
+            <VideoIcon :size="22" />
+          </div>
+          <div
+            class="livephoto"
+            v-if="data.liveid"
+            @mouseenter.passive="playVideo"
+            @mouseleave.passive="stopVideo"
+            @touchstart.passive="touchVideo"
+          >
+            <LivePhotoIcon :size="22" :spin="liveState.waiting" :playing="liveState.playing" />
+          </div>
+        </div>
+
+        <div class="flag bottom-right">
+          <StarIcon :size="22" v-if="data.flag & c.FLAG_IS_FAVORITE" />
+          <LocalIcon :size="22" v-if="data.flag & c.FLAG_IS_LOCAL" />
+        </div>
+
+        <div class="flag bottom-left">
+          <span class="shared-by" v-if="showOwnerName && sharedBy">{{ sharedBy }}</span>
+        </div>
+
+        <div
+          class="img-outer fill-block"
+          :class="{ 'memories-livephoto': data.liveid }"
+          @contextmenu="contextmenu"
+          @pointerdown.passive="$emit('pointerdown', $event)"
+          @touchstart.passive="$emit('touchstart', $event)"
+          @touchmove="$emit('touchmove', $event)"
+          @touchend.passive="$emit('touchend', $event)"
+          @touchcancel.passive="$emit('touchend', $event)"
+        >
+          <XImg
+            v-if="src"
+            ref="ximg"
+            draggable="false"
+            class="ximg fill-block no-user-select"
+            :class="[`memories-thumb-${data.key}`]"
+            :src="src"
+            :key="data.fileid"
+            @load="load"
+            @error="error"
+          />
+          <video
+            ref="video"
+            v-if="videoUrl"
+            :src="videoUrl"
+            preload="none"
+            muted
+            playsinline
+            disableRemotePlayback
+          ></video>
+          <div class="overlay top-left fill-block"></div>
+        </div>
+
+        <!-- Metadata overlay -->
+        <div class="metadata-overlay" v-if="showMetadataOverlay">
+          <div class="filename" v-if="showFilename">{{ data.basename }}</div>
+          <RatingTags
+            v-if="showRatingTags"
+            :rating="currentRating"
+            :tags="currentTags"
+            :compact="true"
+            :max-tags="3"
+            :hide-stars="config.enable_exif_photo_rating_in_gallery"
+          />
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -283,6 +356,23 @@ export default defineComponent({
     /** Whether to show the metadata overlay container */
     showMetadataOverlay(): boolean {
       return this.showRatingTags || this.showInteractiveRating || this.showFilename;
+    },
+
+    /** Whether to render the compact list-row layout instead of a tile */
+    isListView(): boolean {
+      return !!this.config.list_view;
+    },
+
+    /** Secondary metadata line shown under the filename in list view */
+    listMetaStr(): string {
+      const parts: string[] = [];
+      if (this.data.w && this.data.h) {
+        parts.push(`${this.data.w} × ${this.data.h}`);
+      }
+      if (this.videoDuration) {
+        parts.push(this.videoDuration);
+      }
+      return parts.join(' · ');
     },
   },
 
@@ -801,6 +891,144 @@ div.img-outer {
     :deep .rating-stars .button-vue {
       min-height: 16px;
       min-width: 16px;
+    }
+  }
+}
+
+// List view row layout
+.p-outer.list-view {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: var(--border-radius, 8px);
+
+  @media (hover: hover) and (pointer: fine) {
+    &:not(.selected):hover {
+      background-color: var(--color-background-hover);
+    }
+  }
+
+  &.selected {
+    background-color: var(--color-primary-select-light);
+  }
+
+  &.placeholder .list-thumb {
+    background-color: var(--color-background-dark);
+  }
+}
+
+.list-select {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  cursor: pointer;
+  color: var(--color-text-maxcontrast);
+  opacity: 0.7;
+
+  .p-outer.selected & {
+    opacity: 1;
+    color: var(--color-primary);
+  }
+}
+
+.list-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  cursor: pointer;
+}
+
+.list-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 4px;
+  background-color: var(--color-background-dark);
+  margin: 6px 0;
+
+  .ximg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background-color: var(--color-background-dark);
+    pointer-events: none;
+
+    .p-outer.error & {
+      object-fit: contain;
+    }
+  }
+
+  video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    z-index: 2;
+  }
+}
+
+.list-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+
+  .list-filename {
+    font-size: 0.95em;
+    color: var(--color-main-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .list-meta {
+    font-size: 0.8em;
+    color: var(--color-text-maxcontrast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.list-flags {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-maxcontrast);
+
+  > .video {
+    display: flex;
+    align-items: center;
+
+    > .time {
+      font-size: 0.8em;
+      margin-right: 3px;
+    }
+  }
+
+  > .shared-by {
+    font-size: 0.8em;
+  }
+
+  @media (max-width: 600px) {
+    > .shared-by {
+      display: none;
     }
   }
 }

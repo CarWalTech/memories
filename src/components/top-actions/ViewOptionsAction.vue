@@ -39,6 +39,17 @@
       {{ t('memories', 'Square') }}
     </NcActionRadio>
 
+    <NcActionRadio
+      name="image-display-shape"
+      :aria-label="t('memories', 'List')"
+      value="list"
+      :checked="imageDisplayShape"
+      @change="changeImageDisplayShape('list')"
+      close-after-click
+    >
+      {{ t('memories', 'List') }}
+    </NcActionRadio>
+
     <NcActionSeparator />
 
     <NcActionCaption name="Image properties"></NcActionCaption>
@@ -114,7 +125,9 @@ export default defineComponent({
 
   computed: {
     imageDisplayShape(): string {
-      if (this.config.square_thumbs) {
+      if (this.config.list_view) {
+        return 'list';
+      } else if (this.config.square_thumbs) {
         return 'square';
       } else {
         return 'dynamic';
@@ -138,7 +151,9 @@ export default defineComponent({
     /** Set sort choice */
     changeImageDisplayShape(mode: string) {
       this.config.square_thumbs = mode == 'square';
+      this.config.list_view = mode == 'list';
       this.updateSetting('square_thumbs');
+      this.updateSetting('list_view');
     },
 
     zoomOut(): void {

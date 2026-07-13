@@ -55,6 +55,7 @@ declare module '@typings' {
 
     // local settings
     square_thumbs: boolean;
+    list_view: boolean;
     high_res_cond: HighResCond | null;
     show_face_rect: boolean;
     album_list_sort: number;

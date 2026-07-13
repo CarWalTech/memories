@@ -141,6 +141,7 @@ import type { IDay, IHeadRow, IPhoto, IRow, IFilters } from '@typings';
 
 const SCROLL_LOAD_DELAY = 100; // Delay in loading data when scrolling
 const ROW_NUM_LPAD = 16; // Number of rows to load before and after viewport
+const LIST_ROW_HEIGHT = 64; // Row height (px) used for list view
 
 export default defineComponent({
   name: 'Timeline',
@@ -379,7 +380,7 @@ export default defineComponent({
     },
 
     allowBreakout() {
-      return _m.window.innerWidth <= 600 && !this.config.square_thumbs;
+      return _m.window.innerWidth <= 600 && !this.config.square_thumbs && !this.config.list_view;
     },
 
     /** Create new state */
@@ -533,7 +534,11 @@ export default defineComponent({
         return;
       }
 
-      if (this.isMobileLayout()) {
+      if (this.config.list_view) {
+        // List
+        this.numCols = 1;
+        this.rowHeight = LIST_ROW_HEIGHT;
+      } else if (this.isMobileLayout()) {
         // Mobile
         const rowHeight = this.mobileRowHeight();
         this.numCols = Math.max(3, Math.floor(this.rowWidth / rowHeight));
@@ -1334,7 +1339,7 @@ export default defineComponent({
       }
 
       // Force all to square
-      const squareMode = this.isMobileLayout() || this.config.square_thumbs;
+      const squareMode = this.isMobileLayout() || this.config.square_thumbs || this.config.list_view;
 
       // Create justified layout with correct params
       const justify = getLayout(
@@ -1349,6 +1354,7 @@ export default defineComponent({
           squareMode: squareMode,
           numCols: this.numCols,
           allowBreakout: this.allowBreakout(),
+          listMode: this.config.list_view,
           seed: dayId,
         },
       );

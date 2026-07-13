@@ -167,6 +167,7 @@ class StaticConfig {
 
       // local settings
       square_thumbs: false,
+      list_view: false,
       high_res_cond: null,
       show_face_rect: false,
       mobile_nav_items: ['timeline', 'explore', 'albums'],

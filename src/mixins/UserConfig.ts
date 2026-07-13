@@ -12,6 +12,7 @@ const eventName: keyof utils.BusEvent = 'memories:user-config-changed';
 
 const localSettings: (keyof IConfig)[] = [
   'square_thumbs',
+  'list_view',
   'high_res_cond',
   'show_face_rect',
   'mobile_nav_items',

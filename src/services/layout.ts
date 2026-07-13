@@ -19,6 +19,8 @@ export function getLayout(
     numCols: number;
     allowBreakout: boolean;
     seed: number;
+    /** List view: stretch each cell to the full row width instead of a square */
+    listMode?: boolean;
   },
 ): {
   top: number;
@@ -189,7 +191,7 @@ export function getLayout(
     const p = {
       top: currTop,
       left: col * sqsize,
-      width: sqsize,
+      width: opts.listMode ? opts.rowWidth : sqsize,
       height: sqsize,
       rowHeight: opts.rowHeight,
     };
