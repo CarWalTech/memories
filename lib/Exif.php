@@ -767,7 +767,29 @@ final class Exif
             }
         }
 
-        // Step 2: Combination - remove flat tags that are parts of hierarchical tags
+        // Step 2: Remove hierarchical tags that are a strict ancestor-prefix of
+        // a longer hierarchical tag. Tools like Lightroom/digiKam write every
+        // ancestor segment of an assigned tag as its own entry (e.g. "A",
+        // "A/B", "A/B/C" all describe the *same* assigned tag "A/B/C"), so
+        // the shorter prefixes are not independently assigned tags.
+        foreach ($hierarchicalTags as $i => $tag) {
+            $normalized = array_map('strtolower', $tag);
+            foreach ($hierarchicalTags as $j => $other) {
+                if ($i === $j) {
+                    continue;
+                }
+
+                $otherNormalized = array_map('strtolower', $other);
+                if (\count($otherNormalized) > \count($normalized)
+                    && \array_slice($otherNormalized, 0, \count($normalized)) === $normalized) {
+                    unset($hierarchicalTags[$i]);
+
+                    break;
+                }
+            }
+        }
+
+        // Step 3: Combination - remove flat tags that are parts of hierarchical tags
         $result = [];
 
         // Add flat tags that are NOT components of hierarchical tags
@@ -777,7 +799,7 @@ final class Exif
             }
         }
 
-        // Add all hierarchical tags
+        // Add all (remaining) hierarchical tags
         foreach ($hierarchicalTags as $hierarchicalTag) {
             $result[] = $hierarchicalTag;
         }

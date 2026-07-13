@@ -359,9 +359,26 @@ function filterComponentTags(tags: string[][]): string[][] {
     }
   }
   
-  // Step 2: Combination - remove flat tags that are parts of hierarchical tags
+  // Step 2: Remove hierarchical tags that are a strict ancestor-prefix of a
+  // longer hierarchical tag. Tools like Lightroom/digiKam write every
+  // ancestor segment of an assigned tag as its own entry (e.g. "A", "A/B",
+  // "A/B/C" all describe the *same* assigned tag "A/B/C"), so the shorter
+  // prefixes are not independently assigned tags.
+  const maximalHierarchicalTags = hierarchicalTags.filter((tag, i) => {
+    const normalized = tag.map((part) => part.toLowerCase());
+    return !hierarchicalTags.some((other, j) => {
+      if (i === j) return false;
+      const otherNormalized = other.map((part) => part.toLowerCase());
+      return (
+        otherNormalized.length > normalized.length &&
+        normalized.every((part, k) => otherNormalized[k] === part)
+      );
+    });
+  });
+
+  // Step 3: Combination - remove flat tags that are parts of hierarchical tags
   const result: string[][] = [];
-  
+
   // Add flat tags that are NOT components of hierarchical tags
   for (const flatTag of flatTags) {
     if (!hierarchicalTagParts.has(flatTag)) {
@@ -372,9 +389,9 @@ function filterComponentTags(tags: string[][]): string[][] {
       }
     }
   }
-  
-  // Add all hierarchical tags
-  result.push(...hierarchicalTags);
-  
+
+  // Add all (remaining) hierarchical tags
+  result.push(...maximalHierarchicalTags);
+
   return result;
 }
