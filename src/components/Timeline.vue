@@ -116,6 +116,7 @@ import { showError } from '@nextcloud/dialogs';
 
 import { getLayout } from '@services/layout';
 import { DESKTOP_ROW_HEIGHTS, MOBILE_ROW_HEIGHTS, clampZoom } from '@services/zoom';
+import { autoScanFolderOnNavigate } from '@services/index-refresh';
 
 import UserConfig from '@mixins/UserConfig';
 import RowHead from '@components/frame/RowHead.vue';
@@ -318,6 +319,15 @@ export default defineComponent({
 
         // Focus on the recycler (e.g. after navigation click)
         this.refs.recycler?.$el.focus();
+
+        // Opportunistically pick up files that exist on disk but aren't
+        // indexed yet (e.g. dropped onto external storage outside
+        // Nextcloud's own write path). Fire-and-forget: never block
+        // navigation on this, and it soft-refreshes the timeline itself
+        // if it finds anything.
+        if (this.routeIsFolders && !utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path)) {
+          autoScanFolderOnNavigate(utils.getFolderRoutePath(this.config.folders_path));
+        }
       }
 
       // Do a soft refresh if the query changes

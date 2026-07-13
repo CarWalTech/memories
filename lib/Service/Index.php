@@ -237,7 +237,9 @@ final class Index
      * @param bool   $rescan    force a fresh filesystem scan of $folder before
      *                          trusting its cached directory listing (see
      *                          rescanFolder()) -- off by default since the
-     *                          regular cron/CLI indexing pass should stay cheap
+     *                          regular cron/CLI indexing pass should stay cheap;
+     *                          folders on external storage always get rescanned
+     *                          regardless of this flag (see isExternalMount())
      */
     public function indexFolder(Folder $folder, ?string $userId = null, bool $recursive = true, bool $rescan = false): void
     {
@@ -258,7 +260,12 @@ final class Index
             return;
         }
 
-        if ($rescan) {
+        // External storage filecache can drift out of sync with the backend
+        // (see rescanFolder()) even during the routine cheap indexing pass,
+        // so always rescan those regardless of $rescan. Local storage is
+        // already tracked reliably, so it stays opt-in to keep the common
+        // case cheap.
+        if ($rescan || self::isExternalMount($folder)) {
             $this->rescanFolder($folder);
         }
 
@@ -603,6 +610,24 @@ final class Index
         } catch (\Throwable $e) {
             $this->logger->warning("Failed to rescan {$folder->getPath()}: {$e->getMessage()}", ['app' => Application::APPNAME]);
         }
+    }
+
+    /**
+     * Check whether $folder is backed by an external storage mount
+     * (files_external), as opposed to Nextcloud's own local/object storage.
+     * Used to scope the always-on rescan in indexFolder() to mounts whose
+     * filecache can actually drift out of sync with the underlying storage --
+     * local storage changes are already tracked reliably without this.
+     */
+    private static function isExternalMount(Folder $folder): bool
+    {
+        // files_external may not be installed/enabled; this integration is
+        // best-effort and must not hard-depend on it.
+        if (!class_exists(\OCA\Files_External\Config\ExternalMountPoint::class)) {
+            return false;
+        }
+
+        return \OC\Files\Filesystem::getMountManager()->find($folder->getPath()) instanceof \OCA\Files_External\Config\ExternalMountPoint;
     }
 
     /**
