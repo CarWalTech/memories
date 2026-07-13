@@ -256,17 +256,17 @@ export default defineComponent({
 
     toggleShowEmptyFolders(): void {
       this.config.show_empty_folders = !this.config.show_empty_folders;
-      this.updateSetting('show_empty_folders');
+      this.updateSetting('show_empty_folders', 'showEmpty');
     },
 
     toggleShowHiddenFolders(): void {
       this.config.show_hidden_folders = !this.config.show_hidden_folders;
-      this.updateSetting('show_hidden_folders');
+      this.updateSetting('show_hidden_folders', 'showHidden');
     },
 
     toggleSortFolderMonth(): void {
       this.config.sort_folder_month = !this.config.sort_folder_month;
-      this.updateSetting('sort_folder_month');
+      this.updateSetting('sort_folder_month', 'sortFolderMonth');
     },
   },
 });

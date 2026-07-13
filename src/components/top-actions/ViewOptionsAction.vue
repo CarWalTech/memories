@@ -43,22 +43,31 @@
 
     <NcActionCaption name="Image properties"></NcActionCaption>
 
-    <NcActionCheckbox :checked="config.show_owner_name_timeline" @update:checked="toggle('show_owner_name_timeline')">
+    <NcActionCheckbox
+      :checked="config.show_owner_name_timeline"
+      @update:checked="toggle('show_owner_name_timeline', 'showOwnerNameTimeline')"
+    >
       {{ t('memories', 'Owner Name') }}
     </NcActionCheckbox>
 
     <NcActionCheckbox
       :checked="config.enable_exif_photo_rating_in_gallery"
-      @update:checked="toggle('enable_exif_photo_rating_in_gallery')"
+      @update:checked="toggle('enable_exif_photo_rating_in_gallery', 'enableExifPhotoRatingInGallery')"
     >
       {{ t('memories', 'Rating') }}
     </NcActionCheckbox>
 
-    <NcActionCheckbox :checked="config.metadata_in_gallery" @update:checked="toggle('metadata_in_gallery')">
+    <NcActionCheckbox
+      :checked="config.metadata_in_gallery"
+      @update:checked="toggle('metadata_in_gallery', 'metadataInGallery')"
+    >
       {{ t('memories', 'Metadata') }}
     </NcActionCheckbox>
 
-    <NcActionCheckbox :checked="config.show_filename_in_gallery" @update:checked="toggle('show_filename_in_gallery')">
+    <NcActionCheckbox
+      :checked="config.show_filename_in_gallery"
+      @update:checked="toggle('show_filename_in_gallery', 'showFilenameInGallery')"
+    >
       {{ t('memories', 'Filename') }}
     </NcActionCheckbox>
 
@@ -145,9 +154,9 @@ export default defineComponent({
       this.updateSetting('grid_zoom');
     },
 
-    toggle<K extends keyof IConfig>(key: K): void {
+    toggle<K extends keyof IConfig>(key: K, remote?: string): void {
       (this.config as any)[key] = !this.config[key];
-      this.updateSetting(key);
+      this.updateSetting(key, remote);
     },
   },
 });
