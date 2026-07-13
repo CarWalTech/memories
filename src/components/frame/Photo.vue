@@ -21,7 +21,7 @@
       <!-- Interactive rating overlay -->
       <div class="interactive-rating" v-if="showInteractiveRating">
         <div class="rating-bubble">
-          <RatingStars :rating="currentRating" :size="14" @update:rating="updateRating" />
+          <RatingStars :rating="currentRating" :size="14" readonly />
         </div>
       </div>
 
@@ -106,9 +106,6 @@ import { defineComponent, type PropType } from 'vue';
 import * as utils from '@services/utils';
 import staticConfig from '@services/static-config';
 import UserConfig from '@mixins/UserConfig';
-import axios from '@nextcloud/axios';
-import { API } from '@services/API';
-import { showError } from '@nextcloud/dialogs';
 
 import RatingTags from '@components/RatingTags.vue';
 import RatingStars from '@components/RatingStars.vue';
@@ -408,42 +405,6 @@ export default defineComponent({
       else this.playVideo();
     },
 
-    /** Update photo rating */
-    async updateRating(rating: number) {
-      const exif = this.data.imageInfo?.exif || this.data.exif;
-      if (!exif) return;
-
-      try {
-        const fileid = this.data.fileid;
-        const currentRating = exif.Rating || 0;
-        const newRating = rating === currentRating ? undefined : rating;
-
-        // Optimistically update the UI
-        if (newRating === undefined) {
-          delete exif.Rating;
-        } else {
-          exif.Rating = newRating;
-        }
-
-        // Update the server
-        await axios.patch(API.IMAGE_SETEXIF(fileid), {
-          raw: { Rating: newRating },
-        });
-
-        // Emit file updated event
-        utils.bus.emit('files:file:updated', { fileid });
-      } catch (e) {
-        console.error('Failed to update rating for', this.data.fileid, e);
-        if (e.response?.data?.message) {
-          showError(e.response.data.message);
-        } else {
-          showError(this.t('memories', 'Failed to update rating'));
-        }
-
-        // Revert the optimistic update on error
-        this.$forceUpdate();
-      }
-    },
   },
 });
 </script>
@@ -752,7 +713,7 @@ div.img-outer {
   align-items: flex-end;
   opacity: 0.7;
   transition: opacity 0.2s ease;
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 10;
 
   // Show on hover or when photo has rating
@@ -803,9 +764,16 @@ div.img-outer {
       min-width: 18px;
     }
 
-    // Ensure stars stay visible against any photo background
+    // White stars with a bold outline so they stay legible on any photo background
     .material-design-icon {
-      filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+      color: #fff !important;
+      filter: drop-shadow(1px 0 0 rgba(0, 0, 0, 0.95)) drop-shadow(-1px 0 0 rgba(0, 0, 0, 0.95))
+        drop-shadow(0 1px 0 rgba(0, 0, 0, 0.95)) drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.95));
+    }
+
+    // Dim unrated stars slightly so the current rating is still readable at a glance
+    .material-design-icon.star-outline-icon {
+      opacity: 0.75;
     }
   }
 
