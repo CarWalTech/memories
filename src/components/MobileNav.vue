@@ -4,6 +4,7 @@
       v-for="link in links"
       :key="link.name"
       :to="{ name: link.name }"
+      :class="{ 'router-link-exact-active': link.activeNames?.includes($route.name ?? '') }"
       @click.native="linkClick"
       replace
       exact-path
@@ -15,7 +16,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, type Component } from 'vue';
 
 import * as nativex from '@native';
 
@@ -29,7 +30,7 @@ import AlbumIcon from 'vue-material-design-icons/ImageAlbum.vue';
 
 // Fallback shown if the user's selection is empty or entirely unavailable
 // (e.g. an admin disabled every feature the user had picked).
-const FALLBACK_LINKS = [
+const FALLBACK_LINKS: { name: string; icon: Component; text: string; activeNames?: string[] }[] = [
   { name: 'timeline', icon: ImageMultipleIcon, text: t('memories', 'Photos') },
   { name: 'explore', icon: SearchIcon, text: t('memories', 'Explore') },
   { name: 'albums', icon: AlbumIcon, text: t('memories', 'Albums') },
@@ -51,6 +52,7 @@ export default defineComponent({
         name: item.name,
         icon: item.icon,
         text: item.shortTitle ?? item.title,
+        activeNames: item.activeNames,
       }));
 
       return links.length ? links : FALLBACK_LINKS;

@@ -31,7 +31,7 @@
             :key="item.name"
             :to="{ name: item.name }"
             :name="item.title"
-            :active="$route.name === item.name"
+            :active="(item.activeNames ?? [item.name]).includes($route.name ?? '')"
             @click="linkClick"
             exact
           >
@@ -132,7 +132,6 @@ import ArchiveIcon from 'vue-material-design-icons/PackageDown.vue';
 import CalendarIcon from 'vue-material-design-icons/Calendar.vue';
 import PeopleIcon from 'vue-material-design-icons/AccountBoxMultiple.vue';
 import MarkerIcon from 'vue-material-design-icons/MapMarker.vue';
-import TagsIcon from 'vue-material-design-icons/Tag.vue';
 import TagMultipleIcon from 'vue-material-design-icons/TagMultiple.vue';
 import MapIcon from 'vue-material-design-icons/Map.vue';
 import CogIcon from 'vue-material-design-icons/Cog.vue';
@@ -144,6 +143,8 @@ type NavItem = {
   shortTitle?: string;
   icon: any;
   if?: any;
+  /** Other route names that should also highlight this nav entry as active */
+  activeNames?: string[];
 };
 
 export default defineComponent({
@@ -182,7 +183,6 @@ export default defineComponent({
     CalendarIcon,
     PeopleIcon,
     MarkerIcon,
-    TagsIcon,
     TagMultipleIcon,
     MapIcon,
     CogIcon,
@@ -397,28 +397,22 @@ export default defineComponent({
           title: t('memories', 'Map'),
         },
         {
-          name: 'embeddedtags',
-          icon: TagsIcon,
-          title: t('memories', 'Embedded Tags'),
-          // "Embedded Tags" overflows the space-constrained mobile bottom bar
-          shortTitle: t('memories', 'Tags'),
-        },
-        {
-          name: 'tags',
+          name: this.config.systemtags_enabled ? 'tags' : 'embeddedtags',
           icon: TagMultipleIcon,
-          title: t('memories', 'Collaborative Tags'),
-          // "Collaborative Tags" overflows the space-constrained mobile bottom bar
-          shortTitle: t('memories', 'Collab Tags'),
-          if: this.config.systemtags_enabled,
+          title: t('memories', 'Tags'),
+          shortTitle: t('memories', 'Tags'),
+          // Both tag routes are presented as one view with an internal tab bar
+          activeNames: ['tags', 'embeddedtags'],
         },
       ];
 
       this.navItems = navItems.filter((item) => typeof item.if === 'undefined' || Boolean(item.if));
-      availableNavState.items = this.navItems.map(({ name, icon, title, shortTitle }) => ({
+      availableNavState.items = this.navItems.map(({ name, icon, title, shortTitle, activeNames }) => ({
         name,
         icon,
         title,
         shortTitle,
+        activeNames,
       }));
     },
 

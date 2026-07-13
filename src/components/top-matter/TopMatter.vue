@@ -14,23 +14,22 @@
 import { defineComponent } from 'vue';
 
 import FolderTopMatter from './sections/FolderTopMatter.vue';
-import CollabTagsTopMatter from './sections/CollabTagsTopMatter.vue';
 import FaceTopMatter from './sections/FaceTopMatter.vue';
 import AlbumTopMatter from './sections/AlbumTopMatter.vue';
 import PlacesTopMatter from './sections/PlacesTopMatter.vue';
-import EmbeddedTagTopMatter from './sections/EmbeddedTagTopMatter.vue';
+import TagsTopMatter from './sections/TagsTopMatter.vue';
 import IndexTopMatter from './IndexTopMatter.vue';
 
 import * as utils from '@services/utils';
 
 export default defineComponent({
   name: 'TopMatter',
+
   components: {
     FolderTopMatter,
-    CollabTagsTopMatter,
     FaceTopMatter,
     AlbumTopMatter,
-    EmbeddedTagTopMatter,
+    TagsTopMatter,
     IndexTopMatter,
   },
 
@@ -58,9 +57,8 @@ export default defineComponent({
         case _m.routes.Places.name:
           return PlacesTopMatter;
         case _m.routes.Tags.name:
-          return CollabTagsTopMatter;
         case _m.routes.EmbeddedTags.name:
-          return EmbeddedTagTopMatter;
+          return TagsTopMatter;
         case _m.routes.Recognize.name:
         case _m.routes.FaceRecognition.name:
           return FaceTopMatter;

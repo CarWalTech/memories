@@ -37,23 +37,12 @@
         </NcActions>
       </div>
     </div>
-
-    <NcBreadcrumbs :key="$route.path">
-      <NcBreadcrumb :name="t('memories', 'Embedded Tags')" :to="getRoute([])">
-        <template #icon>
-          <TagsIcon :size="20" />
-        </template>
-      </NcBreadcrumb>
-      <NcBreadcrumb v-for="tag in list" :key="tag.idx" :name="tag.text" :to="getRoute(tag.path)" />
-    </NcBreadcrumbs>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-const NcBreadcrumbs = () => import('@nextcloud/vue/dist/Components/NcBreadcrumbs.js');
-const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.js');
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
@@ -75,8 +64,6 @@ export default defineComponent({
   name: 'EmbeddedTagTopMatter',
 
   components: {
-    NcBreadcrumbs,
-    NcBreadcrumb,
     NcActions,
     NcActionButton,
     NcActionSeparator,
@@ -104,17 +91,6 @@ export default defineComponent({
     /** Current full tag path, e.g. "Family/Vacation", or '' at the root */
     path(): string {
       return this.pathParts.join('/');
-    },
-
-    list(): {
-      text: string;
-      path: string[];
-      idx: number;
-    }[] {
-      return this.pathParts.map((text, idx, arr) => {
-        const path = arr.slice(0, idx + 1);
-        return { text, path, idx };
-      });
     },
 
     recursive(): boolean {
@@ -175,11 +151,6 @@ export default defineComponent({
   .top-row {
     display: flex;
     align-items: center;
-  }
-
-  .breadcrumb {
-    min-width: 0;
-    height: unset;
   }
 
   .right-actions {

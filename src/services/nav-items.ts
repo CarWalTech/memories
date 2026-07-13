@@ -8,6 +8,8 @@ export interface AvailableNavItem {
   /** Shorter label for the space-constrained mobile bottom bar; falls back to `title` if unset. */
   shortTitle?: string;
   icon: Component;
+  /** Other route names that should also highlight this nav entry as active. */
+  activeNames?: string[];
 }
 
 /**
