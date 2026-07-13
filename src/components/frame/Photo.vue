@@ -20,7 +20,9 @@
 
       <!-- Interactive rating overlay -->
       <div class="interactive-rating" v-if="showInteractiveRating">
-        <RatingStars :rating="currentRating" :size="14" @update:rating="updateRating" />
+        <div class="rating-bubble">
+          <RatingStars :rating="currentRating" :size="14" @update:rating="updateRating" />
+        </div>
       </div>
 
       <div class="flag top-right">
@@ -743,12 +745,11 @@ div.img-outer {
 // Interactive rating overlay within metadata
 .interactive-rating {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: var(--icon-dist);
+  left: var(--icon-dist);
   display: flex;
   justify-content: flex-start;
   align-items: flex-end;
-  padding: 8px 6px 4px;
   opacity: 0.7;
   transition: opacity 0.2s ease;
   pointer-events: auto;
@@ -780,6 +781,17 @@ div.img-outer {
     pointer-events: none;
   }
 
+  // Bubble container, matching the pill shape of the tag chips
+  .rating-bubble {
+    display: flex;
+    align-items: center;
+    max-width: fit-content;
+    border-radius: 999px;
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    padding: 2px 4px;
+  }
+
   // Compact rating stars styling for gallery
   :deep .rating-stars {
     gap: 1px !important;
@@ -798,7 +810,9 @@ div.img-outer {
   }
 
   @media (max-width: 768px) {
-    padding: 6px 4px 2px;
+    .rating-bubble {
+      padding: 1px 3px;
+    }
 
     :deep .rating-stars .button-vue {
       min-height: 16px;
