@@ -97,6 +97,9 @@ bump-dev-version:
 	@perl -pi -e 's/(<version>\d+\.\d+\.\d+-DEV-)(\d+)(<\/version>)/$$1.($$2+1).$$3/e' appinfo/info.xml
 	@echo "Bumped version to $$(grep -oP '(?<=<version>).*(?=</version>)' appinfo/info.xml)"
 
+bump-and-upgrade: bump-dev-version
+	docker exec $(NEXTCLOUD_CONTAINER) php occ upgrade
+
 deploy-dev: bump-dev-version
 	$(MAKE) build-js
 	docker exec $(NEXTCLOUD_CONTAINER) php occ upgrade

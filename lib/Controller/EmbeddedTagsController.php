@@ -63,10 +63,11 @@ class EmbeddedTagsController extends GenericApiController
     }
 
     /**
-     * Get direct child tags of a path with preview photos, for the
-     * folder-style embedded tags browsing view. Tags with no matching
-     * photos are included too (with an empty previews array) so they
-     * can be seen and, if desired, deleted.
+     * Get direct child tags of a path with preview photos and photo count,
+     * for the folder-style embedded tags browsing view. Tags with no
+     * matching photos are included too (count 0, empty previews) so they
+     * can be seen and, if desired, deleted -- e.g. after a photo is the
+     * last one retagged away from a given path.
      */
     #[NoAdminRequired]
     public function sub(string $path = ''): Http\Response
@@ -80,15 +81,20 @@ class EmbeddedTagsController extends GenericApiController
 
             $list = [];
             foreach ($this->etq->getChildTags($path) as $child) {
-                $previews = $this->backend->getPhotos($child['path'], 4);
+                // Fetch the full (unlimited) match set so the count reflects
+                // reality -- a tag whose last photo was just retagged away
+                // must show 0, not just fall back to stale/empty previews
+                // that look identical to "still loading".
+                $photos = $this->backend->getPhotos($child['path']);
 
                 $list[] = [
                     'name' => $child['tag'],
                     'path' => $child['path'],
+                    'count' => \count($photos),
                     'previews' => array_map(static fn ($p) => [
                         'fileid' => (int) $p['fileid'],
                         'etag' => $p['etag'],
-                    ], $previews),
+                    ], \array_slice($photos, 0, 4)),
                 ];
             }
 

@@ -15,6 +15,8 @@ declare module '@typings' {
     name: string;
     /** Full path of this tag, e.g. "Family/Vacation" */
     path: string;
+    /** Number of photos currently matching this tag (0 if empty/orphaned) */
+    count: number;
   }
 
   export type ClusterTypes = 'tags' | 'embeddedtag' | 'albums' | 'places' | 'recognize' | 'facerecognition' | 'plus';

@@ -1,7 +1,16 @@
 <template>
-  <router-link draggable="false" class="folder fill-block" :class="{ hasPreview: previews.length > 0, onePreview: previews.length === 1 }" :to="target">
+  <router-link
+    draggable="false"
+    class="folder fill-block"
+    :class="{ hasPreview: previews.length > 0, onePreview: previews.length === 1, empty: data.count === 0 }"
+    :to="target"
+  >
     <div class="delete" @click.stop.prevent="onDelete">
       <TagRemoveIcon :size="18" />
+    </div>
+
+    <div class="count-bubble">
+      <NcCounterBubble>{{ data.count }}</NcCounterBubble>
     </div>
 
     <div class="big-icon top-left fill-block">
@@ -22,6 +31,8 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
+import NcCounterBubble from '@nextcloud/vue/dist/Components/NcCounterBubble.js';
+
 import UserConfig from '@mixins/UserConfig';
 
 import * as dav from '@services/dav';
@@ -37,6 +48,7 @@ export default defineComponent({
   components: {
     TagIcon,
     TagRemoveIcon,
+    NcCounterBubble,
   },
 
   mixins: [UserConfig],
@@ -108,6 +120,25 @@ export default defineComponent({
 
   @media (max-width: 768px) {
     --icon-dist: 4px;
+  }
+
+  // A tag with no matching photos left (e.g. its last photo was retagged
+  // away) -- keep it visible for manual cleanup, but make the emptiness
+  // obvious instead of looking identical to a freshly-loaded populated tile.
+  &.empty {
+    opacity: 0.5;
+  }
+}
+
+.count-bubble {
+  position: absolute;
+  top: calc(var(--icon-dist, 8px) + 2px);
+  left: calc(var(--icon-dist, 8px) + 2px);
+  z-index: 200;
+  pointer-events: none;
+
+  :deep .counter-bubble__counter {
+    color: unset !important;
   }
 }
 
