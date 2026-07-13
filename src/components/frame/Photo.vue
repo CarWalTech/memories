@@ -651,8 +651,11 @@ div.img-outer {
   :deep .rating-tags {
     font-size: 0.8em;
     gap: 6px;
+    width: 100%;
 
     .rating-section {
+      flex-shrink: 0;
+
       :deep .rating-stars {
         gap: 0;
         --default-clickable-area: 20px;
@@ -665,16 +668,25 @@ div.img-outer {
       }
     }
 
+    // Let the tag list take the remaining width so chips know how much
+    // space they actually have to shrink into
+    .tags-section {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
     .tags-container {
+      flex: 1 1 auto;
       gap: 2px;
       flex-wrap: nowrap;
       overflow: hidden;
+      min-width: 0;
 
       .chip {
         font-size: 0.75em;
         padding: 2px 6px;
-        max-width: 80px;
-        min-width: 0;
+        flex-shrink: 1;
+        min-width: 20px;
 
         :deep .chip__content {
           overflow: hidden;
@@ -684,9 +696,13 @@ div.img-outer {
       }
     }
 
+    // Pin the remaining-tags count to the right edge of the row, i.e.
+    // the bottom-right corner of the thumbnail, regardless of how much
+    // room the (shrinking) tag chips end up using
     .more-tags {
       font-size: 0.7em;
       flex-shrink: 0;
+      margin-left: auto;
     }
   }
 
