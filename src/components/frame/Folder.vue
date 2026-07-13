@@ -161,10 +161,20 @@ export default defineComponent({
   cursor: pointer;
   --icon-dist: 8px;
 
+  transition: background-color 0.15s ease;
+
   @media (max-width: 768px) {
     --icon-dist: 4px;
   }
+
+  // Revealed behind .big-icon / .previews as they shrink inward on selection
+  &.selected {
+    background-color: var(--color-primary-select-light);
+  }
 }
+
+// Distance of icon from border, same "zoom out" treatment as Photo.vue
+$icon-half-size: 6px;
 
 // Selection icon, same treatment as Photo.vue's .select:
 // a single check-circle icon that is recolored via CSS instead
@@ -207,7 +217,15 @@ export default defineComponent({
 .big-icon {
   cursor: pointer;
   z-index: 100;
-  transition: opacity 0.2s ease-in-out;
+  box-sizing: border-box;
+  transition:
+    opacity 0.2s ease-in-out,
+    padding 0.15s ease;
+
+  // Shrink inward on selection, revealing .folder's background color
+  .folder.selected > & {
+    padding: calc(var(--icon-dist) + $icon-half-size);
+  }
 
   :deep .material-design-icon__svg {
     width: 50%;
@@ -264,6 +282,12 @@ export default defineComponent({
   line-height: 0;
   position: absolute;
   box-sizing: border-box;
+  transition: padding 0.15s ease;
+
+  // Shrink inward on selection, revealing .folder's background color
+  .folder.selected > & {
+    padding: calc(var(--icon-dist) + $icon-half-size);
+  }
 
   .preview-container {
     border-radius: 10px;
