@@ -97,6 +97,10 @@ export class API {
     return tok(gen(`${BASE}/folders/roots`));
   }
 
+  static FOLDERS_FAVORITES() {
+    return tok(gen(`${BASE}/folders/favorites`));
+  }
+
   static ALBUM_LIST() {
     return gen(`${BASE}/clusters/albums`);
   }

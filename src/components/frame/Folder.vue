@@ -70,11 +70,18 @@ export default defineComponent({
   computed: {
     /** Open folder */
     target() {
-      // Root picker tiles carry their own full route path
+      // Tiles that carry their own full route path (root picker, favorite
+      // folders) always open in the Folders view, regardless of which
+      // route the tile is currently rendered on. The `abs` query flag tells
+      // the Folders view this is a full account-relative path, not one
+      // relative to a configured single Folders root -- see
+      // getFolderRoutePath() -- otherwise a single non-default root (e.g.
+      // folders_path=/Immich) would get prepended a second time.
       if (this.data.path) {
         return {
-          ...this.$route,
+          name: _m.routes.Folders.name,
           params: { path: this.data.path },
+          query: { abs: '1' },
           hash: undefined,
         };
       }

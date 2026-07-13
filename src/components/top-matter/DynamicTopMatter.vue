@@ -12,6 +12,7 @@ import UserMixin from '@mixins/UserConfig';
 
 import AlbumDynamicTopMatter from './sections/AlbumDynamicTopMatter.vue';
 import FolderDynamicTopMatter from './sections/FolderDynamicTopMatter.vue';
+import FavoriteFoldersDynamicTopMatter from './sections/FavoriteFoldersDynamicTopMatter.vue';
 import PlacesDynamicTopMatterVue from './sections/PlacesDynamicTopMatter.vue';
 import EmbeddedTagDynamicTopMatter from './sections/EmbeddedTagDynamicTopMatter.vue';
 import OnThisDay from '../OnThisDay.vue';
@@ -52,6 +53,8 @@ export default defineComponent({
     currentmatter(): Component | null {
       if (this.routeIsFolders || (this.routeIsFolderShare && this.initstate.shareType === 'folder')) {
         return FolderDynamicTopMatter;
+      } else if (this.routeIsFavorites) {
+        return FavoriteFoldersDynamicTopMatter;
       } else if (this.routeIsEmbeddedTags) {
         return EmbeddedTagDynamicTopMatter;
       } else if (this.routeIsPlaces) {

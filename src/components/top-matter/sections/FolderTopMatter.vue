@@ -72,6 +72,18 @@
               {{ t('memories', 'Share folder') }}
               <template #icon> <ShareIcon :size="20" /> </template>
             </NcActionButton>
+
+            <NcActionButton
+              :aria-label="isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites')"
+              @click="toggleFavoriteFolder()"
+              close-after-click
+            >
+              {{ isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites') }}
+              <template #icon>
+                <StarIcon v-if="isFavoriteFolder" :size="20" />
+                <StarOutlineIcon v-else :size="20" />
+              </template>
+            </NcActionButton>
           </NcActions>
         </template>
       </div>
@@ -118,6 +130,8 @@ import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
 import UploadIcon from 'vue-material-design-icons/Upload.vue';
 import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
+import StarIcon from 'vue-material-design-icons/Star.vue';
+import StarOutlineIcon from 'vue-material-design-icons/StarOutline.vue';
 
 export default defineComponent({
   name: 'FolderTopMatter',
@@ -142,6 +156,8 @@ export default defineComponent({
     UploadIcon,
     NewFolderIcon,
     DotsHorizontalIcon,
+    StarIcon,
+    StarOutlineIcon,
   },
 
   mixins: [UserConfig],
@@ -208,6 +224,14 @@ export default defineComponent({
     isRootPicker(): boolean {
       return utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path);
     },
+
+    isFavoriteFolder(): boolean {
+      // Pass params.path/query.abs explicitly (rather than letting
+      // getFolderRoutePath() read the non-reactive route globals) so this
+      // computed re-evaluates on navigation between folders.
+      const path = utils.getFolderRoutePath(this.config.folders_path, this.$route.params.path, !!this.$route.query.abs);
+      return utils.getFoldersRoots(this.config.favorite_folders).includes(path);
+    },
   },
 
   methods: {
@@ -243,9 +267,20 @@ export default defineComponent({
     },
 
     getRoute(path: string[]): object {
+      // Navigating back to Home always means "the configured root(s)" --
+      // drop the `abs` flag (see getFolderRoutePath()) so it resolves
+      // relative to the configured single root again, rather than staying
+      // pinned to whatever absolute path a favorite/root-picker tile landed
+      // on and re-resolving "" as the filesystem root.
+      const query = { ...this.$route.query };
+      if (!path.length) {
+        delete query.abs;
+      }
+
       return {
         ...this.$route,
         params: { path },
+        query,
         hash: undefined,
       };
     },
@@ -267,6 +302,21 @@ export default defineComponent({
     toggleSortFolderMonth(): void {
       this.config.sort_folder_month = !this.config.sort_folder_month;
       this.updateSetting('sort_folder_month', 'sortFolderMonth');
+    },
+
+    async toggleFavoriteFolder(): Promise<void> {
+      const path = utils.getFolderRoutePath(this.config.folders_path, this.$route.params.path, !!this.$route.query.abs);
+      const favorites = utils.getFoldersRoots(this.config.favorite_folders);
+
+      const idx = favorites.indexOf(path);
+      if (idx >= 0) {
+        favorites.splice(idx, 1);
+      } else {
+        favorites.push(path);
+      }
+
+      this.config.favorite_folders = favorites.join(';');
+      await this.updateSetting('favorite_folders', 'favoriteFolders');
     },
   },
 });

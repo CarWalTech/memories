@@ -368,6 +368,30 @@ final class Util
     }
 
     /**
+     * Get list of pinned favorite folder paths as array.
+     * Unlike getTimelinePaths(), invalid/empty entries are silently
+     * dropped instead of throwing -- this list is optional and
+     * user-editable in a way timeline_path isn't.
+     *
+     * @return string[] List of paths
+     */
+    public static function getFavoriteFoldersPaths(string $uid): array
+    {
+        $paths = \OC::$server->get(\OCP\Config\IUserConfig::class)
+            ->getValueString($uid, Application::APPNAME, 'favoriteFolders')
+        ;
+
+        if ('' === $paths) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn ($path) => self::sanitizePath(trim($path)),
+            explode(';', $paths),
+        )));
+    }
+
+    /**
      * Run a callback in a transaction.
      * It returns the same type as the return type of the closure.
      *

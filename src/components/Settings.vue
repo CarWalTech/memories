@@ -279,6 +279,14 @@
           readonly
         />
 
+        <NcTextField
+          :label="t('memories', 'Favorite Folders')"
+          :label-visible="true"
+          v-model="config.favorite_folders"
+          @click="chooseFavoriteFolders"
+          readonly
+        />
+
         <NcCheckboxRadioSwitch
           :checked.sync="config.show_hidden_folders"
           @update:checked="updateShowHidden"
@@ -330,6 +338,12 @@
       :title="excludePathsSelTitle"
       :add-prompt="t('memories', 'Choose a folder to exclude')"
       @close="saveAllPhotosExcludePaths"
+    />
+    <MultiPathSelectionModal
+      ref="favoriteFoldersModal"
+      :title="favoriteFoldersSelTitle"
+      :add-prompt="t('memories', 'Choose a folder to add to favorites')"
+      @close="saveFavoriteFolders"
     />
   </div>
 </template>
@@ -418,6 +432,7 @@ export default defineComponent({
         foldersPathModal: InstanceType<typeof MultiPathSelectionModal>;
         multiPathModal: InstanceType<typeof MultiPathSelectionModal>;
         excludePathsModal: InstanceType<typeof MultiPathSelectionModal>;
+        favoriteFoldersModal: InstanceType<typeof MultiPathSelectionModal>;
       };
     },
 
@@ -431,6 +446,10 @@ export default defineComponent({
 
     excludePathsSelTitle(): string {
       return this.t('memories', 'Choose Paths to Exclude from All Photos');
+    },
+
+    favoriteFoldersSelTitle(): string {
+      return this.t('memories', 'Choose Favorite Folders');
     },
 
     isNative(): boolean {
@@ -536,6 +555,20 @@ export default defineComponent({
       if (newPath !== this.config.folders_path) {
         this.config.folders_path = newPath;
         await this.updateSetting('folders_path', 'foldersPath');
+      }
+    },
+
+    async chooseFavoriteFolders() {
+      const paths = this.config.favorite_folders ? this.config.favorite_folders.split(';') : [];
+      this.refs.favoriteFoldersModal.open(paths);
+    },
+
+    async saveFavoriteFolders(paths: string[]) {
+      // Unlike folders_path, an empty list is valid here (no favorites).
+      const newPaths = (paths ?? []).join(';');
+      if (newPaths !== this.config.favorite_folders) {
+        this.config.favorite_folders = newPaths;
+        await this.updateSetting('favorite_folders', 'favoriteFolders');
       }
     },
 

@@ -181,15 +181,27 @@ export function isFoldersRootPicker(basePath: string, routePath: string | string
 /**
  * Get the path of the folder on folders route
  * This function does not check if this is the folder route
+ *
+ * `routePath`/`absolute` may be passed explicitly by a caller inside a Vue
+ * computed property, for the same reactivity reason documented on
+ * `isFoldersRootPicker` above -- reading `_m.route` directly inside a
+ * computed won't be tracked. Callers outside a computed (event handlers,
+ * one-shot refresh() methods) can omit them and fall back to the globals.
  */
-export function getFolderRoutePath(basePath: string) {
-  let path = (_m.route.params.path || '/') as string | string[];
+export function getFolderRoutePath(
+  basePath: string,
+  routePath?: string | string[],
+  absolute?: boolean,
+) {
+  let path = (routePath ?? _m.route.params.path ?? '/') as string | string[];
   path = typeof path === 'string' ? path : path.join('/');
 
   const roots = getFoldersRoots(basePath);
-  if (roots.length > 1) {
-    // Multiple roots: the route path already is the real account-relative
-    // path (see the root picker at the Folders view's top level)
+  const isAbsolute = absolute ?? _m.route.query.abs !== undefined;
+  if (roots.length > 1 || isAbsolute) {
+    // Multiple roots, or a tile that carries its own full account-relative
+    // path (root picker, pinned favorite folders): the route path already
+    // is the real account-relative path, don't prepend the configured root.
     path = '/' + path;
   } else {
     path = (roots[0] ?? '/') + '/' + path;

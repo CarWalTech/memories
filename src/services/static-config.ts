@@ -155,6 +155,7 @@ class StaticConfig {
 
       // folder settings
       folders_path: '',
+      favorite_folders: '',
       show_hidden_folders: false,
       show_empty_folders: false,
       sort_folder_month: false,

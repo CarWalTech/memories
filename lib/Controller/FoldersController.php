@@ -133,4 +133,51 @@ final class FoldersController extends GenericApiController
             return new Http\JSONResponse($list, Http::STATUS_OK);
         });
     }
+
+    /**
+     * List the pinned favorite folder paths, for the tile grid shown
+     * at the top of the Favorites view.
+     */
+    #[NoAdminRequired]
+    public function favorites(): Http\Response
+    {
+        return Util::guardEx(function () {
+            $uid = Util::getUID();
+            $userFolder = Util::getUserFolder($uid);
+
+            $list = [];
+            foreach (Util::getFavoriteFoldersPaths($uid) as $path) {
+                try {
+                    $node = $userFolder->get($path);
+                } catch (\OCP\Files\NotFoundException) {
+                    continue; // pinned folder no longer exists; skip
+                }
+
+                if (!$node instanceof Folder) {
+                    continue;
+                }
+
+                // Unlike roots()/sub(), do NOT go through FsManager::populateRoot():
+                // with no `folder`/`all` request param it scopes to the *entire*
+                // timeline path and recursively touches every mount under it via
+                // addMountPoints(), including unrelated external storages -- and
+                // this endpoint is hit on every visit to the Favorites page, not
+                // just when browsing Folders. Build a root scoped to just this one
+                // favorited folder instead, so only mounts nested inside it (if
+                // any) are ever touched.
+                $root = new TimelineRoot();
+                $root->addFolder($node);
+                $root->addMountPoints();
+
+                $list[] = [
+                    'fileid' => $node->getId(),
+                    'name' => $node->getName(),
+                    'path' => trim($path, '/'),
+                    'previews' => $this->tq->getRootPreviews($root),
+                ];
+            }
+
+            return new Http\JSONResponse($list, Http::STATUS_OK);
+        });
+    }
 }
