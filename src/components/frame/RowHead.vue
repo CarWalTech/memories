@@ -1,10 +1,14 @@
 <template>
-  <div class="head-row no-user-select" :class="{ selected: item.selected }" :style="{ height: `${item.size}px` }">
+  <div
+    class="head-row no-user-select"
+    :class="{ selected: item.selected }"
+    :style="{ height: `${item.size}px`, '--zoom-scale': zoomScale }"
+  >
     <div class="super" v-if="item.super !== undefined">
       {{ item.super }}
     </div>
     <div class="main" @click="click">
-      <CheckCircle v-once :size="20" class="select" />
+      <CheckCircle v-once :size="iconSize" class="select" />
       <span class="name"> {{ name }} </span>
     </div>
   </div>
@@ -31,6 +35,12 @@ export default defineComponent({
       type: Object as PropType<IHeadRow>,
       required: true,
     },
+
+    /** Scale factor for the header's text/icon, tracking the current grid zoom level */
+    zoomScale: {
+      type: Number,
+      default: 1,
+    },
   },
 
   emits: {
@@ -40,6 +50,10 @@ export default defineComponent({
   computed: {
     name() {
       return utils.getHeadRowName(this.item);
+    },
+
+    iconSize() {
+      return Math.round(20 * this.zoomScale);
     },
   },
 
@@ -54,9 +68,9 @@ export default defineComponent({
 <style lang="scss" scoped>
 .head-row {
   contain: strict;
-  padding-top: 10px;
+  padding-top: calc(10px * var(--zoom-scale, 1));
   padding-left: 3px;
-  font-size: 0.9em;
+  font-size: calc(0.9em * var(--zoom-scale, 1));
 
   > div {
     position: relative;

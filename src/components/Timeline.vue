@@ -56,7 +56,12 @@
       </template>
 
       <template v-slot="{ item, index }">
-        <RowHead v-if="item.type === 0" :item="item" @click="refs.selectionManager.selectHead(item)" />
+        <RowHead
+          v-if="item.type === 0"
+          :item="item"
+          :zoom-scale="photoZoomScale"
+          @click="refs.selectionManager.selectHead(item)"
+        />
 
         <template v-else>
           <Photo
@@ -996,7 +1001,7 @@ export default defineComponent({
         const head: IHeadRow = {
           id: `${day.dayid}-head`,
           num: -1,
-          size: 40,
+          size: Math.round(40 * this.photoZoomScale),
           type: 0, // head
           selected: false,
           dayId: day.dayid,
@@ -1009,7 +1014,7 @@ export default defineComponent({
         // Special headers
         if (this.routeIsThisDay && (!prevDay || Math.abs(prevDay.dayid - day.dayid) > 30)) {
           // thisday view with new year title
-          head.size = 67;
+          head.size = Math.round(67 * this.photoZoomScale);
           head.super = utils.getFromNowStr(utils.dayIdToDate(day.dayid), { padding: 10 });
         }
 
