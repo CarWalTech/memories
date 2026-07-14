@@ -31,8 +31,6 @@
         {{ t('memories', 'Image properties') }}
       </NcActionButton>
 
-      <NcActionSeparator />
-
       <!-- View-specific extras -->
       <slot />
     </template>

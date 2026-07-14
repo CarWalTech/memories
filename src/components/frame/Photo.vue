@@ -54,13 +54,16 @@
           </div>
 
           <div class="list-info">
-            <span class="list-filename" v-if="showFilename">{{ listFilenameBase }}</span>
+            <div class="list-filename-row" v-if="showFilename || isRaw || showExtension">
+              <span class="list-filename" v-if="showFilename">{{ listFilenameBase }}</span>
+              <RawIcon v-if="isRaw" class="list-raw-badge" :size="14" />
+              <span class="list-ext" v-else-if="showExtension">{{ listExtension }}</span>
+            </div>
             <span class="list-meta" v-if="listMetaStr">{{ listMetaStr }}</span>
             <RatingTags v-if="showTags" class="list-rating-tags" :tags="currentTags" :compact="true" :max-tags="3" />
           </div>
 
           <div class="list-flags">
-            <RawIcon v-if="isRaw" :size="18" />
             <span class="video" v-if="data.flag & c.FLAG_IS_VIDEO">
               <span class="time" v-if="data.video_duration">{{ videoDuration }}</span>
               <VideoIcon :size="18" />
@@ -78,8 +81,6 @@
             <LocalIcon :size="18" v-if="data.flag & c.FLAG_IS_LOCAL" />
             <span class="shared-by" v-if="showOwnerName && sharedBy">{{ sharedBy }}</span>
           </div>
-
-          <span class="list-ext" v-if="showExtension">{{ listExtension }}</span>
         </div>
       </template>
 
@@ -94,6 +95,11 @@
           <CheckCircleIcon :size="18" />
         </div>
 
+        <div class="flag top-left">
+          <RawIcon class="raw" v-if="isRaw" :size="28" />
+          <span class="extension" v-else-if="showExtension">{{ listExtension }}</span>
+        </div>
+
         <div class="flag top-right">
           <span class="rating-badge" v-if="showRating">
             <template v-for="n in 5">
@@ -101,7 +107,6 @@
               <StarOutlineIcon v-else :key="`rating-outline-${n}`" :size="ratingBadgeSize" />
             </template>
           </span>
-          <RawIcon class="raw" v-if="isRaw" :size="28" />
           <div class="video" v-if="data.flag & c.FLAG_IS_VIDEO">
             <span class="time" v-if="data.video_duration">{{ videoDuration }}</span>
             <VideoIcon :size="22" />
@@ -161,9 +166,8 @@
 
         <!-- Metadata overlay -->
         <div class="metadata-overlay" v-if="showMetadataOverlay">
-          <div class="filename-row" v-if="showFilename || showExtension">
-            <span class="filename" v-if="showFilename">{{ listFilenameBase }}</span>
-            <span class="extension" v-if="showExtension">{{ listExtension }}</span>
+          <div class="filename-row" v-if="showFilename">
+            <span class="filename">{{ listFilenameBase }}</span>
           </div>
           <div class="meta-row" v-if="gridMetaStr">{{ gridMetaStr }}</div>
           <RatingTags v-if="showTags" :tags="currentTags" :compact="true" :max-tags="3" />
@@ -381,7 +385,7 @@ export default defineComponent({
 
     /** Whether to show the metadata overlay container */
     showMetadataOverlay(): boolean {
-      return this.showTags || this.showFilename || this.showExtension || !!this.gridMetaStr;
+      return this.showTags || this.showFilename || !!this.gridMetaStr;
     },
 
     /** Whether to render the compact list-row layout instead of a tile */
@@ -647,6 +651,15 @@ $icon-size: $icon-half-size * 2;
   color: white;
   display: flex;
 
+  &.top-left {
+    top: var(--icon-dist);
+    left: var(--icon-dist);
+    gap: 6px;
+    .p-outer.selected > & {
+      transform: translate($icon-size, $icon-size);
+    }
+  }
+
   &.top-right {
     top: var(--icon-dist);
     right: var(--icon-dist);
@@ -693,8 +706,18 @@ $icon-size: $icon-half-size * 2;
   > .livephoto {
     pointer-events: auto; // hover to play
   }
+
   > .raw {
     height: 22px; // force height to match
+  }
+
+  > .extension {
+    font-size: 0.75em;
+    font-weight: bold;
+    line-height: 22px; // force text height to match
+    letter-spacing: 0.02em;
+    filter: drop-shadow(1px 0 0 rgba(0, 0, 0, 0.9)) drop-shadow(-1px 0 0 rgba(0, 0, 0, 0.9))
+      drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.9));
   }
 
   // Compact readonly star row -- white with a bold outline so it stays
@@ -819,14 +842,12 @@ div.img-outer {
     opacity: 0;
   }
 
-  // Filename + extension line
+  // Filename line
   .filename-row {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
     min-width: 0;
 
     .filename {
+      display: block;
       font-size: 0.75em;
       font-weight: 500;
       color: white;
@@ -834,14 +855,6 @@ div.img-outer {
       overflow: hidden;
       text-overflow: ellipsis;
       min-width: 0;
-    }
-
-    .extension {
-      flex: 0 0 auto;
-      font-size: 0.7em;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      color: rgba(255, 255, 255, 0.8);
     }
   }
 
@@ -1017,12 +1030,34 @@ div.img-outer {
   // shrink/grow together so content keeps fitting at every zoom level.
   font-size: calc(1em * var(--zoom-scale, 1));
 
+  .list-filename-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
   .list-filename {
+    flex: 0 1 auto;
+    min-width: 0;
     font-size: 0.95em;
     color: var(--color-main-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .list-ext {
+    flex: 0 0 auto;
+    font-size: 0.75em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--color-text-maxcontrast);
+  }
+
+  .list-raw-badge {
+    flex: 0 0 auto;
+    color: var(--color-text-maxcontrast);
   }
 
   .list-meta {
@@ -1101,13 +1136,5 @@ div.img-outer {
       display: none;
     }
   }
-}
-
-.list-ext {
-  flex: 0 0 auto;
-  font-size: 0.75em;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--color-text-maxcontrast);
 }
 </style>
