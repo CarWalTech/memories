@@ -71,20 +71,18 @@ import NcCounterBubble from '@nextcloud/vue/dist/Components/NcCounterBubble.js';
 import errorsvg from '@assets/error.svg';
 import plussvg from '@assets/plus.svg';
 
-import UserConfig from '@mixins/UserConfig';
 import * as nativex from '@native';
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
 
 import type { ICluster } from '@typings';
+import type { ImageDisplayShape } from '@services/view-mode-scope';
 
 export default defineComponent({
   name: 'Cluster',
   components: {
     NcCounterBubble,
   },
-
-  mixins: [UserConfig],
 
   props: {
     data: {
@@ -99,6 +97,11 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /** Not scoped by route -- callers rendering decorative carousels (e.g. ClusterHList) can omit it and stay tile-only. */
+    imageDisplayShape: {
+      type: String as PropType<ImageDisplayShape>,
+      default: 'dynamic',
+    },
   },
 
   emits: {
@@ -108,7 +111,7 @@ export default defineComponent({
   computed: {
     /** Whether to render the compact list-row layout instead of a tile */
     isListView(): boolean {
-      return !!this.config.list_view;
+      return this.imageDisplayShape === 'list';
     },
 
     previewUrl() {

@@ -9,10 +9,6 @@
       @update:open="onClose"
     >
       <NcAppSettingsSection id="general-settings" :name="names.general">
-        <NcCheckboxRadioSwitch :checked.sync="config.square_thumbs" @update:checked="updateSquareThumbs" type="switch">
-          {{ t('memories', 'Square grid mode') }}
-        </NcCheckboxRadioSwitch>
-
         <NcCheckboxRadioSwitch
           :checked.sync="config.enable_top_memories"
           @update:checked="updateEnableTopMemories"
@@ -35,14 +31,6 @@
           type="switch"
         >
           {{ t('memories', 'De-duplicate identical files') }}
-        </NcCheckboxRadioSwitch>
-
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.show_owner_name_timeline"
-          @update:checked="updateShowOwnerNameTimeline"
-          type="switch"
-        >
-          {{ t('memories', 'Show photo owner name on timeline') }}
         </NcCheckboxRadioSwitch>
       </NcAppSettingsSection>
 
@@ -117,22 +105,6 @@
           type="switch"
         >
           {{ t('memories', 'Show metadata in slideshow') }}
-        </NcCheckboxRadioSwitch>
-
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.metadata_in_gallery"
-          @update:checked="updateMetadataInGallery"
-          type="switch"
-        >
-          {{ t('memories', 'Show metadata in gallery') }}
-        </NcCheckboxRadioSwitch>
-
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.enable_exif_photo_rating_in_gallery"
-          @update:checked="updateEnableExifPhotoRatingInGallery"
-          type="switch"
-        >
-          {{ t('memories', 'Enable photo rating in gallery') }}
         </NcCheckboxRadioSwitch>
 
         <div class="radio-group">
@@ -573,10 +545,6 @@ export default defineComponent({
     },
 
     // General settings
-    async updateSquareThumbs() {
-      await this.updateSetting('square_thumbs');
-    },
-
     async updateEnableTopMemories() {
       await this.updateSetting('enable_top_memories', 'enableTopMemories');
     },
@@ -587,10 +555,6 @@ export default defineComponent({
 
     async updateDedupIdentical() {
       await this.updateSetting('dedup_identical', 'dedupIdentical');
-    },
-
-    async updateShowOwnerNameTimeline() {
-      await this.updateSetting('show_owner_name_timeline', 'showOwnerNameTimeline');
     },
 
     // Mobile navigation settings
@@ -634,14 +598,6 @@ export default defineComponent({
 
     async updateMetadataInSlideshow() {
       await this.updateSetting('metadata_in_slideshow', 'metadataInSlideshow');
-    },
-
-    async updateMetadataInGallery() {
-      await this.updateSetting('metadata_in_gallery', 'metadataInGallery');
-    },
-
-    async updateEnableExifPhotoRatingInGallery() {
-      await this.updateSetting('enable_exif_photo_rating_in_gallery', 'enableExifPhotoRatingInGallery');
     },
 
     // Folders settings

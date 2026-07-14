@@ -25,10 +25,10 @@ npm-update:
 
 # Building
 build-js:
-	npm run dev
+	npm run build
 
 build-js-production:
-	rm -f js/* && npm run build
+	rm -f js/* && npm run prod
 
 patch-external:
 	bash scripts/patch-external.sh
@@ -93,15 +93,18 @@ clean-dev:
 # Deploying to a local dev instance
 NEXTCLOUD_CONTAINER ?= nextcloud-app-1
 
-bump-dev-version:
+nextcloud-bump-version:
 	@perl -pi -e 's/(<version>\d+\.\d+\.\d+-DEV-)(\d+)(<\/version>)/$$1.($$2+1).$$3/e' appinfo/info.xml
 	@echo "Bumped version to $$(grep -oP '(?<=<version>).*(?=</version>)' appinfo/info.xml)"
 
-bump-and-upgrade: bump-dev-version
+nextcloud-bumpgrade: nextcloud-bump-version
+	$(MAKE) nextcloud-upgrade
+
+nextcloud-upgrade: 
 	docker exec $(NEXTCLOUD_CONTAINER) php occ upgrade
 
-deploy-dev: bump-dev-version
+nextcloud-build: nextcloud-bump-version
 	$(MAKE) build-js
-	docker exec $(NEXTCLOUD_CONTAINER) php occ upgrade
+	$(MAKE) nextcloud-upgrade
 
-.PHONY: bump-dev-version deploy-dev
+.PHONY: nextcloud-bump-version nextcloud-upgrade nextcloud-build

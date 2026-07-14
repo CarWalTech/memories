@@ -70,6 +70,9 @@
             }"
             :data="photo"
             :day="item.day"
+            :image-display-shape="effectiveShape"
+            :image-props="effectiveImageProps"
+            :zoom-scale="photoZoomScale"
             @select="refs.selectionManager.clickSelectionIcon(photo, $event, index)"
             @pointerdown="refs.selectionManager.clickPhoto(photo, $event, index)"
             @touchstart="refs.selectionManager.touchstartPhoto(photo, $event, index)"
@@ -115,10 +118,10 @@ import axios from '@nextcloud/axios';
 import { showError } from '@nextcloud/dialogs';
 
 import { getLayout } from '@services/layout';
-import { DESKTOP_ROW_HEIGHTS, MOBILE_ROW_HEIGHTS, LIST_ROW_HEIGHT, clampZoom } from '@services/zoom';
+import { DESKTOP_ROW_HEIGHTS, MOBILE_ROW_HEIGHTS, listRowHeight, clampZoom, zoomScale } from '@services/zoom';
 import { autoScanFolderOnNavigate } from '@services/index-refresh';
 
-import UserConfig from '@mixins/UserConfig';
+import ViewPrefs from '@mixins/ViewPrefs';
 import RowHead from '@components/frame/RowHead.vue';
 import Photo from '@components/frame/Photo.vue';
 import ScrollerManager from '@components/ScrollerManager.vue';
@@ -158,7 +161,7 @@ export default defineComponent({
     SwipeRefresh,
   },
 
-  mixins: [UserConfig],
+  mixins: [ViewPrefs],
 
   emits: {
     daysLoaded: (stats: { count: number }) => true,
@@ -301,6 +304,11 @@ export default defineComponent({
       return this.routeIsBase && nativex.has();
     },
 
+    /** Scale factor for Photo.vue's overlay text/rating/tags, so content grows/shrinks along with the row/tile at each zoom level. */
+    photoZoomScale(): number {
+      return zoomScale(this.config.grid_zoom);
+    },
+
     isMonthView(): boolean {
       if (this.$route.query.sort === 'timeline') return false;
       if (this.$route.query.sort === 'album') return true;
@@ -399,7 +407,7 @@ export default defineComponent({
     },
 
     allowBreakout() {
-      return _m.window.innerWidth <= 600 && !this.config.square_thumbs && !this.config.list_view;
+      return _m.window.innerWidth <= 600 && this.effectiveShape === 'dynamic';
     },
 
     /** Create new state */
@@ -563,10 +571,10 @@ export default defineComponent({
         return;
       }
 
-      if (this.config.list_view) {
+      if (this.effectiveShape === 'list') {
         // List
         this.numCols = 1;
-        this.rowHeight = LIST_ROW_HEIGHT;
+        this.rowHeight = listRowHeight(this.config.grid_zoom);
       } else if (this.isMobileLayout()) {
         // Mobile
         const rowHeight = this.mobileRowHeight();
@@ -575,7 +583,7 @@ export default defineComponent({
       } else {
         // Desktop
         const rowHeight = this.desktopRowHeight();
-        if (this.config.square_thumbs) {
+        if (this.effectiveShape === 'square') {
           this.numCols = Math.max(3, Math.floor(this.rowWidth / rowHeight));
           this.rowHeight = Math.floor(this.rowWidth / this.numCols);
         } else {
@@ -1368,7 +1376,7 @@ export default defineComponent({
       }
 
       // Force all to square
-      const squareMode = this.isMobileLayout() || this.config.square_thumbs || this.config.list_view;
+      const squareMode = this.isMobileLayout() || this.effectiveShape !== 'dynamic';
 
       // Create justified layout with correct params
       const justify = getLayout(
@@ -1383,7 +1391,7 @@ export default defineComponent({
           squareMode: squareMode,
           numCols: this.numCols,
           allowBreakout: this.allowBreakout(),
-          listMode: this.config.list_view,
+          listMode: this.effectiveShape === 'list',
           seed: dayId,
         },
       );

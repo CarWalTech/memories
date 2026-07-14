@@ -23,8 +23,8 @@
   "license": "agpl",
   "private": true,
   "scripts": {
-    "build": "webpack --node-env production --progress",
-    "dev": "webpack --node-env development --progress",
+    "build": "webpack --node-env development --progress",
+    "production": "webpack --node-env production --progress",
     "watch": "webpack --node-env development --progress --watch",
     "serve": "webpack serve --node-env development --progress",
     "typecheck": "vue-tsc --noEmit",

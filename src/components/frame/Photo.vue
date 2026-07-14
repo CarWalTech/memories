@@ -9,6 +9,7 @@
         error: data.flag & c.FLAG_LOAD_FAIL,
         'list-view': isListView,
       }"
+      :style="{ '--zoom-scale': zoomScale }"
     >
       <!-- Compact list row layout -->
       <template v-if="isListView">
@@ -55,14 +56,7 @@
           <div class="list-info">
             <span class="list-filename" v-if="showFilename">{{ listFilenameBase }}</span>
             <span class="list-meta" v-if="listMetaStr">{{ listMetaStr }}</span>
-            <RatingTags
-              v-if="listShowRatingTags"
-              class="list-rating-tags"
-              :rating="listShowRating ? currentRating : 0"
-              :tags="listShowTags ? currentTags : []"
-              :compact="true"
-              :max-tags="3"
-            />
+            <RatingTags v-if="showTags" class="list-rating-tags" :tags="currentTags" :compact="true" :max-tags="3" />
           </div>
 
           <div class="list-flags">
@@ -100,14 +94,13 @@
           <CheckCircleIcon :size="18" />
         </div>
 
-        <!-- Interactive rating overlay -->
-        <div class="interactive-rating" v-if="showInteractiveRating">
-          <div class="rating-bubble">
-            <RatingStars :rating="currentRating" :size="14" readonly />
-          </div>
-        </div>
-
         <div class="flag top-right">
+          <span class="rating-badge" v-if="showRating">
+            <template v-for="n in 5">
+              <StarIcon v-if="n <= currentRating" :key="`rating-filled-${n}`" :size="ratingBadgeSize" />
+              <StarOutlineIcon v-else :key="`rating-outline-${n}`" :size="ratingBadgeSize" />
+            </template>
+          </span>
           <RawIcon class="raw" v-if="isRaw" :size="28" />
           <div class="video" v-if="data.flag & c.FLAG_IS_VIDEO">
             <span class="time" v-if="data.video_duration">{{ videoDuration }}</span>
@@ -173,14 +166,7 @@
             <span class="extension" v-if="showExtension">{{ listExtension }}</span>
           </div>
           <div class="meta-row" v-if="gridMetaStr">{{ gridMetaStr }}</div>
-          <RatingTags
-            v-if="showRatingTags"
-            :rating="currentRating"
-            :tags="currentTags"
-            :compact="true"
-            :max-tags="3"
-            :hide-stars="config.enable_exif_photo_rating_in_gallery"
-          />
+          <RatingTags v-if="showTags" :tags="currentTags" :compact="true" :max-tags="3" />
         </div>
       </template>
     </div>
@@ -191,35 +177,33 @@
 import { defineComponent, type PropType } from 'vue';
 
 import * as utils from '@services/utils';
-import staticConfig from '@services/static-config';
-import UserConfig from '@mixins/UserConfig';
 
 import RatingTags from '@components/RatingTags.vue';
-import RatingStars from '@components/RatingStars.vue';
 import LivePhotoIcon from '@components/icons/LivePhoto.vue';
 import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';
+import StarOutlineIcon from 'vue-material-design-icons/StarOutline.vue';
 import VideoIcon from 'vue-material-design-icons/PlayCircleOutline.vue';
 import LocalIcon from 'vue-material-design-icons/CloudOff.vue';
 import RawIcon from 'vue-material-design-icons/Raw.vue';
 
 import type { IDay, IPhoto } from '@typings';
 import type XImg from '@components/XImg.vue';
+import type { ImageDisplayShape } from '@services/view-mode-scope';
+import type { ImagePropsBundle } from '@services/image-props';
 
 import errorsvg from '@assets/error.svg';
 
 export default defineComponent({
   name: 'Photo',
 
-  mixins: [UserConfig],
-
   components: {
     RatingTags,
-    RatingStars,
     LivePhotoIcon,
     CheckCircleIcon,
     VideoIcon,
     StarIcon,
+    StarOutlineIcon,
     LocalIcon,
     RawIcon,
   },
@@ -232,6 +216,19 @@ export default defineComponent({
     day: {
       type: Object as PropType<IDay>,
       required: true,
+    },
+    imageDisplayShape: {
+      type: String as PropType<ImageDisplayShape>,
+      required: true,
+    },
+    imageProps: {
+      type: Object as PropType<ImagePropsBundle>,
+      required: true,
+    },
+    /** Scale factor for the current zoom level (1 = ZOOM_DEFAULT), so overlay text/rating grow with the tile in square/dynamic mode. */
+    zoomScale: {
+      type: Number,
+      default: 1,
     },
   },
 
@@ -325,7 +322,7 @@ export default defineComponent({
     },
 
     showOwnerName(): boolean {
-      if (this.routeIsBase && !staticConfig.getSync('show_owner_name_timeline')) {
+      if (this.routeIsBase && !this.imageProps.show_owner_name_timeline) {
         return false;
       }
       return true;
@@ -352,51 +349,44 @@ export default defineComponent({
       return utils.getTagsFromExif(exif);
     },
 
-    /** Whether to show the RatingTags component */
-    showRatingTags(): boolean {
-      return this.config.metadata_in_gallery && (this.currentRating > 0 || this.currentTags.length > 0);
+    /** Whether to show the rating stars -- a compact corner badge in grid mode, folded into the meta text in list mode */
+    showRating(): boolean {
+      return this.imageProps.enable_exif_photo_rating_in_gallery && this.currentRating > 0;
     },
 
-    /** Whether to show the interactive rating overlay */
-    showInteractiveRating(): boolean {
-      return this.config.enable_exif_photo_rating_in_gallery && (!!this.data.exif || !!this.data.imageInfo?.exif);
+    /** Whether to show embedded tags (the only thing RatingTags renders now -- rating lives elsewhere) */
+    showTags(): boolean {
+      return this.imageProps.metadata_in_gallery && this.currentTags.length > 0;
+    },
+
+    /** Compact star-glyph text for the rating, e.g. "★★★★☆" -- used inline in the list row's meta text */
+    ratingStarsText(): string {
+      return '★'.repeat(this.currentRating) + '☆'.repeat(5 - this.currentRating);
+    },
+
+    /** Icon size (px) for the top-right rating badge, scaled with the current zoom level like the rest of the overlay */
+    ratingBadgeSize(): number {
+      return Math.round(12 * this.zoomScale);
     },
 
     /** Whether to show the filename */
     showFilename(): boolean {
-      return this.config.show_filename_in_gallery && !!this.data.basename;
+      return this.imageProps.show_filename_in_gallery && !!this.data.basename;
     },
 
     /** Whether to show the file extension badge */
     showExtension(): boolean {
-      return this.config.show_extension_in_gallery && !!this.listExtension;
-    },
-
-    /** Whether to show the interactive rating stars in the compact list row */
-    listShowRating(): boolean {
-      return this.config.enable_exif_photo_rating_in_gallery && this.currentRating > 0;
-    },
-
-    /** Whether to show embedded tags in the compact list row */
-    listShowTags(): boolean {
-      return this.config.metadata_in_gallery && this.currentTags.length > 0;
-    },
-
-    /** Whether to show the rating/tags line in the compact list row */
-    listShowRatingTags(): boolean {
-      return this.listShowRating || this.listShowTags;
+      return this.imageProps.show_extension_in_gallery && !!this.listExtension;
     },
 
     /** Whether to show the metadata overlay container */
     showMetadataOverlay(): boolean {
-      return (
-        this.showRatingTags || this.showInteractiveRating || this.showFilename || this.showExtension || !!this.gridMetaStr
-      );
+      return this.showTags || this.showFilename || this.showExtension || !!this.gridMetaStr;
     },
 
     /** Whether to render the compact list-row layout instead of a tile */
     isListView(): boolean {
-      return !!this.config.list_view;
+      return this.imageDisplayShape === 'list';
     },
 
     /** Filename without the extension, for the list view filename line */
@@ -420,10 +410,13 @@ export default defineComponent({
     /** Secondary metadata line shown under the filename in list view */
     listMetaStr(): string {
       const parts: string[] = [];
-      if (this.config.show_datetime_in_gallery && this.listDateTimeStr) {
+      if (this.showRating) {
+        parts.push(this.ratingStarsText);
+      }
+      if (this.imageProps.show_datetime_in_gallery && this.listDateTimeStr) {
         parts.push(this.listDateTimeStr);
       }
-      if (this.config.show_dimensions_in_gallery && this.data.w && this.data.h) {
+      if (this.imageProps.show_dimensions_in_gallery && this.data.w && this.data.h) {
         parts.push(`${this.data.w} × ${this.data.h}`);
       }
       if (this.videoDuration) {
@@ -435,10 +428,10 @@ export default defineComponent({
     /** Secondary metadata line shown under the filename in the grid/dynamic/square overlay */
     gridMetaStr(): string {
       const parts: string[] = [];
-      if (this.config.show_datetime_in_gallery && this.listDateTimeStr) {
+      if (this.imageProps.show_datetime_in_gallery && this.listDateTimeStr) {
         parts.push(this.listDateTimeStr);
       }
-      if (this.config.show_dimensions_in_gallery && this.data.w && this.data.h) {
+      if (this.imageProps.show_dimensions_in_gallery && this.data.w && this.data.h) {
         parts.push(`${this.data.w} × ${this.data.h}`);
       }
       return parts.join(' · ');
@@ -563,7 +556,6 @@ export default defineComponent({
       if (this.liveState.playing) this.stopVideo();
       else this.playVideo();
     },
-
   },
 });
 </script>
@@ -640,7 +632,7 @@ $icon-size: $icon-half-size * 2;
 
     // Extremely ugly way to fill up the space
     // If this isn't done, bg has a border
-    :deep path {
+    ::v-deep path {
       transform: scale(1.2) translate(-2px, -2px);
     }
   }
@@ -658,6 +650,7 @@ $icon-size: $icon-half-size * 2;
   &.top-right {
     top: var(--icon-dist);
     right: var(--icon-dist);
+    gap: 6px;
     .p-outer.selected > & {
       transform: translate(-$icon-size, $icon-size);
     }
@@ -702,6 +695,22 @@ $icon-size: $icon-half-size * 2;
   }
   > .raw {
     height: 22px; // force height to match
+  }
+
+  // Compact readonly star row -- white with a bold outline so it stays
+  // legible directly over the photo (this corner has no gradient backdrop)
+  > .rating-badge {
+    display: flex;
+    align-items: center;
+
+    .material-design-icon {
+      filter: drop-shadow(1px 0 0 rgba(0, 0, 0, 0.9)) drop-shadow(-1px 0 0 rgba(0, 0, 0, 0.9))
+        drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.9));
+    }
+
+    .material-design-icon.star-outline-icon {
+      opacity: 0.75;
+    }
   }
 }
 
@@ -783,6 +792,20 @@ div.img-outer {
   pointer-events: none;
   background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.7) 100%);
 
+  // Stack rows (filename, date/dimensions, rating+tags) with one consistent
+  // gap instead of per-row margins, so spacing stays even regardless of
+  // which rows are actually present
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 8px 6px;
+
+  // Scale with the current zoom level -- --zoom-scale tracks the same ratio
+  // the tile itself grows/shrinks by, so the overlay's proportion of the
+  // tile (not just its absolute size) stays consistent across zoom levels.
+  // All the em-based sizes below cascade off this.
+  font-size: calc(1em * var(--zoom-scale, 1));
+
   // Hide on hover to prevent interference with selection
   @media (hover: hover) and (pointer: fine) {
     .p-outer:hover > .img-outer > & {
@@ -801,11 +824,11 @@ div.img-outer {
     display: flex;
     align-items: baseline;
     gap: 4px;
-    margin-bottom: 2px;
     min-width: 0;
 
     .filename {
       font-size: 0.75em;
+      font-weight: 500;
       color: white;
       white-space: nowrap;
       overflow: hidden;
@@ -829,29 +852,13 @@ div.img-outer {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 2px;
   }
 
-  // Compact styling for gallery
-  :deep .rating-tags {
-    font-size: 0.8em;
+  // Compact styling for gallery (tags only -- rating shows separately, top-right)
+  ::v-deep .rating-tags {
+    font-size: 0.75em;
     gap: 6px;
     width: 100%;
-
-    .rating-section {
-      flex-shrink: 0;
-
-      :deep .rating-stars {
-        gap: 0;
-        --default-clickable-area: 20px;
-
-        .button-vue {
-          padding: 2px;
-          min-height: unset;
-          min-width: unset;
-        }
-      }
-    }
 
     // Let the tag list take the remaining width so chips know how much
     // space they actually have to shrink into
@@ -867,13 +874,23 @@ div.img-outer {
       overflow: hidden;
       min-width: 0;
 
-      .chip {
+      // NcChip's real root class is .nc-chip (not .chip), and its actual
+      // rendered size comes from the --chip-size custom property (drives
+      // height, icon size, and border-radius) -- not padding, which is why
+      // scaling padding alone never changed its footprint. Overriding the
+      // variable here scales the whole chip together with the surrounding
+      // text. No extra deep marker needed -- already inside one from the
+      // "::v-deep .rating-tags" wrapper above. (Also: this project's
+      // vue-loader/@vue/component-compiler-utils version only recognizes
+      // the double-colon "::v-deep" form -- ":deep(...)" and ":deep foo"
+      // compile to nothing and silently drop the whole rule.)
+      .nc-chip {
+        --chip-size: calc(24px * var(--zoom-scale, 1));
         font-size: 0.75em;
-        padding: 2px 6px;
         flex-shrink: 1;
         min-width: 20px;
 
-        :deep .chip__content {
+        .nc-chip__text {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -892,100 +909,12 @@ div.img-outer {
   }
 
   @media (max-width: 768px) {
-    bottom: 2px;
-    left: 2px;
-    right: 2px;
-    padding: 6px 4px 2px;
+    padding: 6px 6px 4px;
+    gap: 2px;
 
-    :deep .rating-tags {
-      font-size: 0.75em;
+    ::v-deep .rating-tags {
+      font-size: 0.7em;
       gap: 4px;
-    }
-  }
-}
-
-// Interactive rating overlay within metadata
-.interactive-rating {
-  position: absolute;
-  top: var(--icon-dist);
-  left: var(--icon-dist);
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-end;
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-  z-index: 10;
-
-  // Show on hover or when photo has rating
-  @media (hover: hover) and (pointer: fine) {
-    .p-outer:hover & {
-      opacity: 1;
-    }
-  }
-
-  // Always show if there's a rating
-  &:has(.rating-stars .button-vue.filled) {
-    opacity: 1;
-  }
-
-  // Show on touch devices
-  @media (hover: none) {
-    .p-outer:active &,
-    .p-outer.touched & {
-      opacity: 1;
-    }
-  }
-
-  // Hide when photo is selected
-  .p-outer.selected & {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  // Bubble container, matching the pill shape of the tag chips
-  .rating-bubble {
-    display: flex;
-    align-items: center;
-    max-width: fit-content;
-    border-radius: 999px;
-    background-color: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(4px);
-    padding: 2px 4px;
-  }
-
-  // Compact rating stars styling for gallery
-  :deep .rating-stars {
-    gap: 1px !important;
-    --default-clickable-area: 22px;
-
-    .button-vue {
-      padding: 2px;
-      min-height: 18px;
-      min-width: 18px;
-    }
-
-    // White stars with a bold outline so they stay legible on any photo background
-    .material-design-icon {
-      color: #fff !important;
-      filter: drop-shadow(1px 0 0 rgba(0, 0, 0, 0.95)) drop-shadow(-1px 0 0 rgba(0, 0, 0, 0.95))
-        drop-shadow(0 1px 0 rgba(0, 0, 0, 0.95)) drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.95));
-    }
-
-    // Dim unrated stars slightly so the current rating is still readable at a glance
-    .material-design-icon.star-outline-icon {
-      opacity: 0.75;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .rating-bubble {
-      padding: 1px 3px;
-    }
-
-    :deep .rating-stars .button-vue {
-      min-height: 16px;
-      min-width: 16px;
     }
   }
 }
@@ -1080,8 +1009,13 @@ div.img-outer {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: calc(2px * var(--zoom-scale, 1));
   overflow: hidden;
+
+  // Scale with the current zoom level, same as the grid overlay -- all the
+  // em-based sizes below (and the row height itself, via LIST_ROW_HEIGHTS)
+  // shrink/grow together so content keeps fitting at every zoom level.
+  font-size: calc(1em * var(--zoom-scale, 1));
 
   .list-filename {
     font-size: 0.95em;
@@ -1099,27 +1033,12 @@ div.img-outer {
     text-overflow: ellipsis;
   }
 
-  // Compact styling for the rating/tags row in list view
-  :deep(.list-rating-tags) {
+  // Compact styling for the tags row in list view (rating is folded into .list-meta text above)
+  ::v-deep .list-rating-tags {
     flex-wrap: nowrap;
-    gap: 6px;
+    gap: calc(6px * var(--zoom-scale, 1));
     font-size: 0.8em;
     width: 100%;
-
-    .rating-section {
-      flex-shrink: 0;
-
-      :deep(.rating-stars) {
-        gap: 0;
-        --default-clickable-area: 18px;
-
-        .button-vue {
-          padding: 1px;
-          min-height: unset;
-          min-width: unset;
-        }
-      }
-    }
 
     .tags-section {
       flex: 1 1 auto;
@@ -1131,13 +1050,16 @@ div.img-outer {
       overflow: hidden;
       min-width: 0;
 
-      .chip {
+      // See the grid overlay's equivalent rule for why --chip-size (not
+      // padding) is what actually needs to scale here. No extra deep
+      // marker needed -- already inside one from "::v-deep .list-rating-tags" above.
+      .nc-chip {
+        --chip-size: calc(24px * var(--zoom-scale, 1));
         font-size: 0.75em;
-        padding: 1px 6px;
         flex-shrink: 1;
         min-width: 20px;
 
-        :deep(.chip__content) {
+        .nc-chip__text {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;

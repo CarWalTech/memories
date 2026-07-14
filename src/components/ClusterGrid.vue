@@ -20,7 +20,7 @@
 
     <template v-slot="{ item }">
       <div class="grid-item fill-block">
-        <Cluster :data="item" :link="link" :counters="counters" @click="click(item)" />
+        <Cluster :data="item" :link="link" :counters="counters" :image-display-shape="effectiveShape" @click="click(item)" />
       </div>
     </template>
   </RecycleScroller>
@@ -30,11 +30,11 @@
 import { defineComponent } from 'vue';
 
 import Cluster from '@components/frame/Cluster.vue';
-import UserConfig from '@mixins/UserConfig';
+import ViewPrefs from '@mixins/ViewPrefs';
 
 import type { ICluster } from '@typings';
 import * as utils from '@services/utils';
-import { LIST_ROW_HEIGHT } from '@services/zoom';
+import { listRowHeight } from '@services/zoom';
 
 export default defineComponent({
   name: 'ClusterGrid',
@@ -43,7 +43,7 @@ export default defineComponent({
     Cluster,
   },
 
-  mixins: [UserConfig],
+  mixins: [ViewPrefs],
 
   props: {
     items: {
@@ -103,13 +103,13 @@ export default defineComponent({
 
     /** Whether to render a single-column list instead of a grid of cards */
     isListView(): boolean {
-      return !!this.config.list_view;
+      return this.effectiveShape === 'list';
     },
 
     /** Height of the cluster */
     height() {
       if (this.isListView) {
-        return LIST_ROW_HEIGHT;
+        return listRowHeight(this.config.grid_zoom);
       }
 
       if (this.routeIsAlbums) {

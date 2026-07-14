@@ -5,7 +5,7 @@
     :style="{ '--min-item-size': `${minItemSize}px`, '--list-row-height': `${listRowHeight}px` }"
   >
     <div class="item fill-block" v-for="item of items" :key="item.fileid">
-      <Folder :data="item" :selection-manager="selectionManager" />
+      <Folder :data="item" :selection-manager="selectionManager" :image-display-shape="effectiveShape" />
     </div>
   </div>
 </template>
@@ -13,11 +13,11 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-import UserConfig from '@mixins/UserConfig';
+import ViewPrefs from '@mixins/ViewPrefs';
 import Folder from '@components/frame/Folder.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 
-import { rowHeight, LIST_ROW_HEIGHT } from '@services/zoom';
+import { rowHeight, listRowHeight as listRowHeightForZoom } from '@services/zoom';
 import * as utils from '@services/utils';
 
 import type { IFolder } from '@typings';
@@ -29,7 +29,7 @@ export default defineComponent({
     Folder,
   },
 
-  mixins: [UserConfig],
+  mixins: [ViewPrefs],
 
   props: {
     items: {
@@ -44,7 +44,7 @@ export default defineComponent({
 
   computed: {
     isListView(): boolean {
-      return !!this.config.list_view;
+      return this.effectiveShape === 'list';
     },
 
     /** Match the folder tile size to the photo timeline's tile size at the current zoom level */
@@ -53,7 +53,7 @@ export default defineComponent({
     },
 
     listRowHeight(): number {
-      return LIST_ROW_HEIGHT;
+      return listRowHeightForZoom(this.config.grid_zoom);
     },
   },
 });

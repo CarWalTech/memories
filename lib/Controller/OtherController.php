@@ -119,6 +119,8 @@ final class OtherController extends GenericApiController
                 'show_datetime_in_gallery' => 'true' === $getAppConfig('showDatetimeInGallery', 'false'),
                 'show_extension_in_gallery' => 'true' === $getAppConfig('showExtensionInGallery', 'false'),
                 'show_dimensions_in_gallery' => 'true' === $getAppConfig('showDimensionsInGallery', 'false'),
+                'view_mode_scope' => $getAppConfig('viewModeScope', '{}'),
+                'image_props_modes' => $getAppConfig('imagePropsModes', '{}'),
 
                 // metadata settings
                 'metadata_write_mode' => $getAppConfig('metadataWriteMode', Exif::WRITE_MODE_FILE_ONLY),

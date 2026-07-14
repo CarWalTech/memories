@@ -40,6 +40,10 @@ declare module '@typings' {
     show_datetime_in_gallery: boolean;
     show_extension_in_gallery: boolean;
     show_dimensions_in_gallery: boolean;
+    /** Raw JSON, see @services/view-mode-scope -- per-view-type base + per-item overrides for image_display_shape */
+    view_mode_scope: string;
+    /** Raw JSON, see @services/image-props -- per-mode (square/list) Image Properties overrides */
+    image_props_modes: string;
 
     // metadata settings
     metadata_write_mode: MetadataWriteMode;
@@ -57,8 +61,6 @@ declare module '@typings' {
     show_hidden_albums: boolean;
 
     // local settings
-    square_thumbs: boolean;
-    list_view: boolean;
     high_res_cond: HighResCond | null;
     show_face_rect: boolean;
     album_list_sort: number;

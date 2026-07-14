@@ -59,8 +59,8 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-import UserConfig from '@mixins/UserConfig';
 import type SelectionManager from '@components/SelectionManager.vue';
+import type { ImageDisplayShape } from '@services/view-mode-scope';
 
 import * as utils from '@services/utils/helpers';
 
@@ -76,8 +76,6 @@ export default defineComponent({
     CheckCircleIcon,
   },
 
-  mixins: [UserConfig],
-
   props: {
     data: {
       type: Object as PropType<IFolder>,
@@ -87,12 +85,16 @@ export default defineComponent({
       type: Object as PropType<InstanceType<typeof SelectionManager>>,
       required: false,
     },
+    imageDisplayShape: {
+      type: String as PropType<ImageDisplayShape>,
+      required: true,
+    },
   },
 
   computed: {
     /** Whether to render the compact list-row layout instead of a tile */
     isListView(): boolean {
-      return !!this.config.list_view;
+      return this.imageDisplayShape === 'list';
     },
 
     /** Open folder */

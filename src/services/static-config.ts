@@ -89,6 +89,16 @@ class StaticConfig {
     return this.getDefault()[key];
   }
 
+  /** Raw browser-storage read, for one-time migrations off a since-removed config key. */
+  public getRawItem(key: string): string | null {
+    return this.storage.getItem(`memories_${key}`);
+  }
+
+  /** Raw browser-storage removal, for one-time migrations off a since-removed config key. */
+  public removeRawItem(key: string): void {
+    this.storage.removeItem(`memories_${key}`);
+  }
+
   public setLs<K extends keyof IConfig>(key: K, value: IConfig[K]) {
     if (this.default) {
       this.default[key] = value;
@@ -151,6 +161,8 @@ class StaticConfig {
       show_datetime_in_gallery: false,
       show_extension_in_gallery: false,
       show_dimensions_in_gallery: false,
+      view_mode_scope: '{}',
+      image_props_modes: '{}',
 
       // metadata settings
       metadata_write_mode: 'file_only',
@@ -169,8 +181,6 @@ class StaticConfig {
       album_list_sort: ALBUM_SORT_FLAGS.CREATED | ALBUM_SORT_FLAGS.DESCENDING, // also in OtherController.php
 
       // local settings
-      square_thumbs: false,
-      list_view: false,
       high_res_cond: null,
       show_face_rect: false,
       mobile_nav_items: ['timeline', 'explore', 'albums'],
