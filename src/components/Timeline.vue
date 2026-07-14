@@ -1448,8 +1448,17 @@ export default defineComponent({
           continue;
         }
 
-        // Set row height
-        const jH = utils.roundHalf(jbox.rowHeight || jbox.height);
+        // Set row height. In list mode this is per-row/per-photo: only rows
+        // whose photo actually has embedded tags to show (and the toggle is
+        // on) get the extra room for that 3rd line -- everything else stays
+        // at the compact 2-line (filename + meta) baseline.
+        let jH = utils.roundHalf(jbox.rowHeight || jbox.height);
+        if (this.effectiveShape === 'list') {
+          const photo = data[dataIdx];
+          const exif = photo.imageInfo?.exif || photo.exif;
+          const hasTags = this.effectiveImageProps.metadata_in_gallery && utils.getTagsFromExif(exif).length > 0;
+          jH = listRowHeight(this.config.grid_zoom, hasTags);
+        }
         const delta = jH - row.size;
         // If the difference is too small, it's not worth risking an adjustment
         // especially on square layouts on mobile. Also don't do this if animating.
