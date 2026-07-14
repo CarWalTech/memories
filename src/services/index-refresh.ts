@@ -66,6 +66,7 @@ export async function autoScanFolderOnNavigate(path: string): Promise<void> {
       path,
       recursive: false,
       mode: 'untracked',
+      background: true,
     });
 
     if (res.data.done) {

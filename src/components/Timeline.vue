@@ -200,8 +200,12 @@ export default defineComponent({
     currentScroll: 0,
     /** Resize observer on the outer container */
     resizeObserver: null as ResizeObserver | null,
+    /** Resize observer on the recycler's #before slot (e.g. FolderGrid) */
+    beforeResizeObserver: null as ResizeObserver | null,
     /** Resizing timer */
     resizeTimer: null as number | null,
+    /** Coalesces same-tick onUserConfigChanged calls into one recompute */
+    userConfigChangedQueued: false,
     /** Height of the scroller */
     scrollerHeight: 100,
 
@@ -227,10 +231,26 @@ export default defineComponent({
       this.resizeObserver = new ResizeObserver(() => this.handleResizeWithDelay());
       this.resizeObserver.observe(this.refs.container.$el);
     }
+
+    // Watch the #before slot's own size (e.g. FolderGrid growing/shrinking,
+    // or switching between grid and list layout). Its height can change for
+    // reasons that don't go through fetchDays() -- a reactive view-mode
+    // toggle re-renders it immediately, and bus-driven folder mutations
+    // (delete/rename) mutate it directly -- so without this, the recycler
+    // keeps positioning items using a stale #before height and scrolling
+    // can appear to stop working (items rendered at the wrong offsets, or
+    // none at all once the real scroll position no longer maps to any of
+    // them). updateVisibleItems() is a cheap re-measure, safe to call on
+    // every observed change.
+    if (this.refs.recyclerBefore instanceof Element) {
+      this.beforeResizeObserver = new ResizeObserver(() => this.refs.recycler?.updateVisibleItems(false));
+      this.beforeResizeObserver.observe(this.refs.recyclerBefore);
+    }
   },
 
   unmounted() {
     this.resizeObserver?.disconnect();
+    this.beforeResizeObserver?.disconnect();
   },
 
   watch: {
@@ -446,10 +466,20 @@ export default defineComponent({
      * level or square-thumbs, neither of which affects the container's own
      * size, so recomputeSizes() would otherwise no-op) in addition to the
      * regular data refresh.
+     *
+     * Some UI actions (e.g. switching view mode) update more than one
+     * setting at once, which fires this once per setting synchronously --
+     * coalesce same-tick calls into a single recompute via a microtask so
+     * one user action never pays for the work twice.
      */
     onUserConfigChanged() {
-      this.recomputeSizes(true);
-      this.softRefresh();
+      if (this.userConfigChangedQueued) return;
+      this.userConfigChangedQueued = true;
+      Promise.resolve().then(() => {
+        this.userConfigChangedQueued = false;
+        this.recomputeSizes(true);
+        this.softRefresh();
+      });
     },
 
     /** Fetch and re-process days (sync can be awaited) */

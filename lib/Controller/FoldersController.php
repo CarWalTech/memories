@@ -84,7 +84,7 @@ final class FoldersController extends GenericApiController
                         return [
                             'fileid' => $node->getId(),
                             'name' => $node->getName(),
-                            'previews' => $this->tq->getRootPreviews($subRoot),
+                            'previews' => $this->fs->getCachedRootPreviews($node, fn () => $this->tq->getRootPreviews($subRoot)),
                         ];
                     }, $this->logger);
                 } catch (\Throwable $e) {
@@ -140,7 +140,7 @@ final class FoldersController extends GenericApiController
                             'fileid' => $node->getId(),
                             'name' => $node->getName(),
                             'path' => trim($path, '/'),
-                            'previews' => $this->tq->getRootPreviews($root),
+                            'previews' => $this->fs->getCachedRootPreviews($node, fn () => $this->tq->getRootPreviews($root)),
                         ];
                     }, $this->logger);
                 } catch (\Throwable $e) {
@@ -198,7 +198,7 @@ final class FoldersController extends GenericApiController
                             'fileid' => $node->getId(),
                             'name' => $node->getName(),
                             'path' => trim($path, '/'),
-                            'previews' => $this->tq->getRootPreviews($root),
+                            'previews' => $this->fs->getCachedRootPreviews($node, fn () => $this->tq->getRootPreviews($root)),
                         ];
                     }, $this->logger);
                 } catch (\Throwable $e) {

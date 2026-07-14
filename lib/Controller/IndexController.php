@@ -48,6 +48,17 @@ final class IndexController extends GenericApiController
     private const SYNC_BUDGET_SECONDS = 15;
 
     /**
+     * Sync budget for opportunistic scans triggered by folder navigation
+     * (as opposed to the user explicitly clicking "Refresh Folder" and
+     * waiting on it). These fire on every Folders-view navigation, so they
+     * must yield the PHP-FPM worker quickly instead of competing with the
+     * page's own concurrent thumbnail/day requests -- the existing
+     * background-continuation fallback below picks up anything that doesn't
+     * fit in this shorter budget.
+     */
+    private const SYNC_BUDGET_SECONDS_OPPORTUNISTIC = 3;
+
+    /**
      * Queue a full, forced re-index of the current user's own library.
      * Runs as a background job (not synchronously) since a whole library
      * can be tens of thousands of files.
@@ -91,14 +102,19 @@ final class IndexController extends GenericApiController
      * continuation already finished (already-reprocessed files are no longer
      * orphaned).
      *
-     * @param string $mode 'all' (default, force re-read every file's metadata)
-     *                     or 'untracked' (cheap: only scan for and index
-     *                     new/missing files, skip already-indexed ones)
+     * @param string $mode       'all' (default, force re-read every file's metadata)
+     *                           or 'untracked' (cheap: only scan for and index
+     *                           new/missing files, skip already-indexed ones)
+     * @param bool   $background Whether this is an opportunistic scan fired by
+     *                           folder navigation rather than a user explicitly
+     *                           waiting on a "Refresh Folder" click -- uses the
+     *                           shorter SYNC_BUDGET_SECONDS_OPPORTUNISTIC budget
+     *                           so it can't hog a worker as long
      */
     #[NoAdminRequired]
-    public function refreshFolder(string $path, bool $recursive, Service\Index $indexer, IJobList $jobList, string $mode = 'all'): Http\Response
+    public function refreshFolder(string $path, bool $recursive, Service\Index $indexer, IJobList $jobList, string $mode = 'all', bool $background = false): Http\Response
     {
-        return Util::guardEx(function () use ($path, $recursive, $indexer, $jobList, $mode) {
+        return Util::guardEx(function () use ($path, $recursive, $indexer, $jobList, $mode, $background) {
             $mode = 'untracked' === $mode ? 'untracked' : 'all';
             $user = Util::getUser();
             $uid = $user->getUID();
@@ -121,7 +137,8 @@ final class IndexController extends GenericApiController
             }
 
             $startTime = microtime(true);
-            $indexer->continueCheck = static fn (): bool => (microtime(true) - $startTime) < self::SYNC_BUDGET_SECONDS;
+            $budget = $background ? self::SYNC_BUDGET_SECONDS_OPPORTUNISTIC : self::SYNC_BUDGET_SECONDS;
+            $indexer->continueCheck = static fn (): bool => (microtime(true) - $startTime) < $budget;
 
             Exif::ensureStaticExiftoolProc();
             $needsBackground = false;

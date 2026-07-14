@@ -971,7 +971,7 @@ div.img-outer {
   position: relative;
   flex: 0 0 auto;
   width: auto;
-  height: 100%;
+  height: calc(100% - 12px);
   aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: 4px;

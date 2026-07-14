@@ -30,6 +30,7 @@ use OCA\Memories\ClustersBackend;
 use OCA\Memories\Exceptions;
 use OCA\Memories\Util;
 use OCP\Files\File;
+use OCP\Files\FileInfo;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\Files\Node;
@@ -46,6 +47,7 @@ use OCP\Share\IShare;
 final class FsManager
 {
     private ICache $nomediaCache;
+    private ICache $previewsCache;
 
     public function __construct(
         private IConfig $config,
@@ -56,6 +58,7 @@ final class FsManager
         ICacheFactory $cacheFactory,
     ) {
         $this->nomediaCache = $cacheFactory->createLocal('memories:nomedia');
+        $this->previewsCache = $cacheFactory->createLocal('memories:folderpreviews');
     }
 
     /**
@@ -203,6 +206,33 @@ final class FsManager
         $this->nomediaCache->set($key, $paths, 60 * 60); // 1 hour
 
         return $paths;
+    }
+
+    /**
+     * Get the (up to 4) preview fileids/etags for a folder, cached by the
+     * folder's own etag so it invalidates automatically -- Nextcloud
+     * propagates etag changes up the tree on any recursive content change,
+     * so a stale cache entry can't outlive the content it describes.
+     *
+     * Computing this from scratch is a recursive folder-tree query, and
+     * folder listings can ask for it once per subfolder, so caching it here
+     * avoids re-walking the same subtree on every navigation to a folder
+     * whose contents haven't changed.
+     *
+     * @param FileInfo $node    the folder to get previews for
+     * @param callable $compute callback that actually computes the previews on a cache miss
+     */
+    public function getCachedRootPreviews(FileInfo $node, callable $compute): array
+    {
+        $key = md5(((string) $node->getId()).':'.$node->getEtag());
+        if (null !== ($previews = $this->previewsCache->get($key))) {
+            return $previews;
+        }
+
+        $previews = $compute();
+        $this->previewsCache->set($key, $previews, 60 * 60); // 1 hour
+
+        return $previews;
     }
 
     /**
