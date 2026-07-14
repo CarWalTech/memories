@@ -53,8 +53,16 @@
           </div>
 
           <div class="list-info">
-            <span class="list-filename">{{ listFilenameBase }}</span>
+            <span class="list-filename" v-if="showFilename">{{ listFilenameBase }}</span>
             <span class="list-meta" v-if="listMetaStr">{{ listMetaStr }}</span>
+            <RatingTags
+              v-if="listShowRatingTags"
+              class="list-rating-tags"
+              :rating="listShowRating ? currentRating : 0"
+              :tags="listShowTags ? currentTags : []"
+              :compact="true"
+              :max-tags="3"
+            />
           </div>
 
           <div class="list-flags">
@@ -77,7 +85,7 @@
             <span class="shared-by" v-if="showOwnerName && sharedBy">{{ sharedBy }}</span>
           </div>
 
-          <span class="list-ext" v-if="listExtension">{{ listExtension }}</span>
+          <span class="list-ext" v-if="showExtension">{{ listExtension }}</span>
         </div>
       </template>
 
@@ -160,7 +168,11 @@
 
         <!-- Metadata overlay -->
         <div class="metadata-overlay" v-if="showMetadataOverlay">
-          <div class="filename" v-if="showFilename">{{ data.basename }}</div>
+          <div class="filename-row" v-if="showFilename || showExtension">
+            <span class="filename" v-if="showFilename">{{ listFilenameBase }}</span>
+            <span class="extension" v-if="showExtension">{{ listExtension }}</span>
+          </div>
+          <div class="meta-row" v-if="gridMetaStr">{{ gridMetaStr }}</div>
           <RatingTags
             v-if="showRatingTags"
             :rating="currentRating"
@@ -355,9 +367,31 @@ export default defineComponent({
       return this.config.show_filename_in_gallery && !!this.data.basename;
     },
 
+    /** Whether to show the file extension badge */
+    showExtension(): boolean {
+      return this.config.show_extension_in_gallery && !!this.listExtension;
+    },
+
+    /** Whether to show the interactive rating stars in the compact list row */
+    listShowRating(): boolean {
+      return this.config.enable_exif_photo_rating_in_gallery && this.currentRating > 0;
+    },
+
+    /** Whether to show embedded tags in the compact list row */
+    listShowTags(): boolean {
+      return this.config.metadata_in_gallery && this.currentTags.length > 0;
+    },
+
+    /** Whether to show the rating/tags line in the compact list row */
+    listShowRatingTags(): boolean {
+      return this.listShowRating || this.listShowTags;
+    },
+
     /** Whether to show the metadata overlay container */
     showMetadataOverlay(): boolean {
-      return this.showRatingTags || this.showInteractiveRating || this.showFilename;
+      return (
+        this.showRatingTags || this.showInteractiveRating || this.showFilename || this.showExtension || !!this.gridMetaStr
+      );
     },
 
     /** Whether to render the compact list-row layout instead of a tile */
@@ -386,14 +420,26 @@ export default defineComponent({
     /** Secondary metadata line shown under the filename in list view */
     listMetaStr(): string {
       const parts: string[] = [];
-      if (this.listDateTimeStr) {
+      if (this.config.show_datetime_in_gallery && this.listDateTimeStr) {
         parts.push(this.listDateTimeStr);
       }
-      if (this.data.w && this.data.h) {
+      if (this.config.show_dimensions_in_gallery && this.data.w && this.data.h) {
         parts.push(`${this.data.w} × ${this.data.h}`);
       }
       if (this.videoDuration) {
         parts.push(this.videoDuration);
+      }
+      return parts.join(' · ');
+    },
+
+    /** Secondary metadata line shown under the filename in the grid/dynamic/square overlay */
+    gridMetaStr(): string {
+      const parts: string[] = [];
+      if (this.config.show_datetime_in_gallery && this.listDateTimeStr) {
+        parts.push(this.listDateTimeStr);
+      }
+      if (this.config.show_dimensions_in_gallery && this.data.w && this.data.h) {
+        parts.push(`${this.data.w} × ${this.data.h}`);
       }
       return parts.join(' · ');
     },
@@ -750,10 +796,36 @@ div.img-outer {
     opacity: 0;
   }
 
-  // Filename line
-  .filename {
-    font-size: 0.75em;
-    color: white;
+  // Filename + extension line
+  .filename-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 2px;
+    min-width: 0;
+
+    .filename {
+      font-size: 0.75em;
+      color: white;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .extension {
+      flex: 0 0 auto;
+      font-size: 0.7em;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.8);
+    }
+  }
+
+  // Date/dimensions line
+  .meta-row {
+    font-size: 0.7em;
+    color: rgba(255, 255, 255, 0.8);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1025,6 +1097,59 @@ div.img-outer {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  // Compact styling for the rating/tags row in list view
+  :deep(.list-rating-tags) {
+    flex-wrap: nowrap;
+    gap: 6px;
+    font-size: 0.8em;
+    width: 100%;
+
+    .rating-section {
+      flex-shrink: 0;
+
+      :deep(.rating-stars) {
+        gap: 0;
+        --default-clickable-area: 18px;
+
+        .button-vue {
+          padding: 1px;
+          min-height: unset;
+          min-width: unset;
+        }
+      }
+    }
+
+    .tags-section {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .tags-container {
+      flex-wrap: nowrap;
+      overflow: hidden;
+      min-width: 0;
+
+      .chip {
+        font-size: 0.75em;
+        padding: 1px 6px;
+        flex-shrink: 1;
+        min-width: 20px;
+
+        :deep(.chip__content) {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+    }
+
+    .more-tags {
+      font-size: 0.7em;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
   }
 }
 

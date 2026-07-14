@@ -72,7 +72,7 @@
       :checked="config.metadata_in_gallery"
       @update:checked="toggle('metadata_in_gallery', 'metadataInGallery')"
     >
-      {{ t('memories', 'Metadata') }}
+      {{ t('memories', 'Embedded Tags') }}
     </NcActionCheckbox>
 
     <NcActionCheckbox
@@ -80,6 +80,27 @@
       @update:checked="toggle('show_filename_in_gallery', 'showFilenameInGallery')"
     >
       {{ t('memories', 'Filename') }}
+    </NcActionCheckbox>
+
+    <NcActionCheckbox
+      :checked="config.show_datetime_in_gallery"
+      @update:checked="toggle('show_datetime_in_gallery', 'showDatetimeInGallery')"
+    >
+      {{ t('memories', 'Date & Time') }}
+    </NcActionCheckbox>
+
+    <NcActionCheckbox
+      :checked="config.show_extension_in_gallery"
+      @update:checked="toggle('show_extension_in_gallery', 'showExtensionInGallery')"
+    >
+      {{ t('memories', 'Extension') }}
+    </NcActionCheckbox>
+
+    <NcActionCheckbox
+      :checked="config.show_dimensions_in_gallery"
+      @update:checked="toggle('show_dimensions_in_gallery', 'showDimensionsInGallery')"
+    >
+      {{ t('memories', 'Image Dimensions') }}
     </NcActionCheckbox>
 
     <!-- View-specific extras -->
