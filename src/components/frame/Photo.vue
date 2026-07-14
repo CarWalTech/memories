@@ -53,7 +53,7 @@
           </div>
 
           <div class="list-info">
-            <span class="list-filename">{{ data.basename }}</span>
+            <span class="list-filename">{{ listFilenameBase }}</span>
             <span class="list-meta" v-if="listMetaStr">{{ listMetaStr }}</span>
           </div>
 
@@ -76,6 +76,8 @@
             <LocalIcon :size="18" v-if="data.flag & c.FLAG_IS_LOCAL" />
             <span class="shared-by" v-if="showOwnerName && sharedBy">{{ sharedBy }}</span>
           </div>
+
+          <span class="list-ext" v-if="listExtension">{{ listExtension }}</span>
         </div>
       </template>
 
@@ -363,9 +365,30 @@ export default defineComponent({
       return !!this.config.list_view;
     },
 
+    /** Filename without the extension, for the list view filename line */
+    listFilenameBase(): string {
+      return utils.removeExtension(this.data.basename ?? '');
+    },
+
+    /** Uppercased file extension (no dot), for the list view filename line */
+    listExtension(): string {
+      const base = this.data.basename ?? '';
+      const ext = base.slice(this.listFilenameBase.length + 1);
+      return ext.toUpperCase();
+    },
+
+    /** Full date and time the photo was taken, for the list view meta line */
+    listDateTimeStr(): string | null {
+      if (!this.data.datetaken) return null;
+      return utils.getLongDateStr(new Date(this.data.datetaken * 1000), false, true);
+    },
+
     /** Secondary metadata line shown under the filename in list view */
     listMetaStr(): string {
       const parts: string[] = [];
+      if (this.listDateTimeStr) {
+        parts.push(this.listDateTimeStr);
+      }
       if (this.data.w && this.data.h) {
         parts.push(`${this.data.w} × ${this.data.h}`);
       }
@@ -1031,5 +1054,13 @@ div.img-outer {
       display: none;
     }
   }
+}
+
+.list-ext {
+  flex: 0 0 auto;
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-maxcontrast);
 }
 </style>

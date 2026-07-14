@@ -29,7 +29,7 @@ import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
 
 import * as dav from '@services/dav';
 import * as utils from '@services/utils';
-import { zoomScale } from '@services/zoom';
+import { rowHeight } from '@services/zoom';
 
 import type { ICluster } from '@typings';
 
@@ -66,9 +66,9 @@ export default defineComponent({
       return this.routeIsAlbums ? 2 : 3;
     },
 
+    /** Match the cover tile size to the photo timeline's tile size at the current zoom level */
     maxSize() {
-      const base = this.routeIsAlbums ? 250 : 180;
-      return Math.round(base * zoomScale(this.config.grid_zoom));
+      return rowHeight(this.config.grid_zoom, utils.isMobile());
     },
   },
 

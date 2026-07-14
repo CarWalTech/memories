@@ -5,32 +5,61 @@
     tabindex="1"
     :aria-label="title"
     class="cluster fill-block"
-    :class="{ error }"
+    :class="{ error, 'list-view': isListView }"
     :to="target"
     @click="click"
   >
-    <div class="count-bubble" v-if="counters && data.count">
-      <NcCounterBubble> {{ data.count }} </NcCounterBubble>
-    </div>
-    <div class="name">
-      <div class="title">{{ title }}</div>
-      <div class="subtitle" v-if="subtitle">{{ subtitle }}</div>
-    </div>
-
-    <div class="previews fill-block" ref="previews" @click="clickPreview">
-      <div class="img-outer" :class="{ plus }">
-        <XImg
-          draggable="false"
-          class="fill-block"
-          :class="{ error }"
-          :key="data.cluster_id"
-          :src="previewUrl"
-          :svg-tag="plus"
-          @error="failed"
-        />
-        <div v-if="title || subtitle" class="overlay top-left fill-block" />
+    <!-- Compact list row layout -->
+    <template v-if="isListView">
+      <div class="list-thumb" @click="clickPreview">
+        <div class="img-outer" :class="{ plus }">
+          <XImg
+            draggable="false"
+            class="fill-block"
+            :class="{ error }"
+            :key="data.cluster_id"
+            :src="previewUrl"
+            :svg-tag="plus"
+            @error="failed"
+          />
+        </div>
       </div>
-    </div>
+
+      <div class="list-info">
+        <span class="list-filename">{{ title }}</span>
+        <span class="list-meta" v-if="subtitle">{{ subtitle }}</span>
+      </div>
+
+      <div class="list-count" v-if="counters && data.count">
+        <NcCounterBubble> {{ data.count }} </NcCounterBubble>
+      </div>
+    </template>
+
+    <!-- Regular grid tile layout -->
+    <template v-else>
+      <div class="count-bubble" v-if="counters && data.count">
+        <NcCounterBubble> {{ data.count }} </NcCounterBubble>
+      </div>
+      <div class="name">
+        <div class="title">{{ title }}</div>
+        <div class="subtitle" v-if="subtitle">{{ subtitle }}</div>
+      </div>
+
+      <div class="previews fill-block" ref="previews" @click="clickPreview">
+        <div class="img-outer" :class="{ plus }">
+          <XImg
+            draggable="false"
+            class="fill-block"
+            :class="{ error }"
+            :key="data.cluster_id"
+            :src="previewUrl"
+            :svg-tag="plus"
+            @error="failed"
+          />
+          <div v-if="title || subtitle" class="overlay top-left fill-block" />
+        </div>
+      </div>
+    </template>
   </component>
 </template>
 
@@ -42,6 +71,7 @@ import NcCounterBubble from '@nextcloud/vue/dist/Components/NcCounterBubble.js';
 import errorsvg from '@assets/error.svg';
 import plussvg from '@assets/plus.svg';
 
+import UserConfig from '@mixins/UserConfig';
 import * as nativex from '@native';
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
@@ -53,6 +83,8 @@ export default defineComponent({
   components: {
     NcCounterBubble,
   },
+
+  mixins: [UserConfig],
 
   props: {
     data: {
@@ -74,6 +106,11 @@ export default defineComponent({
   },
 
   computed: {
+    /** Whether to render the compact list-row layout instead of a tile */
+    isListView(): boolean {
+      return !!this.config.list_view;
+    },
+
     previewUrl() {
       if (this.error) return errorsvg;
       if (this.plus) return plussvg;
@@ -298,5 +335,72 @@ $namemargin: 10px;
       }
     }
   }
+}
+
+// List view row layout
+.cluster.list-view {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  border-radius: var(--border-radius, 8px);
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background-color: var(--color-background-hover);
+    }
+  }
+}
+
+.list-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 4px;
+  background-color: var(--color-background-dark);
+  margin: 6px 0;
+
+  .img-outer {
+    width: 100%;
+    height: 100%;
+  }
+
+  :deep img {
+    object-fit: cover;
+  }
+}
+
+.list-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+
+  .list-filename {
+    font-size: 0.95em;
+    color: var(--color-main-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .list-meta {
+    font-size: 0.8em;
+    color: var(--color-text-maxcontrast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.list-count {
+  flex: 0 0 auto;
 }
 </style>

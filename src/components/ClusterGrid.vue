@@ -30,9 +30,11 @@
 import { defineComponent } from 'vue';
 
 import Cluster from '@components/frame/Cluster.vue';
+import UserConfig from '@mixins/UserConfig';
 
 import type { ICluster } from '@typings';
 import * as utils from '@services/utils';
+import { LIST_ROW_HEIGHT } from '@services/zoom';
 
 export default defineComponent({
   name: 'ClusterGrid',
@@ -40,6 +42,8 @@ export default defineComponent({
   components: {
     Cluster,
   },
+
+  mixins: [UserConfig],
 
   props: {
     items: {
@@ -97,8 +101,17 @@ export default defineComponent({
       };
     },
 
+    /** Whether to render a single-column list instead of a grid of cards */
+    isListView(): boolean {
+      return !!this.config.list_view;
+    },
+
     /** Height of the cluster */
     height() {
+      if (this.isListView) {
+        return LIST_ROW_HEIGHT;
+      }
+
       if (this.routeIsAlbums) {
         // album view: add gap for text below album
         // 4px extra on mobile for mark#2147915
@@ -110,11 +123,19 @@ export default defineComponent({
 
     /** Width of the cluster */
     width() {
+      if (this.isListView) {
+        return this.recyclerWidth;
+      }
+
       return utils.round(this.recyclerWidth / this.gridItems, 2);
     },
 
     /** Number of items horizontally */
     gridItems() {
+      if (this.isListView) {
+        return 1;
+      }
+
       // Restrict the number of columns between minCols and the size cap
       return Math.max(Math.floor(this.recyclerWidth / this.maxSize), this.minCols);
     },
@@ -124,6 +145,7 @@ export default defineComponent({
       return {
         empty: !this.items.length,
         'cluster--album': this.routeIsAlbums,
+        'cluster--list': this.isListView,
       };
     },
 

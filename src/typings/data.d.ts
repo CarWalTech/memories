@@ -99,7 +99,7 @@ declare module '@typings' {
     /** Epoch of file (optional, NativeX) */
     epoch?: number;
 
-    /** Date taken UTC value (lazy fetched) */
+    /** Date taken UTC value (Unix seconds). Always present on photos loaded via the timeline day endpoint. */
     datetaken?: number;
 
     /** Stacked RAW photos */

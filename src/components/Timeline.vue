@@ -115,7 +115,7 @@ import axios from '@nextcloud/axios';
 import { showError } from '@nextcloud/dialogs';
 
 import { getLayout } from '@services/layout';
-import { DESKTOP_ROW_HEIGHTS, MOBILE_ROW_HEIGHTS, clampZoom } from '@services/zoom';
+import { DESKTOP_ROW_HEIGHTS, MOBILE_ROW_HEIGHTS, LIST_ROW_HEIGHT, clampZoom } from '@services/zoom';
 import { autoScanFolderOnNavigate } from '@services/index-refresh';
 
 import UserConfig from '@mixins/UserConfig';
@@ -141,7 +141,6 @@ import type { IDay, IHeadRow, IPhoto, IRow, IFilters } from '@typings';
 
 const SCROLL_LOAD_DELAY = 100; // Delay in loading data when scrolling
 const ROW_NUM_LPAD = 16; // Number of rows to load before and after viewport
-const LIST_ROW_HEIGHT = 64; // Row height (px) used for list view
 
 export default defineComponent({
   name: 'Timeline',

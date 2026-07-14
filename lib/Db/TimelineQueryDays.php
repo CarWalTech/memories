@@ -507,8 +507,8 @@ trait TimelineQueryDays
         // All cluster transformations
         ClustersBackend\Manager::applyDayPostTransforms($this->request, $row);
 
-        // This field is only required due to the GROUP BY clause
-        unset($row['datetaken']);
+        // Already fetched for the GROUP BY / ORDER BY clause; keep it, it's free
+        $row['datetaken'] = (int) $row['datetaken'];
 
         // Calculate the AUID if we can
         if (($epoch = $row['epoch'] ?? null) && ($size = $row['size'] ?? null)) {

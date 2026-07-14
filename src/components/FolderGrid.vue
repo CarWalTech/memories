@@ -1,5 +1,9 @@
 <template>
-  <div class="grid" :style="{ '--min-item-size': `${minItemSize}px` }">
+  <div
+    class="grid"
+    :class="{ 'list-view': isListView }"
+    :style="{ '--min-item-size': `${minItemSize}px`, '--list-row-height': `${listRowHeight}px` }"
+  >
     <div class="item fill-block" v-for="item of items" :key="item.fileid">
       <Folder :data="item" :selection-manager="selectionManager" />
     </div>
@@ -13,12 +17,10 @@ import UserConfig from '@mixins/UserConfig';
 import Folder from '@components/frame/Folder.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 
-import { zoomScale } from '@services/zoom';
+import { rowHeight, LIST_ROW_HEIGHT } from '@services/zoom';
+import * as utils from '@services/utils';
 
 import type { IFolder } from '@typings';
-
-/** Base tile size (px) at the default (100%) zoom level */
-const BASE_ITEM_SIZE = 210;
 
 export default defineComponent({
   name: 'FolderGrid',
@@ -41,8 +43,17 @@ export default defineComponent({
   },
 
   computed: {
+    isListView(): boolean {
+      return !!this.config.list_view;
+    },
+
+    /** Match the folder tile size to the photo timeline's tile size at the current zoom level */
     minItemSize(): number {
-      return Math.round(BASE_ITEM_SIZE * zoomScale(this.config.grid_zoom));
+      return rowHeight(this.config.grid_zoom, utils.isMobile());
+    },
+
+    listRowHeight(): number {
+      return LIST_ROW_HEIGHT;
     },
   },
 });
@@ -64,6 +75,19 @@ export default defineComponent({
   > .item {
     aspect-ratio: 1 / 1;
     position: relative;
+  }
+
+  &.list-view {
+    display: flex;
+    flex-direction: column;
+    grid-gap: 0;
+    padding: 0;
+    width: 100%;
+
+    > .item {
+      aspect-ratio: unset;
+      height: var(--list-row-height);
+    }
   }
 }
 </style>
