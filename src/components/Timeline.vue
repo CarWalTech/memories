@@ -1250,6 +1250,15 @@ export default defineComponent({
           this.processDay(dayId, photos);
         }
       } catch (e) {
+        // The days were optimistically marked as loaded/sized in fetchDay()
+        // to prevent duplicate requests while this one was in flight. Since
+        // it failed, undo that so these days get retried on the next scroll
+        // instead of being stuck as unloaded placeholders forever.
+        for (const dayId of dayIds) {
+          this.loadedDays.delete(dayId);
+          this.sizedDays.delete(dayId);
+        }
+
         if (!utils.isNetworkError(e)) {
           showError(this.t('memories', 'Failed to load some photos'));
           console.error(e);
