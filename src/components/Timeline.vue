@@ -152,6 +152,14 @@ import type { IDay, IHeadRow, IPhoto, IRow, IFilters } from '@typings';
 const SCROLL_LOAD_DELAY = 100; // Delay in loading data when scrolling
 const ROW_NUM_LPAD = 16; // Number of rows to load before and after viewport
 
+/**
+ * Group by: None -- minimum photo count per merged pseudo-bucket (see
+ * processDays' bucket-merging step). Large enough that seams between
+ * pseudo-buckets are infrequent; small enough to keep individual fetches
+ * reasonably sized.
+ */
+const MIN_UNGROUPED_BUCKET_PHOTOS = 60;
+
 export default defineComponent({
   name: 'Timeline',
 
@@ -227,6 +235,14 @@ export default defineComponent({
     fetchDayQueue: [] as number[],
     /** Timer to load day call */
     fetchDayTimer: null as number | null,
+
+    /**
+     * Group by: None -- pseudo-bucket dayId -> the real dayIds merged into
+     * it (see processDays). Empty/unused in any other grouping mode.
+     */
+    ungroupedBucketDayIds: new Map<number, number[]>(),
+    /** Reverse of the above: real dayId -> the pseudo-bucket dayId it belongs to. */
+    ungroupedBucketRealToPseudo: new Map<number, number>(),
 
     /** State for request cancellations */
     state: Math.random(),
@@ -1023,8 +1039,38 @@ export default defineComponent({
       // do not become reactive (which happens only after assignment).
       const preloads = new Map<number, IPhoto[]>();
 
+      // Group by: None -- merge consecutive real days into larger
+      // pseudo-buckets so getLayout() (called once per bucket in processDay)
+      // packs each bucket's photos in one continuous pass, with no seam at
+      // old day boundaries. Preloaded .detail is intentionally dropped for
+      // merged buckets -- fetchDay() will fetch them fresh, which is simpler
+      // than gluing partial preloads from several real days together and
+      // only affects the very first screen's paint speed, not correctness.
+      // Skipped for ThisDay (whose "days" are deliberately non-consecutive,
+      // one per year) and native builds (whose local-photo merging keys
+      // directly off real dayids -- see fetchDayExpire's routeHasNative branch).
+      this.ungroupedBucketDayIds.clear();
+      this.ungroupedBucketRealToPseudo.clear();
+      let buckets = data;
+      if (!this.isGrouped && !this.routeIsThisDay && !this.routeHasNative) {
+        const merged: IDay[] = [];
+        let current: IDay | null = null;
+        for (const day of data) {
+          if (day.count === 0) continue;
+          if (!current || current.count >= MIN_UNGROUPED_BUCKET_PHOTOS) {
+            current = { dayid: day.dayid, count: 0, rows: [] };
+            this.ungroupedBucketDayIds.set(current.dayid, []);
+            merged.push(current);
+          }
+          current.count += day.count;
+          this.ungroupedBucketDayIds.get(current.dayid)!.push(day.dayid);
+          this.ungroupedBucketRealToPseudo.set(day.dayid, current.dayid);
+        }
+        buckets = merged;
+      }
+
       let prevDay: IDay | null = null;
-      for (const day of data) {
+      for (const day of buckets) {
         // Initialization
         day.rows = [];
 
@@ -1140,7 +1186,13 @@ export default defineComponent({
         }
       }
 
-      return API.Q(API.DAY(dayIds.join(',')), query);
+      // Expand any Group by: None pseudo-bucket ids to the real dayIds
+      // merged into them (see processDays) -- the backend only knows real
+      // dayids. A no-op for grouped modes/ThisDay/native, where every id is
+      // already real (ungroupedBucketDayIds stays empty).
+      const realDayIds = dayIds.flatMap((id) => this.ungroupedBucketDayIds.get(id) ?? [id]);
+
+      return API.Q(API.DAY(realDayIds.join(',')), query);
     },
 
     /** Fetch image data for one dayId */
@@ -1224,10 +1276,14 @@ export default defineComponent({
           return;
         }
 
-        // Bin the data into separate days
+        // Bin the data into separate days (or, in Group by: None, pseudo-buckets --
+        // dayMap is keyed by whatever was queued in fetchDayQueue, which is
+        // pseudo-bucket ids there; each photo's own .dayid is always real, so
+        // map it back via the reverse lookup, a no-op everywhere else)
         // It is already sorted in dayid DESC
         for (const photo of data) {
-          dayMap.get(photo.dayid)?.push(photo);
+          const bucketId = this.ungroupedBucketRealToPseudo.get(photo.dayid) ?? photo.dayid;
+          dayMap.get(bucketId)?.push(photo);
         }
 
         // Store cache asynchronously
@@ -1455,6 +1511,9 @@ export default defineComponent({
           allowBreakout: this.allowBreakout(),
           listMode: this.effectiveShape === 'list',
           seed: dayId,
+          // Group by: None -- fill each bucket's last row instead of leaving
+          // it short, since there's no header to explain a "cut off" row.
+          stretchLastRow: !this.isGrouped,
         },
       );
 

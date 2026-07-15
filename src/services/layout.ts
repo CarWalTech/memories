@@ -21,6 +21,14 @@ export function getLayout(
     seed: number;
     /** List view: stretch each cell to the full row width instead of a square */
     listMode?: boolean;
+    /**
+     * Stretch an incomplete last row to fill the full row width instead of
+     * leaving it short -- used for Group by: None, where there's no header
+     * to explain why a row looks visually "cut off" at a bucket boundary.
+     * Left false for grouped modes, where a short last row is a normal,
+     * expected end-of-bucket indicator.
+     */
+    stretchLastRow?: boolean;
   },
 ): {
   top: number;
@@ -38,6 +46,7 @@ export function getLayout(
       containerWidth: opts.rowWidth,
       targetRowHeight: opts.rowHeight,
       targetRowHeightTolerance: 0.1,
+      widowLayoutStyle: opts.stretchLastRow ? 'justify' : 'left',
     }).boxes;
   }
 
@@ -219,7 +228,40 @@ export function getLayout(
     photoId++;
   }
 
+  if (opts.stretchLastRow) {
+    stretchLastSquareRow(absMatrix, opts.rowWidth);
+  }
+
   return absMatrix;
+}
+
+/**
+ * Square mode's equivalent of justified-layout's `widowLayoutStyle: 'justify'`:
+ * scale up the last row's boxes (preserving their relative proportions and
+ * aspect ratios) so they fill the full row width instead of ending short.
+ * No-op if the last row is already full width (e.g. a breakout row, or list mode).
+ */
+function stretchLastSquareRow(
+  boxes: { top: number; left: number; width: number; height: number; rowHeight?: number }[],
+  rowWidth: number,
+): void {
+  if (!boxes.length) return;
+
+  const maxTop = Math.max(...boxes.map((b) => b.top));
+  const lastRow = boxes.filter((b) => b.top === maxTop).sort((a, b) => a.left - b.left);
+  const rightEdge = Math.max(...lastRow.map((b) => b.left + b.width));
+  if (rightEdge >= rowWidth - 1) return;
+
+  const scale = rowWidth / rightEdge;
+  let left = 0;
+  for (const b of lastRow) {
+    const newWidth = b.width * scale;
+    b.left = left;
+    b.width = newWidth;
+    b.height *= scale;
+    if (b.rowHeight) b.rowHeight *= scale;
+    left += newWidth;
+  }
 }
 
 function flagMatrixStr(matrix: number[][], numFlag: number) {
