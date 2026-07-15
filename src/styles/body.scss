@@ -33,6 +33,14 @@ body {
   // https://bugs.webkit.org/show_bug.cgi?id=160953
   overflow: visible;
 
+  // Privacy setting: obscure all photo/video preview thumbnails
+  &.blur-thumbnails {
+    .ximg,
+    video {
+      filter: blur(20px);
+    }
+  }
+
   > div.app-navigation {
     // Reduce size of navigation bar
     --app-navigation-max-width: 250px !important;

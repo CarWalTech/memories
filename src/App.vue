@@ -7,6 +7,7 @@
     app-name="memories"
     :class="{
       'has-nav': showNavigation,
+      'blur-thumbnails': config.blur_thumbnails,
     }"
   >
     <!--

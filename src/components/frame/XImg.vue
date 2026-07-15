@@ -1,9 +1,9 @@
 <template>
   <!-- Directly use SVG element if possible -->
-  <div class="svg" v-if="svg" v-html="svg"></div>
+  <div class="ximg svg" v-if="svg" v-html="svg"></div>
 
   <!-- Otherwise use img element -->
-  <img v-else :alt="alt" :src="dataSrc" @load="load" />
+  <img v-else class="ximg" :alt="alt" :src="dataSrc" @load="load" />
 </template>
 
 <script lang="ts">

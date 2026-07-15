@@ -32,6 +32,14 @@
         >
           {{ t('memories', 'De-duplicate identical files') }}
         </NcCheckboxRadioSwitch>
+
+        <NcCheckboxRadioSwitch
+          :checked.sync="config.blur_thumbnails"
+          @update:checked="updateBlurThumbnails"
+          type="switch"
+        >
+          {{ t('memories', 'Blur all photo/video previews (privacy)') }}
+        </NcCheckboxRadioSwitch>
       </NcAppSettingsSection>
 
       <NcAppSettingsSection id="mobile-nav-settings" :name="names.mobileNav">
@@ -555,6 +563,10 @@ export default defineComponent({
 
     async updateDedupIdentical() {
       await this.updateSetting('dedup_identical', 'dedupIdentical');
+    },
+
+    async updateBlurThumbnails() {
+      await this.updateSetting('blur_thumbnails');
     },
 
     // Mobile navigation settings

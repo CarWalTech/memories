@@ -66,5 +66,6 @@ declare module '@typings' {
     album_list_sort: number;
     mobile_nav_items: string[];
     grid_zoom: number;
+    blur_thumbnails: boolean;
   };
 }
