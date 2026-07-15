@@ -22,7 +22,7 @@
       <NcActionSeparator />
 
       <NcActionButton @click="panel = 'shape'">
-        <template #icon><ImageMultipleIcon :size="20" /></template>
+        <template #icon><component :is="shapeIcon(effectiveShape)" :size="20" /></template>
         {{ t('memories', 'View mode') }}: {{ shapeLabel }}
       </NcActionButton>
 
@@ -35,12 +35,19 @@
         <NcActionCaption v-if="hasTileSection" :name="t('memories', 'Photos')" />
 
         <NcActionButton @click="panel = 'sort'">
-          <template #icon><SortAscIcon :size="20" /></template>
+          <template #icon>
+            <SortAscIcon v-if="sortSetting.dir === 'asc'" :size="20" />
+            <SortDescIcon v-else :size="20" />
+          </template>
           {{ t('memories', 'Sort by') }}: {{ sortLabel }}
         </NcActionButton>
 
         <NcActionButton @click="panel = 'group'">
-          <template #icon><ViewGridIcon :size="20" /></template>
+          <template #icon>
+            <NoGroupIcon v-if="groupSetting.key === 'none'" :size="20" />
+            <SortAscIcon v-else-if="groupSetting.dir === 'asc'" :size="20" />
+            <SortDescIcon v-else :size="20" />
+          </template>
           {{ t('memories', 'Group by') }}: {{ groupLabel }}
         </NcActionButton>
       </template>
@@ -49,12 +56,19 @@
         <NcActionCaption :name="t('memories', 'Subfolders')" />
 
         <NcActionButton @click="panel = 'folderSort'">
-          <template #icon><SortAscIcon :size="20" /></template>
+          <template #icon>
+            <SortAscIcon v-if="folderSortSetting.dir === 'asc'" :size="20" />
+            <SortDescIcon v-else :size="20" />
+          </template>
           {{ t('memories', 'Sort by') }}: {{ folderSortLabel }}
         </NcActionButton>
 
         <NcActionButton @click="panel = 'folderGroup'">
-          <template #icon><ViewGridIcon :size="20" /></template>
+          <template #icon>
+            <NoGroupIcon v-if="folderGroupSetting.key === 'none'" :size="20" />
+            <SortAscIcon v-else-if="folderGroupSetting.dir === 'asc'" :size="20" />
+            <SortDescIcon v-else :size="20" />
+          </template>
           {{ t('memories', 'Group by') }}: {{ folderGroupLabel }}
         </NcActionButton>
       </template>
@@ -63,12 +77,19 @@
         <NcActionCaption :name="t('memories', 'Sub-tags')" />
 
         <NcActionButton @click="panel = 'tagSort'">
-          <template #icon><SortAscIcon :size="20" /></template>
+          <template #icon>
+            <SortAscIcon v-if="tagSortSetting.dir === 'asc'" :size="20" />
+            <SortDescIcon v-else :size="20" />
+          </template>
           {{ t('memories', 'Sort by') }}: {{ tagSortLabel }}
         </NcActionButton>
 
         <NcActionButton @click="panel = 'tagGroup'">
-          <template #icon><ViewGridIcon :size="20" /></template>
+          <template #icon>
+            <NoGroupIcon v-if="tagGroupSetting.key === 'none'" :size="20" />
+            <SortAscIcon v-else-if="tagGroupSetting.dir === 'asc'" :size="20" />
+            <SortDescIcon v-else :size="20" />
+          </template>
           {{ t('memories', 'Group by') }}: {{ tagGroupLabel }}
         </NcActionButton>
       </template>
@@ -92,38 +113,41 @@
 
       <NcActionSeparator v-if="showItemToggle" />
 
-      <NcActionRadio
-        name="image-display-shape"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Dynamic')"
         value="dynamic"
-        :checked="effectiveShape"
-        @change="changeImageDisplayShape('dynamic')"
+        :model-value="effectiveShape"
+        @update:modelValue="changeImageDisplayShape('dynamic')"
         close-after-click
       >
+        <template #icon><ViewDynamicIcon :size="20" /></template>
         {{ t('memories', 'Dynamic') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
-        name="image-display-shape"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Square')"
         value="square"
-        :checked="effectiveShape"
-        @change="changeImageDisplayShape('square')"
+        :model-value="effectiveShape"
+        @update:modelValue="changeImageDisplayShape('square')"
         close-after-click
       >
+        <template #icon><ViewSquareIcon :size="20" /></template>
         {{ t('memories', 'Square') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
-        name="image-display-shape"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'List')"
         value="list"
-        :checked="effectiveShape"
-        @change="changeImageDisplayShape('list')"
+        :model-value="effectiveShape"
+        @update:modelValue="changeImageDisplayShape('list')"
         close-after-click
       >
+        <template #icon><ViewListIcon :size="20" /></template>
         {{ t('memories', 'List') }}
-      </NcActionRadio>
+      </NcActionButton>
     </template>
 
     <!-- Image properties panel -->
@@ -202,42 +226,45 @@
 
       <NcActionSeparator v-if="showSortItemToggle" />
 
-      <NcActionRadio
+      <NcActionButton
         v-for="opt in sortDef.sortKeys"
         :key="opt.key"
-        name="sort-key"
+        type="radio"
         :aria-label="opt.label"
         :value="opt.key"
-        :checked="sortSetting.key"
-        @change="changeSortKey(opt.key)"
+        :model-value="sortSetting.key"
+        @update:modelValue="changeSortKey(opt.key)"
         close-after-click
       >
+        <template #icon><component :is="sortKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
-      </NcActionRadio>
+      </NcActionButton>
 
       <NcActionSeparator />
 
-      <NcActionRadio
-        name="sort-dir"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Ascending')"
         value="asc"
-        :checked="sortSetting.dir"
-        @change="changeSortDir('asc')"
+        :model-value="sortSetting.dir"
+        @update:modelValue="changeSortDir('asc')"
         close-after-click
       >
+        <template #icon><SortAscIcon :size="20" /></template>
         {{ t('memories', 'Ascending') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
-        name="sort-dir"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Descending')"
         value="desc"
-        :checked="sortSetting.dir"
-        @change="changeSortDir('desc')"
+        :model-value="sortSetting.dir"
+        @update:modelValue="changeSortDir('desc')"
         close-after-click
       >
+        <template #icon><SortDescIcon :size="20" /></template>
         {{ t('memories', 'Descending') }}
-      </NcActionRadio>
+      </NcActionButton>
     </template>
 
     <!-- Group by panel -->
@@ -255,54 +282,58 @@
 
       <NcActionSeparator v-if="showGroupItemToggle" />
 
-      <NcActionRadio
-        name="group-key"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'None')"
         value="none"
-        :checked="groupSetting.key"
-        @change="changeGroupKey('none')"
+        :model-value="groupSetting.key"
+        @update:modelValue="changeGroupKey('none')"
         close-after-click
       >
+        <template #icon><NoGroupIcon :size="20" /></template>
         {{ t('memories', 'None') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
+      <NcActionButton
         v-for="opt in groupKeyOpts"
         :key="opt.key"
-        name="group-key"
+        type="radio"
         :aria-label="opt.label"
         :value="opt.key"
-        :checked="groupSetting.key"
-        @change="changeGroupKey(opt.key)"
+        :model-value="groupSetting.key"
+        @update:modelValue="changeGroupKey(opt.key)"
         close-after-click
       >
+        <template #icon><component :is="groupKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
-      </NcActionRadio>
+      </NcActionButton>
 
       <template v-if="groupSetting.key !== 'none'">
         <NcActionSeparator />
 
-        <NcActionRadio
-          name="group-dir"
+        <NcActionButton
+          type="radio"
           :aria-label="t('memories', 'Ascending')"
           value="asc"
-          :checked="groupSetting.dir"
-          @change="changeGroupDir('asc')"
+          :model-value="groupSetting.dir"
+          @update:modelValue="changeGroupDir('asc')"
           close-after-click
         >
+          <template #icon><SortAscIcon :size="20" /></template>
           {{ t('memories', 'Ascending') }}
-        </NcActionRadio>
+        </NcActionButton>
 
-        <NcActionRadio
-          name="group-dir"
+        <NcActionButton
+          type="radio"
           :aria-label="t('memories', 'Descending')"
           value="desc"
-          :checked="groupSetting.dir"
-          @change="changeGroupDir('desc')"
+          :model-value="groupSetting.dir"
+          @update:modelValue="changeGroupDir('desc')"
           close-after-click
         >
+          <template #icon><SortDescIcon :size="20" /></template>
           {{ t('memories', 'Descending') }}
-        </NcActionRadio>
+        </NcActionButton>
       </template>
     </template>
 
@@ -325,42 +356,45 @@
 
       <NcActionSeparator v-if="showFolderSortItemToggle" />
 
-      <NcActionRadio
+      <NcActionButton
         v-for="opt in folderSortDef.sortKeys"
         :key="opt.key"
-        name="folder-sort-key"
+        type="radio"
         :aria-label="opt.label"
         :value="opt.key"
-        :checked="folderSortSetting.key"
-        @change="changeFolderSortKey(opt.key)"
+        :model-value="folderSortSetting.key"
+        @update:modelValue="changeFolderSortKey(opt.key)"
         close-after-click
       >
+        <template #icon><component :is="sortKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
-      </NcActionRadio>
+      </NcActionButton>
 
       <NcActionSeparator />
 
-      <NcActionRadio
-        name="folder-sort-dir"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Ascending')"
         value="asc"
-        :checked="folderSortSetting.dir"
-        @change="changeFolderSortDir('asc')"
+        :model-value="folderSortSetting.dir"
+        @update:modelValue="changeFolderSortDir('asc')"
         close-after-click
       >
+        <template #icon><SortAscIcon :size="20" /></template>
         {{ t('memories', 'Ascending') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
-        name="folder-sort-dir"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Descending')"
         value="desc"
-        :checked="folderSortSetting.dir"
-        @change="changeFolderSortDir('desc')"
+        :model-value="folderSortSetting.dir"
+        @update:modelValue="changeFolderSortDir('desc')"
         close-after-click
       >
+        <template #icon><SortDescIcon :size="20" /></template>
         {{ t('memories', 'Descending') }}
-      </NcActionRadio>
+      </NcActionButton>
     </template>
 
     <!-- Subfolder tile Group by panel (Folders route only) -->
@@ -382,54 +416,58 @@
 
       <NcActionSeparator v-if="showFolderGroupItemToggle" />
 
-      <NcActionRadio
-        name="folder-group-key"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'None')"
         value="none"
-        :checked="folderGroupSetting.key"
-        @change="changeFolderGroupKey('none')"
+        :model-value="folderGroupSetting.key"
+        @update:modelValue="changeFolderGroupKey('none')"
         close-after-click
       >
+        <template #icon><NoGroupIcon :size="20" /></template>
         {{ t('memories', 'None') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
+      <NcActionButton
         v-for="opt in folderGroupKeyOpts"
         :key="opt.key"
-        name="folder-group-key"
+        type="radio"
         :aria-label="opt.label"
         :value="opt.key"
-        :checked="folderGroupSetting.key"
-        @change="changeFolderGroupKey(opt.key)"
+        :model-value="folderGroupSetting.key"
+        @update:modelValue="changeFolderGroupKey(opt.key)"
         close-after-click
       >
+        <template #icon><component :is="groupKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
-      </NcActionRadio>
+      </NcActionButton>
 
       <template v-if="folderGroupSetting.key !== 'none'">
         <NcActionSeparator />
 
-        <NcActionRadio
-          name="folder-group-dir"
+        <NcActionButton
+          type="radio"
           :aria-label="t('memories', 'Ascending')"
           value="asc"
-          :checked="folderGroupSetting.dir"
-          @change="changeFolderGroupDir('asc')"
+          :model-value="folderGroupSetting.dir"
+          @update:modelValue="changeFolderGroupDir('asc')"
           close-after-click
         >
+          <template #icon><SortAscIcon :size="20" /></template>
           {{ t('memories', 'Ascending') }}
-        </NcActionRadio>
+        </NcActionButton>
 
-        <NcActionRadio
-          name="folder-group-dir"
+        <NcActionButton
+          type="radio"
           :aria-label="t('memories', 'Descending')"
           value="desc"
-          :checked="folderGroupSetting.dir"
-          @change="changeFolderGroupDir('desc')"
+          :model-value="folderGroupSetting.dir"
+          @update:modelValue="changeFolderGroupDir('desc')"
           close-after-click
         >
+          <template #icon><SortDescIcon :size="20" /></template>
           {{ t('memories', 'Descending') }}
-        </NcActionRadio>
+        </NcActionButton>
       </template>
     </template>
 
@@ -448,42 +486,45 @@
 
       <NcActionSeparator v-if="showTagSortItemToggle" />
 
-      <NcActionRadio
+      <NcActionButton
         v-for="opt in tagSortDef.sortKeys"
         :key="opt.key"
-        name="tag-sort-key"
+        type="radio"
         :aria-label="opt.label"
         :value="opt.key"
-        :checked="tagSortSetting.key"
-        @change="changeTagSortKey(opt.key)"
+        :model-value="tagSortSetting.key"
+        @update:modelValue="changeTagSortKey(opt.key)"
         close-after-click
       >
+        <template #icon><component :is="sortKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
-      </NcActionRadio>
+      </NcActionButton>
 
       <NcActionSeparator />
 
-      <NcActionRadio
-        name="tag-sort-dir"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Ascending')"
         value="asc"
-        :checked="tagSortSetting.dir"
-        @change="changeTagSortDir('asc')"
+        :model-value="tagSortSetting.dir"
+        @update:modelValue="changeTagSortDir('asc')"
         close-after-click
       >
+        <template #icon><SortAscIcon :size="20" /></template>
         {{ t('memories', 'Ascending') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
-        name="tag-sort-dir"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'Descending')"
         value="desc"
-        :checked="tagSortSetting.dir"
-        @change="changeTagSortDir('desc')"
+        :model-value="tagSortSetting.dir"
+        @update:modelValue="changeTagSortDir('desc')"
         close-after-click
       >
+        <template #icon><SortDescIcon :size="20" /></template>
         {{ t('memories', 'Descending') }}
-      </NcActionRadio>
+      </NcActionButton>
     </template>
 
     <!-- Sub-tag tile Group by panel (EmbeddedTags route only) -->
@@ -505,54 +546,58 @@
 
       <NcActionSeparator v-if="showTagGroupItemToggle" />
 
-      <NcActionRadio
-        name="tag-group-key"
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'None')"
         value="none"
-        :checked="tagGroupSetting.key"
-        @change="changeTagGroupKey('none')"
+        :model-value="tagGroupSetting.key"
+        @update:modelValue="changeTagGroupKey('none')"
         close-after-click
       >
+        <template #icon><NoGroupIcon :size="20" /></template>
         {{ t('memories', 'None') }}
-      </NcActionRadio>
+      </NcActionButton>
 
-      <NcActionRadio
+      <NcActionButton
         v-for="opt in tagGroupKeyOpts"
         :key="opt.key"
-        name="tag-group-key"
+        type="radio"
         :aria-label="opt.label"
         :value="opt.key"
-        :checked="tagGroupSetting.key"
-        @change="changeTagGroupKey(opt.key)"
+        :model-value="tagGroupSetting.key"
+        @update:modelValue="changeTagGroupKey(opt.key)"
         close-after-click
       >
+        <template #icon><component :is="groupKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
-      </NcActionRadio>
+      </NcActionButton>
 
       <template v-if="tagGroupSetting.key !== 'none'">
         <NcActionSeparator />
 
-        <NcActionRadio
-          name="tag-group-dir"
+        <NcActionButton
+          type="radio"
           :aria-label="t('memories', 'Ascending')"
           value="asc"
-          :checked="tagGroupSetting.dir"
-          @change="changeTagGroupDir('asc')"
+          :model-value="tagGroupSetting.dir"
+          @update:modelValue="changeTagGroupDir('asc')"
           close-after-click
         >
+          <template #icon><SortAscIcon :size="20" /></template>
           {{ t('memories', 'Ascending') }}
-        </NcActionRadio>
+        </NcActionButton>
 
-        <NcActionRadio
-          name="tag-group-dir"
+        <NcActionButton
+          type="radio"
           :aria-label="t('memories', 'Descending')"
           value="desc"
-          :checked="tagGroupSetting.dir"
-          @change="changeTagGroupDir('desc')"
+          :model-value="tagGroupSetting.dir"
+          @update:modelValue="changeTagGroupDir('desc')"
           close-after-click
         >
+          <template #icon><SortDescIcon :size="20" /></template>
           {{ t('memories', 'Descending') }}
-        </NcActionRadio>
+        </NcActionButton>
       </template>
     </template>
   </NcActions>
@@ -563,7 +608,6 @@ import { defineComponent } from 'vue';
 
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
-import NcActionRadio from '@nextcloud/vue/dist/Components/NcActionRadio.js';
 import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
@@ -578,10 +622,25 @@ import { getListScopeDef, listScopeTargetFor, type ListScopeTarget, type SortKey
 
 import SortVariantIcon from 'vue-material-design-icons/SortVariant.vue';
 import SortAscIcon from 'vue-material-design-icons/SortAscending.vue';
-import ViewGridIcon from 'vue-material-design-icons/ViewGrid.vue';
+import SortDescIcon from 'vue-material-design-icons/SortDescending.vue';
+import NoGroupIcon from 'vue-material-design-icons/FormatListBulleted.vue';
 import ImageMultipleIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import TuneIcon from 'vue-material-design-icons/Tune.vue';
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue';
+
+// Sort by / Group by / View mode option icons
+import SortAlphaIcon from 'vue-material-design-icons/SortAlphabeticalVariant.vue';
+import FileSizeIcon from 'vue-material-design-icons/Harddisk.vue';
+import UpdatedIcon from 'vue-material-design-icons/ClockOutline.vue';
+import CreatedIcon from 'vue-material-design-icons/CalendarOutline.vue';
+import CountIcon from 'vue-material-design-icons/Counter.vue';
+import GroupDayIcon from 'vue-material-design-icons/CalendarTodayOutline.vue';
+import GroupWeekIcon from 'vue-material-design-icons/CalendarWeekOutline.vue';
+import GroupMonthIcon from 'vue-material-design-icons/CalendarMonthOutline.vue';
+import GroupYearIcon from 'vue-material-design-icons/CalendarBlankOutline.vue';
+import ViewDynamicIcon from 'vue-material-design-icons/ViewComfyOutline.vue';
+import ViewSquareIcon from 'vue-material-design-icons/CropSquare.vue';
+import ViewListIcon from 'vue-material-design-icons/ViewListOutline.vue';
 
 /** camelCase server-side config keys for the Dynamic-mode (global config) properties. */
 const REMOTE_NAMES: Record<keyof ImagePropsBundle, string> = {
@@ -608,6 +667,31 @@ const GROUP_KEY_LABELS: Record<Exclude<GroupKey, 'none'>, string> = {
   name: 'Name',
 };
 
+/** Icon per Sort by key, shown next to each option in the Sort by panels. */
+const SORT_KEY_ICONS: Record<SortKey, unknown> = {
+  name: SortAlphaIcon,
+  size: FileSizeIcon,
+  updated: UpdatedIcon,
+  created: CreatedIcon,
+  count: CountIcon,
+};
+
+/** Icon per Group by key (excluding 'none', which always uses NoGroupIcon directly). */
+const GROUP_KEY_ICONS: Record<Exclude<GroupKey, 'none'>, unknown> = {
+  day: GroupDayIcon,
+  week: GroupWeekIcon,
+  month: GroupMonthIcon,
+  year: GroupYearIcon,
+  name: SortAlphaIcon,
+};
+
+/** Icon per View mode shape. */
+const SHAPE_ICONS: Record<ImageDisplayShape, unknown> = {
+  dynamic: ViewDynamicIcon,
+  square: ViewSquareIcon,
+  list: ViewListIcon,
+};
+
 export default defineComponent({
   name: 'ViewOptionsAction',
 
@@ -617,14 +701,17 @@ export default defineComponent({
     NcActionCheckbox,
     NcActionCaption,
     NcActionSeparator,
-    NcActionRadio,
     ZoomRowAction,
     SortVariantIcon,
     SortAscIcon,
-    ViewGridIcon,
+    SortDescIcon,
+    NoGroupIcon,
     ImageMultipleIcon,
     TuneIcon,
     ArrowLeftIcon,
+    ViewDynamicIcon,
+    ViewSquareIcon,
+    ViewListIcon,
   },
 
   mixins: [ViewPrefs],
@@ -701,7 +788,7 @@ export default defineComponent({
       return getListScopeDef(this.listScopeTarget);
     },
 
-    groupKeyOpts(): { key: GroupKey; label: string }[] {
+    groupKeyOpts(): { key: Exclude<GroupKey, 'none'>; label: string }[] {
       return this.sortDef.groupKeys.map((key) => ({ key, label: this.t('memories', GROUP_KEY_LABELS[key]) }));
     },
 
@@ -790,7 +877,7 @@ export default defineComponent({
       return groupScope.resolve('FoldersTiles', this.scopeKey);
     },
 
-    folderGroupKeyOpts(): { key: GroupKey; label: string }[] {
+    folderGroupKeyOpts(): { key: Exclude<GroupKey, 'none'>; label: string }[] {
       return this.folderSortDef.groupKeys.map((key) => ({ key, label: this.t('memories', GROUP_KEY_LABELS[key]) }));
     },
 
@@ -838,7 +925,7 @@ export default defineComponent({
       return groupScope.resolve('EmbeddedTagsTiles', this.scopeKey);
     },
 
-    tagGroupKeyOpts(): { key: GroupKey; label: string }[] {
+    tagGroupKeyOpts(): { key: Exclude<GroupKey, 'none'>; label: string }[] {
       return this.tagSortDef.groupKeys.map((key) => ({ key, label: this.t('memories', GROUP_KEY_LABELS[key]) }));
     },
 
@@ -875,6 +962,18 @@ export default defineComponent({
   },
 
   methods: {
+    sortKeyIcon(key: SortKey) {
+      return SORT_KEY_ICONS[key];
+    },
+
+    groupKeyIcon(key: Exclude<GroupKey, 'none'>) {
+      return GROUP_KEY_ICONS[key];
+    },
+
+    shapeIcon(shape: ImageDisplayShape) {
+      return SHAPE_ICONS[shape];
+    },
+
     changeImageDisplayShape(mode: ImageDisplayShape): void {
       if (this.routeId == null) return;
 
