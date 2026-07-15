@@ -43,10 +43,6 @@
               {{ t('memories', 'Show hidden folders') }}
             </NcActionCheckbox>
 
-            <NcActionCheckbox :checked="config.sort_folder_month" @update:checked="toggleSortFolderMonth">
-              {{ t('memories', 'Sort folders oldest first') }}
-            </NcActionCheckbox>
-
             <NcActionSeparator />
 
             <NcActionButton @click="toggleRecursive" close-after-click>
@@ -297,11 +293,6 @@ export default defineComponent({
     toggleShowHiddenFolders(): void {
       this.config.show_hidden_folders = !this.config.show_hidden_folders;
       this.updateSetting('show_hidden_folders', 'showHidden');
-    },
-
-    toggleSortFolderMonth(): void {
-      this.config.sort_folder_month = !this.config.sort_folder_month;
-      this.updateSetting('sort_folder_month', 'sortFolderMonth');
     },
 
     async toggleFavoriteFolder(): Promise<void> {

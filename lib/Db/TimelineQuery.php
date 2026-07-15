@@ -26,6 +26,7 @@ final class TimelineQuery
         'm.exif',
         'f.etag', 'f.name AS basename',
         'f.size', 'm.epoch', // auid
+        'f.mtime',
         'mimetypes.mimetype',
     ];
 

@@ -1,5 +1,10 @@
 <template>
-  <FolderGrid v-if="show" :items="folders" :selection-manager="isPicker ? undefined : selectionManager" />
+  <FolderGrid
+    v-if="show"
+    :items="folders"
+    :selection-manager="isPicker ? undefined : selectionManager"
+    :group-setting="groupSetting"
+  />
 </template>
 
 <script lang="ts">
@@ -15,6 +20,8 @@ import type SelectionManager from '@components/SelectionManager.vue';
 
 import * as utils from '@services/utils';
 import { API } from '@services/API';
+import { sortScope, groupScope, scopeKeyFor } from '@services/list-scope';
+import type { GroupSetting } from '@services/sort-group-defs';
 
 import type { IFolder } from '@typings';
 
@@ -51,16 +58,29 @@ export default defineComponent({
     isPicker(): boolean {
       return utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path);
     },
+
+    /** Same folder-path identity used by view-mode-scope's item overrides, reused here for the FoldersTiles target. */
+    scopeKey(): string | null {
+      return scopeKeyFor('Folders', this.$route.params, this.$route.query, this.config.folders_path);
+    },
+
+    groupSetting(): GroupSetting {
+      return groupScope.resolve('FoldersTiles', this.scopeKey);
+    },
   },
 
   created() {
+    sortScope.init();
+    groupScope.init();
     utils.bus.on('memories:folders:deleted', this.onFoldersDeleted);
     utils.bus.on('memories:folders:renamed', this.sortFolders);
+    utils.bus.on('memories:user-config-changed', this.sortFolders);
   },
 
   beforeDestroy() {
     utils.bus.off('memories:folders:deleted', this.onFoldersDeleted);
     utils.bus.off('memories:folders:renamed', this.sortFolders);
+    utils.bus.off('memories:user-config-changed', this.sortFolders);
   },
 
   methods: {
@@ -135,7 +155,18 @@ export default defineComponent({
     },
 
     sortFolders() {
-      this.folders.sort((a, b) => a.name.localeCompare(b.name, getLanguage(), { numeric: true }));
+      const sort = sortScope.resolve('FoldersTiles', this.scopeKey);
+      if (sort.key === 'size') {
+        this.folders.sort((a, b) => (a.size ?? 0) - (b.size ?? 0));
+      } else if (sort.key === 'updated') {
+        this.folders.sort((a, b) => (a.mtime ?? 0) - (b.mtime ?? 0));
+      } else {
+        this.folders.sort((a, b) => a.name.localeCompare(b.name, getLanguage(), { numeric: true }));
+      }
+
+      if (sort.dir === 'desc') {
+        this.folders.reverse();
+      }
     },
 
     onFoldersDeleted(fileids: number[]) {

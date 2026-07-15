@@ -1,6 +1,7 @@
 import { getCanonicalLocale } from '@nextcloud/l10n';
 import { DateTime } from 'luxon';
 import type { IHeadRow } from '@typings';
+import { translate as t } from '@services/l10n';
 
 // Memoize the result of short date conversions
 // These operations are surprisingly expensive
@@ -50,6 +51,24 @@ export function getLongDateStr(date: Date, skipYear = false, time = false) {
 export function getMonthDateStr(date: Date) {
   return date.toLocaleDateString(getCanonicalLocale(), {
     month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Get year string */
+export function getYearDateStr(date: Date) {
+  return date.toLocaleDateString(getCanonicalLocale(), {
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Get short date string for the start of a week, e.g. "Mar 4, 2024" */
+export function getWeekStartDateStr(date: Date) {
+  return date.toLocaleDateString(getCanonicalLocale(), {
+    month: 'short',
+    day: 'numeric',
     year: 'numeric',
     timeZone: 'UTC',
   });
@@ -123,10 +142,18 @@ export function getHeadRowName(head: IHeadRow): string {
   // because this call is terribly slow even on desktop
   const dateTaken = dayIdToDate(head.dayId);
   let name: string;
-  if (head.ismonth) {
-    name = getMonthDateStr(dateTaken);
-  } else {
-    name = getLongDateStr(dateTaken, true);
+  switch (head.groupMode) {
+    case 'year':
+      name = getYearDateStr(dateTaken);
+      break;
+    case 'month':
+      name = getMonthDateStr(dateTaken);
+      break;
+    case 'week':
+      name = t('memories', 'Week of {date}', { date: getWeekStartDateStr(dateTaken) });
+      break;
+    default:
+      name = getLongDateStr(dateTaken, true);
   }
 
   // Cache and return

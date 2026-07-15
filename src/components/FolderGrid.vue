@@ -1,12 +1,19 @@
 <template>
-  <div
-    class="grid"
-    :class="{ 'list-view': isListView }"
-    :style="{ '--min-item-size': `${minItemSize}px`, '--list-row-height': `${listRowHeight}px` }"
-  >
-    <div class="item fill-block" v-for="item of items" :key="item.fileid">
-      <Folder :data="item" :selection-manager="selectionManager" :image-display-shape="effectiveShape" />
-    </div>
+  <div class="grid-groups">
+    <template v-for="group in groups">
+      <div v-if="group.label != null" :key="`header-${group.label}`" class="group-header">{{ group.label }}</div>
+
+      <div
+        :key="`grid-${group.label ?? ''}`"
+        class="grid"
+        :class="{ 'list-view': isListView }"
+        :style="{ '--min-item-size': `${minItemSize}px`, '--list-row-height': `${listRowHeight}px` }"
+      >
+        <div class="item fill-block" v-for="item of group.items" :key="item.fileid">
+          <Folder :data="item" :selection-manager="selectionManager" :image-display-shape="effectiveShape" />
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -19,6 +26,8 @@ import type SelectionManager from '@components/SelectionManager.vue';
 
 import { rowHeight, listRowHeight as listRowHeightForZoom } from '@services/zoom';
 import * as utils from '@services/utils';
+import { groupByName } from '@services/cluster-group';
+import type { GroupSetting } from '@services/sort-group-defs';
 
 import type { IFolder } from '@typings';
 
@@ -40,6 +49,11 @@ export default defineComponent({
       type: Object as PropType<InstanceType<typeof SelectionManager>>,
       required: false,
     },
+    /** "Group by" setting to bucket `items` under section headers; 'none' renders a single flat grid (default). */
+    groupSetting: {
+      type: Object as PropType<GroupSetting>,
+      default: (): GroupSetting => ({ key: 'none', dir: 'asc' }),
+    },
   },
 
   computed: {
@@ -55,11 +69,21 @@ export default defineComponent({
     listRowHeight(): number {
       return listRowHeightForZoom(this.config.grid_zoom);
     },
+
+    groups() {
+      return groupByName(this.items, this.groupSetting);
+    },
   },
 });
 </script>
 
 <style lang="scss" scoped>
+.group-header {
+  padding: 10px 8px 4px;
+  font-size: 1.075em;
+  font-weight: 500;
+}
+
 .grid {
   display: grid;
   padding: 0 5px;

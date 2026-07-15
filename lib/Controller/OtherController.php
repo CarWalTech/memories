@@ -121,6 +121,8 @@ final class OtherController extends GenericApiController
                 'show_dimensions_in_gallery' => 'true' === $getAppConfig('showDimensionsInGallery', 'false'),
                 'view_mode_scope' => $getAppConfig('viewModeScope', '{}'),
                 'image_props_modes' => $getAppConfig('imagePropsModes', '{}'),
+                'sort_scope' => $getAppConfig('sortScope', '{}'),
+                'group_scope' => $getAppConfig('groupScope', '{}'),
 
                 // metadata settings
                 'metadata_write_mode' => $getAppConfig('metadataWriteMode', Exif::WRITE_MODE_FILE_ONLY),
@@ -131,12 +133,9 @@ final class OtherController extends GenericApiController
                 'favorite_folders' => $getAppConfig('favoriteFolders', ''),
                 'show_hidden_folders' => 'true' === $getAppConfig('showHidden', 'false'),
                 'show_empty_folders' => 'true' === $getAppConfig('showEmpty', 'false'),
-                'sort_folder_month' => 'true' === $getAppConfig('sortFolderMonth', 'false'),
 
                 // album settings
-                'sort_album_month' => 'true' === $getAppConfig('sortAlbumMonth', 'true'),
                 'show_hidden_albums' => 'true' === $getAppConfig('showHiddenAlbums', 'false'),
-                'album_list_sort' => (int) $getAppConfig('album_list_sort', '3'),
             ], Http::STATUS_OK);
         });
     }

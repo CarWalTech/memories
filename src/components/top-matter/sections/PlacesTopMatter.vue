@@ -10,6 +10,8 @@
     <div class="name">{{ name || viewname }}</div>
 
     <div class="right-actions">
+      <ViewOptionsAction />
+
       <NcActions :inline="0">
         <!-- root view (not cluster or unassigned) -->
         <template v-if="!name && !routeIsPlacesUnassigned">
@@ -33,6 +35,7 @@ import { defineComponent } from 'vue';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 
+import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import * as strings from '@services/strings';
 
 import BackIcon from 'vue-material-design-icons/ArrowLeft.vue';
@@ -43,6 +46,7 @@ export default defineComponent({
   components: {
     NcActions,
     NcActionButton,
+    ViewOptionsAction,
     BackIcon,
     UnassignedIcon,
   },

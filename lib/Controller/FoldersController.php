@@ -84,6 +84,8 @@ final class FoldersController extends GenericApiController
                         return [
                             'fileid' => $node->getId(),
                             'name' => $node->getName(),
+                            'size' => $node->getSize(),
+                            'mtime' => $node->getMTime(),
                             'previews' => $this->fs->getCachedRootPreviews($node, fn () => $this->tq->getRootPreviews($subRoot)),
                         ];
                     }, $this->logger);

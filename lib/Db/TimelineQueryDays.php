@@ -20,18 +20,18 @@ trait TimelineQueryDays
     /**
      * Get the days response from the database for the timeline.
      *
-     * @param bool  $recursive       Whether to get the days recursively
-     * @param bool  $archive         Whether to get the days only from the archive folder
-     * @param bool  $monthView       Whether the response should be in month view
-     * @param bool  $reverse         Whether the response should be in reverse order
-     * @param array $queryTransforms An array of query transforms to apply to the query
+     * @param bool   $recursive       Whether to get the days recursively
+     * @param bool   $archive         Whether to get the days only from the archive folder
+     * @param string $groupMode       Bucket granularity: 'day' | 'week' | 'month' | 'year'
+     * @param bool   $reverse         Whether the bucket order should be reversed (oldest-first)
+     * @param array  $queryTransforms An array of query transforms to apply to the query
      *
      * @return array The days response
      */
     public function getDays(
         bool $recursive,
         bool $archive,
-        bool $monthView,
+        string $groupMode,
         bool $reverse,
         array $queryTransforms = [],
     ): array {
@@ -59,10 +59,10 @@ trait TimelineQueryDays
 
         // Apply post-filtering if SQL filtering is disabled
         if (!$this->shouldFilterExifBySQL()) {
-            $rows = $this->postProcessDaysWithFilters($rows, $monthView);
+            $rows = $this->postProcessDaysWithFilters($rows, $groupMode);
         } else {
             // Post process the days normally
-            $rows = $this->postProcessDays($rows, $monthView);
+            $rows = $this->postProcessDays($rows, $groupMode);
         }
 
         // Reverse order if needed
@@ -76,14 +76,15 @@ trait TimelineQueryDays
     /**
      * Get the day response from the database for the timeline.
      *
-     * @param int[] $dayIds          The day ids to fetch
-     * @param bool  $recursive       If the query should be recursive
-     * @param bool  $archive         If the query should include only the archive folder
-     * @param bool  $hidden          If the query should include hidden files
-     * @param bool  $monthView       If the query should be in month view (dayIds are monthIds)
-     * @param bool  $reverse         If the query should be in reverse order
-     * @param int   $minRating       The minimum rating to include
-     * @param array $queryTransforms The query transformations to apply
+     * @param int[]  $dayIds          The day ids to fetch (bucket ids when $groupMode !== 'day')
+     * @param bool   $recursive       If the query should be recursive
+     * @param bool   $archive         If the query should include only the archive folder
+     * @param bool   $hidden          If the query should include hidden files
+     * @param string $groupMode       Bucket granularity: 'day' | 'week' | 'month' | 'year'
+     * @param string $sortKey         Sort column: 'created' | 'updated' | 'name'
+     * @param bool   $reverse         If the photo order within each bucket should be reversed (ascending)
+     * @param int    $minRating       The minimum rating to include
+     * @param array  $queryTransforms The query transformations to apply
      *
      * @return array An array of day responses
      */
@@ -92,7 +93,8 @@ trait TimelineQueryDays
         bool $recursive,
         bool $archive,
         bool $hidden,
-        bool $monthView,
+        string $groupMode,
+        string $sortKey,
         bool $reverse,
         int $minRating = 0,
         array $embeddedTags = [],
@@ -129,11 +131,11 @@ trait TimelineQueryDays
         // JOIN with mimetypes to get the mimetype
         $query->join('f', 'mimetypes', 'mimetypes', $query->expr()->eq('f.mimetype', 'mimetypes.id'));
 
-        if ($monthView) {
-            // Convert monthIds to dayIds
-            $query->andWhere($query->expr()->orX(...array_map(fn ($monthId) => $query->expr()->andX(
-                $query->expr()->gte('m.dayid', $query->createNamedParameter($monthId, IQueryBuilder::PARAM_INT)),
-                $query->expr()->lte('m.dayid', $query->createNamedParameter($this->dayIdMonthEnd($monthId), IQueryBuilder::PARAM_INT)),
+        if ('day' !== $groupMode) {
+            // Convert bucket ids (week/month/year) to dayid ranges
+            $query->andWhere($query->expr()->orX(...array_map(fn ($groupId) => $query->expr()->andX(
+                $query->expr()->gte('m.dayid', $query->createNamedParameter($groupId, IQueryBuilder::PARAM_INT)),
+                $query->expr()->lte('m.dayid', $query->createNamedParameter($this->groupIdEnd($groupId, $groupMode), IQueryBuilder::PARAM_INT)),
             ), $dayIds)));
         } else {
             // Filter by list of dayIds
@@ -143,9 +145,18 @@ trait TimelineQueryDays
         // Add favorite field
         $this->addFavoriteTag($query);
 
-        // Group and sort by date taken
-        $query->addOrderBy('m.datetaken', 'DESC');
-        $query->addOrderBy('basename', 'DESC'); // https://github.com/pulsejet/memories/issues/985
+        // Sort by the requested key, always DESC in SQL; ascending order is
+        // achieved by reversing the (fully deterministic) result in PHP below,
+        // so every sort key only needs a single query shape.
+        $primaryCol = match ($sortKey) {
+            'name' => 'basename',
+            'updated' => 'f.mtime',
+            default => 'm.datetaken', // 'created'
+        };
+        $query->addOrderBy($primaryCol, 'DESC');
+        if ('basename' !== $primaryCol) {
+            $query->addOrderBy('basename', 'DESC'); // https://github.com/pulsejet/memories/issues/985
+        }
         $query->addOrderBy('m.fileid', 'DESC'); // unique tie-breaker
 
         // Apply all transformations
@@ -169,7 +180,7 @@ trait TimelineQueryDays
 
         // Post process the day in-place
         foreach ($day as &$photo) {
-            $this->postProcessDayPhoto($photo, $monthView);
+            $this->postProcessDayPhoto($photo, $groupMode);
         }
 
         // Reverse order if needed
@@ -309,10 +320,10 @@ trait TimelineQueryDays
     /**
      * Process the days response with EXIF filtering applied after SQL query.
      *
-     * @param array $rows      the days response from SQL
-     * @param bool  $monthView Whether the response is in month view
+     * @param array  $rows      the days response from SQL
+     * @param string $groupMode Bucket granularity: 'day' | 'week' | 'month' | 'year'
      */
-    private function postProcessDaysWithFilters(array $rows, bool $monthView): array
+    private function postProcessDaysWithFilters(array $rows, string $groupMode): array
     {
         if (empty($rows)) {
             return $rows;
@@ -328,13 +339,19 @@ trait TimelineQueryDays
         // Get day IDs for filtering
         $dayIds = array_map(static fn ($row) => (int) $row['dayid'], $rows);
 
-        // Fetch all photos for these days (without EXIF filtering)
+        // Fetch all photos for these days (without EXIF filtering). $dayIds
+        // here are real per-day ids (from the raw, ungrouped SQL rows above),
+        // not bucket ids -- must fetch with groupMode 'day' so getDay() both
+        // filters by the exact ids given (not a bucket range starting at each
+        // one) and returns each photo's true raw dayid, matching $rows below.
+        // Bucket folding happens once, afterward, in this same function.
         $allPhotos = $this->getDay(
             $dayIds,
             true,
             false,
             false,
-            $monthView,
+            'day',
+            'created', // sort key is irrelevant for a count-only re-fetch
             false,
             0, // minRating - don't apply in SQL, do in PHP
             [], // embeddedTags - don't apply in SQL, do in PHP
@@ -397,16 +414,16 @@ trait TimelineQueryDays
             }
         }
 
-        // Convert to months if needed
-        if ($monthView) {
-            $filteredRows = array_values(array_reduce($filteredRows, function ($carry, $item) {
-                $monthId = $this->dayIdToMonthId($item['dayid']);
+        // Convert to buckets if needed
+        if ('day' !== $groupMode) {
+            $filteredRows = array_values(array_reduce($filteredRows, function ($carry, $item) use ($groupMode) {
+                $groupId = $this->dayIdToGroupId($item['dayid'], $groupMode);
 
-                if (!\array_key_exists($monthId, $carry)) {
-                    $carry[$monthId] = ['dayid' => $monthId, 'count' => 0];
+                if (!\array_key_exists($groupId, $carry)) {
+                    $carry[$groupId] = ['dayid' => $groupId, 'count' => 0];
                 }
 
-                $carry[$monthId]['count'] += $item['count'];
+                $carry[$groupId]['count'] += $item['count'];
 
                 return $carry;
             }, []));
@@ -434,26 +451,26 @@ trait TimelineQueryDays
     /**
      * Process the days response.
      *
-     * @param array $rows      the days response
-     * @param bool  $monthView Whether the response is in month view
+     * @param array  $rows      the days response
+     * @param string $groupMode Bucket granularity: 'day' | 'week' | 'month' | 'year'
      */
-    private function postProcessDays(array $rows, bool $monthView): array
+    private function postProcessDays(array $rows, string $groupMode): array
     {
         foreach ($rows as &$row) {
             $row['dayid'] = (int) $row['dayid'];
             $row['count'] = (int) $row['count'];
         }
 
-        // Convert to months if needed
-        if ($monthView) {
-            return array_values(array_reduce($rows, function ($carry, $item) {
-                $monthId = $this->dayIdToMonthId($item['dayid']);
+        // Convert to buckets if needed
+        if ('day' !== $groupMode) {
+            return array_values(array_reduce($rows, function ($carry, $item) use ($groupMode) {
+                $groupId = $this->dayIdToGroupId($item['dayid'], $groupMode);
 
-                if (!\array_key_exists($monthId, $carry)) {
-                    $carry[$monthId] = ['dayid' => $monthId, 'count' => 0];
+                if (!\array_key_exists($groupId, $carry)) {
+                    $carry[$groupId] = ['dayid' => $groupId, 'count' => 0];
                 }
 
-                $carry[$monthId]['count'] += $item['count'];
+                $carry[$groupId]['count'] += $item['count'];
 
                 return $carry;
             }, []));
@@ -465,10 +482,10 @@ trait TimelineQueryDays
     /**
      * Process the single day response.
      *
-     * @param array $row       A photo in the day response
-     * @param bool  $monthView Whether the response is in month view
+     * @param array  $row       A photo in the day response
+     * @param string $groupMode Bucket granularity: 'day' | 'week' | 'month' | 'year'
      */
-    private function postProcessDayPhoto(array &$row, bool $monthView = false): void
+    private function postProcessDayPhoto(array &$row, string $groupMode = 'day'): void
     {
         // Convert field types
         $row['fileid'] = (int) $row['fileid'];
@@ -518,9 +535,9 @@ trait TimelineQueryDays
             unset($row['size']);
         }
 
-        // Convert dayId to monthId if needed
-        if ($monthView) {
-            $row['dayid'] = $this->dayIdToMonthId($row['dayid']);
+        // Convert dayId to the bucket id if needed
+        if ('day' !== $groupMode) {
+            $row['dayid'] = $this->dayIdToGroupId($row['dayid'], $groupMode);
         }
 
         // Convert storage_id to user display name
@@ -565,6 +582,65 @@ trait TimelineQueryDays
             $query->setParameter('excludeFolderIds', $excludeFolderIds, IQueryBuilder::PARAM_INT_ARRAY);
             $query->setParameter('cteExcludeFolders', true, IQueryBuilder::PARAM_BOOL);
         }
+    }
+
+    /**
+     * Convert a dayId to the id of the bucket it belongs to for the given grouping mode.
+     */
+    private function dayIdToGroupId(int $dayId, string $groupMode): int
+    {
+        return match ($groupMode) {
+            'week' => $this->dayIdToWeekId($dayId),
+            'month' => $this->dayIdToMonthId($dayId),
+            'year' => $this->dayIdToYearId($dayId),
+            default => $dayId, // 'day'
+        };
+    }
+
+    /**
+     * Given a bucket id (as returned by dayIdToGroupId), the dayId of the last day in that bucket.
+     */
+    private function groupIdEnd(int $groupId, string $groupMode): int
+    {
+        return match ($groupMode) {
+            'week' => $this->dayIdWeekEnd($groupId),
+            'month' => $this->dayIdMonthEnd($groupId),
+            'year' => $this->dayIdYearEnd($groupId),
+            default => $groupId, // 'day'
+        };
+    }
+
+    private function dayIdWeekEnd(int $weekId): int
+    {
+        return $weekId + 6; // Sunday, 6 days after the Monday weekId
+    }
+
+    private function dayIdToWeekId(int $dayId): int
+    {
+        static $memoize = [];
+        if ($cache = $memoize[$dayId] ?? null) {
+            return $cache;
+        }
+
+        // ISO-8601 week starts Monday; date('N', ...) is 1 (Mon) .. 7 (Sun)
+        $dow = (int) date('N', $dayId * 86400);
+
+        return $memoize[$dayId] = $dayId - ($dow - 1);
+    }
+
+    private function dayIdYearEnd(int $yearId): int
+    {
+        return (int) ((strtotime(date('Y', $yearId * 86400).'1231') ?: 0) / 86400);
+    }
+
+    private function dayIdToYearId(int $dayId): int
+    {
+        static $memoize = [];
+        if ($cache = $memoize[$dayId] ?? null) {
+            return $cache;
+        }
+
+        return $memoize[$dayId] = (int) ((strtotime(date('Y', $dayId * 86400).'0101') ?: 0) / 86400);
     }
 
     private function dayIdMonthEnd(int $monthId): int

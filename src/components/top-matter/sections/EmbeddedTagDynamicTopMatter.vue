@@ -1,5 +1,5 @@
 <template>
-  <EmbeddedTagGrid v-if="show" :items="tags" @deleted="onDeleted" />
+  <EmbeddedTagGrid v-if="show" :items="tags" :group-setting="groupSetting" @deleted="onDeleted" />
 </template>
 
 <script lang="ts">
@@ -8,10 +8,13 @@ import { defineComponent } from 'vue';
 import axios from '@nextcloud/axios';
 import { getLanguage } from '@nextcloud/l10n';
 
+import UserConfig from '@mixins/UserConfig';
 import EmbeddedTagGrid from '../../EmbeddedTagGrid.vue';
 
 import * as utils from '@services/utils';
 import { API } from '@services/API';
+import { sortScope, groupScope, scopeKeyFor } from '@services/list-scope';
+import type { GroupSetting } from '@services/sort-group-defs';
 
 import type { IEmbeddedTagFolder } from '@typings';
 
@@ -27,12 +30,18 @@ export default defineComponent({
     EmbeddedTagGrid,
   },
 
+  mixins: [UserConfig],
+
   created() {
+    sortScope.init();
+    groupScope.init();
     utils.bus.on('memories:embedded-tags:changed', this.refresh);
+    utils.bus.on('memories:user-config-changed', this.sortTags);
   },
 
   beforeDestroy() {
     utils.bus.off('memories:embedded-tags:changed', this.refresh);
+    utils.bus.off('memories:user-config-changed', this.sortTags);
   },
 
   computed: {
@@ -46,6 +55,15 @@ export default defineComponent({
         path = path.split('/');
       }
       return path.filter(Boolean).join('/');
+    },
+
+    /** Same tag-path identity used by view-mode-scope's item overrides, reused here for the EmbeddedTagsTiles target. */
+    scopeKey(): string | null {
+      return scopeKeyFor('EmbeddedTags', this.$route.params, this.$route.query, this.config.folders_path);
+    },
+
+    groupSetting(): GroupSetting {
+      return groupScope.resolve('EmbeddedTagsTiles', this.scopeKey);
     },
   },
 
@@ -80,7 +98,16 @@ export default defineComponent({
     },
 
     sortTags() {
-      this.tags.sort((a, b) => a.name.localeCompare(b.name, getLanguage(), { numeric: true }));
+      const sort = sortScope.resolve('EmbeddedTagsTiles', this.scopeKey);
+      if (sort.key === 'count') {
+        this.tags.sort((a, b) => a.count - b.count);
+      } else {
+        this.tags.sort((a, b) => a.name.localeCompare(b.name, getLanguage(), { numeric: true }));
+      }
+
+      if (sort.dir === 'desc') {
+        this.tags.reverse();
+      }
     },
 
     onDeleted(path: string) {

@@ -40,8 +40,8 @@ final class DaysController extends GenericApiController
             $list = $this->tq->getDays(
                 $this->isRecursive(),
                 $this->isArchive(),
-                $this->isMonthView(),
-                $this->isReverse(),
+                $this->getGroupMode(),
+                $this->isGroupReverse(),
                 $this->getTransformations(),
             );
 
@@ -66,8 +66,9 @@ final class DaysController extends GenericApiController
                 $this->isRecursive(),
                 $this->isArchive(),
                 $this->isHidden(),
-                $this->isMonthView(),
-                $this->isReverse(),
+                $this->getGroupMode(),
+                $this->getSortKey(),
+                $this->isSortReverse(),
                 $this->getMinRating(),
                 $this->getEmbeddedTags(),
                 $this->getTransformations(),
@@ -180,8 +181,9 @@ final class DaysController extends GenericApiController
             $this->isRecursive(),
             $this->isArchive(),
             $this->isHidden(),
-            $this->isMonthView(),
-            $this->isReverse(),
+            $this->getGroupMode(),
+            $this->getSortKey(),
+            $this->isSortReverse(),
             $this->getMinRating(),
             $this->getEmbeddedTags(),
             $this->getTransformations(),
@@ -231,14 +233,28 @@ final class DaysController extends GenericApiController
         return null !== $this->request->getParam('nopreload');
     }
 
-    private function isMonthView(): bool
+    private function getGroupMode(): string
     {
-        return null !== $this->request->getParam('monthView');
+        $mode = (string) $this->request->getParam('groupMode', 'day');
+
+        return \in_array($mode, ['day', 'week', 'month', 'year'], true) ? $mode : 'day';
     }
 
-    private function isReverse(): bool
+    private function getSortKey(): string
     {
-        return null !== $this->request->getParam('reverse');
+        $key = (string) $this->request->getParam('sortKey', 'created');
+
+        return \in_array($key, ['created', 'updated', 'name'], true) ? $key : 'created';
+    }
+
+    private function isGroupReverse(): bool
+    {
+        return null !== $this->request->getParam('groupReverse');
+    }
+
+    private function isSortReverse(): bool
+    {
+        return null !== $this->request->getParam('sortReverse');
     }
 
     private function getMinRating(): int

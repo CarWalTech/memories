@@ -121,9 +121,6 @@ class StaticConfig {
       return this.default;
     }
 
-    // get constants for easier access
-    const { ALBUM_SORT_FLAGS } = utils.constants;
-
     const config: IConfig = {
       // general stuff
       version: '',
@@ -163,6 +160,8 @@ class StaticConfig {
       show_dimensions_in_gallery: false,
       view_mode_scope: '{}',
       image_props_modes: '{}',
+      sort_scope: '{}',
+      group_scope: '{}',
 
       // metadata settings
       metadata_write_mode: 'file_only',
@@ -173,12 +172,9 @@ class StaticConfig {
       favorite_folders: '',
       show_hidden_folders: false,
       show_empty_folders: false,
-      sort_folder_month: false,
 
       // album settings
-      sort_album_month: true,
       show_hidden_albums: false,
-      album_list_sort: ALBUM_SORT_FLAGS.CREATED | ALBUM_SORT_FLAGS.DESCENDING, // also in OtherController.php
 
       // local settings
       high_res_cond: null,

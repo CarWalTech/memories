@@ -6,7 +6,7 @@
 
     <EmptyContent v-if="!items.length && !loading" />
 
-    <ClusterGrid :items="items" :minCols="minCols" :maxSize="maxSize" :focus="true">
+    <ClusterGrid :items="items" :minCols="minCols" :maxSize="maxSize" :focus="true" :group-setting="groupSetting">
       <template #before>
         <DynamicTopMatter class="cv-dtm" ref="dtm" />
       </template>
@@ -30,8 +30,12 @@ import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
 import * as dav from '@services/dav';
 import * as utils from '@services/utils';
 import { rowHeight } from '@services/zoom';
+import { groupScope } from '@services/list-scope';
+import type { GroupSetting, ListScopeTarget } from '@services/sort-group-defs';
 
 import type { ICluster } from '@typings';
+
+const NO_GROUPING: GroupSetting = { key: 'none', dir: 'asc' };
 
 export default defineComponent({
   name: 'ClusterView',
@@ -70,6 +74,22 @@ export default defineComponent({
     maxSize() {
       return rowHeight(this.config.grid_zoom, utils.isMobile());
     },
+
+    /**
+     * Which "Group by" list-scope target (if any) governs the current cluster
+     * list. Recognize/FaceRecognition/Places have no list-scope target --
+     * their cluster lists have no sortable/groupable backend fields (see
+     * sort-group-defs.ts), so they keep their fixed, ungrouped rendering.
+     */
+    listScopeTarget(): ListScopeTarget | null {
+      if (this.routeIsAlbums) return 'AlbumsList';
+      if (this.routeIsTags) return 'TagsList';
+      return null;
+    },
+
+    groupSetting(): GroupSetting {
+      return this.listScopeTarget ? groupScope.resolve(this.listScopeTarget, null) : NO_GROUPING;
+    },
   },
 
   mounted() {
@@ -77,6 +97,7 @@ export default defineComponent({
   },
 
   created() {
+    groupScope.init();
     utils.bus.on('memories:user-config-changed', this.refresh);
   },
 

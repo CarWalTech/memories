@@ -282,25 +282,9 @@
         >
           {{ t('memories', 'Show empty folders') }}
         </NcCheckboxRadioSwitch>
-
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.sort_folder_month"
-          @update:checked="updateSortFolderMonth"
-          type="switch"
-        >
-          {{ t('memories', 'Sort folders oldest-first') }}
-        </NcCheckboxRadioSwitch>
       </NcAppSettingsSection>
 
       <NcAppSettingsSection id="albums-settings" :name="names.albums">
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.sort_album_month"
-          @update:checked="updateSortAlbumMonth"
-          type="switch"
-        >
-          {{ t('memories', 'Sort albums oldest-first') }}
-        </NcCheckboxRadioSwitch>
-
         <NcCheckboxRadioSwitch
           :checked.sync="config.show_hidden_albums"
           @update:checked="updateShowHidden"
@@ -620,15 +604,6 @@ export default defineComponent({
 
     async updateShowEmpty() {
       await this.updateSetting('show_empty_folders', 'showEmpty');
-    },
-
-    async updateSortFolderMonth() {
-      await this.updateSetting('sort_folder_month', 'sortFolderMonth');
-    },
-
-    // Albums settings
-    async updateSortAlbumMonth() {
-      await this.updateSetting('sort_album_month', 'sortAlbumMonth');
     },
 
     // --------------- Native APIs start -----------------------------

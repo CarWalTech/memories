@@ -2,16 +2,14 @@
   <RecycleScroller
     ref="recycler"
     tabindex="1"
-    type-field="cluster_type"
-    key-field="cluster_id"
+    type-field="type"
+    key-field="id"
+    size-field="size"
     class="grid-recycler hide-scrollbar-mobile"
     :class="classList"
-    :items="clusters"
+    :items="rows"
     :skipHover="true"
     :buffer="400"
-    :itemSize="height"
-    :itemSecondarySize="width"
-    :gridItems="gridItems"
     @resize="resize"
   >
     <template #before>
@@ -19,15 +17,21 @@
     </template>
 
     <template v-slot="{ item }">
-      <div class="grid-item fill-block">
-        <Cluster :data="item" :link="link" :counters="counters" :image-display-shape="effectiveShape" @click="click(item)" />
+      <div v-if="item.type === 'header'" class="grid-group-header" :style="{ height: `${item.size}px` }">
+        {{ item.label }}
+      </div>
+
+      <div v-else class="grid-row" :style="{ height: `${item.size}px` }">
+        <div v-for="cl in item.clusters" :key="cl.cluster_id" class="grid-item" :style="{ width: `${width}px` }">
+          <Cluster :data="cl" :link="link" :counters="counters" :image-display-shape="effectiveShape" @click="click(cl)" />
+        </div>
       </div>
     </template>
   </RecycleScroller>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, type PropType } from 'vue';
 
 import Cluster from '@components/frame/Cluster.vue';
 import ViewPrefs from '@mixins/ViewPrefs';
@@ -35,6 +39,27 @@ import ViewPrefs from '@mixins/ViewPrefs';
 import type { ICluster } from '@typings';
 import * as utils from '@services/utils';
 import { listRowHeight } from '@services/zoom';
+import { groupByName } from '@services/cluster-group';
+import type { GroupSetting } from '@services/sort-group-defs';
+
+/** Fixed height for a "Group by: Name" section header row. */
+const GROUP_HEADER_HEIGHT = 40;
+
+interface HeaderRow {
+  type: 'header';
+  id: string;
+  label: string;
+  size: number;
+}
+
+interface ClusterRow {
+  type: 'row';
+  id: string;
+  clusters: ICluster[];
+  size: number;
+}
+
+type GridRow = HeaderRow | ClusterRow;
 
 export default defineComponent({
   name: 'ClusterGrid',
@@ -69,6 +94,11 @@ export default defineComponent({
     focus: {
       type: Boolean,
       default: false,
+    },
+    /** "Group by" setting to bucket `items` under section headers; 'none' renders a flat grid (default). */
+    groupSetting: {
+      type: Object as PropType<GroupSetting>,
+      default: (): GroupSetting => ({ key: 'none', dir: 'asc' }),
     },
   },
 
@@ -170,6 +200,29 @@ export default defineComponent({
 
       return items;
     },
+
+    /** Flat list of virtual-scroll rows: optional group headers + chunks of `clusters` at `gridItems` per row. */
+    rows(): GridRow[] {
+      const groups = groupByName(this.clusters, this.groupSetting);
+      const rows: GridRow[] = [];
+
+      for (const group of groups) {
+        if (group.label != null) {
+          rows.push({ type: 'header', id: `header-${group.label}`, label: group.label, size: GROUP_HEADER_HEIGHT });
+        }
+
+        for (let i = 0; i < group.items.length; i += this.gridItems) {
+          rows.push({
+            type: 'row',
+            id: `row-${group.label ?? ''}-${i}`,
+            clusters: group.items.slice(i, i + this.gridItems),
+            size: this.height,
+          });
+        }
+      }
+
+      return rows;
+    },
   },
 
   methods: {
@@ -212,8 +265,20 @@ export default defineComponent({
     }
   }
 
+  .grid-row {
+    display: flex;
+  }
+
   .grid-item {
     position: relative;
+  }
+
+  .grid-group-header {
+    display: flex;
+    align-items: center;
+    padding-left: 3px;
+    font-size: 1.075em;
+    font-weight: 500;
   }
 }
 </style>

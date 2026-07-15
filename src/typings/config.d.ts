@@ -44,6 +44,10 @@ declare module '@typings' {
     view_mode_scope: string;
     /** Raw JSON, see @services/image-props -- per-mode (square/list) Image Properties overrides */
     image_props_modes: string;
+    /** Raw JSON, see @services/list-scope -- per-view-type base + per-item overrides for Sort by */
+    sort_scope: string;
+    /** Raw JSON, see @services/list-scope -- per-view-type base + per-item overrides for Group by */
+    group_scope: string;
 
     // metadata settings
     metadata_write_mode: MetadataWriteMode;
@@ -54,16 +58,13 @@ declare module '@typings' {
     favorite_folders: string;
     show_hidden_folders: boolean;
     show_empty_folders: boolean;
-    sort_folder_month: boolean;
 
     // album settings
-    sort_album_month: boolean;
     show_hidden_albums: boolean;
 
     // local settings
     high_res_cond: HighResCond | null;
     show_face_rect: boolean;
-    album_list_sort: number;
     mobile_nav_items: string[];
     grid_zoom: number;
     blur_thumbnails: boolean;

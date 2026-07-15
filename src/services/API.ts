@@ -38,8 +38,14 @@ export const enum DaysFilterType {
 
   FACE_RECT = 'facerect',
   RECURSIVE = 'recursive',
-  MONTH_VIEW = 'monthView',
-  REVERSE = 'reverse',
+  /** Bucket granularity: 'day' | 'week' | 'month' | 'year' */
+  GROUP_MODE = 'groupMode',
+  /** Reverse the bucket (day/week/month/year) order, i.e. oldest-first */
+  GROUP_REVERSE = 'groupReverse',
+  /** Sort column within a bucket: 'created' | 'updated' | 'name' */
+  SORT_KEY = 'sortKey',
+  /** Reverse the photo order within a bucket, i.e. ascending */
+  SORT_REVERSE = 'sortReverse',
   HIDDEN = 'hidden',
   NO_PRELOAD = 'nopreload',
 }

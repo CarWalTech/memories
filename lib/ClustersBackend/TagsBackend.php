@@ -68,12 +68,30 @@ final class TagsBackend extends Backend
         ));
     }
 
+    /**
+     * Which field to sort clusters by: 'name' | 'size' | 'updated' | 'created' | 'count'.
+     */
+    private function getSortKey(): string
+    {
+        $key = (string) $this->request->getParam('sortKey', 'name');
+
+        return \in_array($key, ['name', 'size', 'updated', 'created', 'count'], true) ? $key : 'name';
+    }
+
+    private function getSortDir(): string
+    {
+        return 'asc' === (string) $this->request->getParam('sortDir', 'desc') ? 'ASC' : 'DESC';
+    }
+
     #[\Override]
     public function getClustersInternal(int $fileid = 0): array
     {
         if ($fileid) {
             throw new \Exception('TagsBackend: fileid filter not implemented');
         }
+
+        $sortKey = $this->getSortKey();
+        $sortDir = $this->getSortDir();
 
         $query = $this->tq->getBuilder();
 
@@ -96,9 +114,29 @@ final class TagsBackend extends Backend
         // WHERE these photos are in the user's requested folder recursively
         $query = $this->tq->filterFilecache($query);
 
-        // GROUP and ORDER by tag name
+        // Aggregate fields needed only for sort keys beyond name/count
+        if (\in_array($sortKey, ['size', 'updated'], true)) {
+            $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
+        }
+        if ('size' === $sortKey) {
+            $query->selectAlias($query->func()->sum('f.size'), 'sort_val');
+        } elseif ('updated' === $sortKey) {
+            $query->selectAlias($query->func()->max('f.mtime'), 'sort_val');
+        } elseif ('created' === $sortKey) {
+            $query->selectAlias($query->func()->max('m.datetaken'), 'sort_val');
+        }
+
+        // GROUP by tag id
         $query->addGroupBy('st.id');
-        $query->addOrderBy($query->func()->lower('st.name'), 'ASC');
+
+        // ORDER by the requested sort key
+        if ('name' === $sortKey) {
+            $query->addOrderBy($query->func()->lower('st.name'), $sortDir);
+        } elseif ('count' === $sortKey) {
+            $query->addOrderBy('count', $sortDir);
+        } else {
+            $query->addOrderBy('sort_val', $sortDir);
+        }
         $query->addOrderBy('st.id'); // tie-breaker
 
         // SELECT cover photo

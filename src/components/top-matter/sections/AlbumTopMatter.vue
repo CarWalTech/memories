@@ -23,7 +23,6 @@
         </NcActions>
         <ViewOptionsAction />
         <FilterDropdownButton />
-        <SortAlbumsOptionsAction v-if="isAlbumList" />
         <RefreshOptionsAction />
         <NcActions :inline="isMobile ? 0 : 2" v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
@@ -91,7 +90,6 @@ import AlbumCreateModal from '@components/modal/AlbumCreateModal.vue';
 import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
-import SortAlbumsOptionsAction from '@components/top-actions/SortAlbumsOptionsAction.vue';
 import FilterDropdownButton from '@components/FilterDropdownButton.vue';
 
 import { downloadWithHandle } from '@services/dav';
@@ -118,7 +116,6 @@ export default defineComponent({
     AlbumDeleteModal,
     ViewOptionsAction,
     RefreshOptionsAction,
-    SortAlbumsOptionsAction,
     FilterDropdownButton,
 
     BackIcon,

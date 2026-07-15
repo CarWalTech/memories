@@ -55,8 +55,10 @@ declare module '@typings' {
     type: 0;
     /** Title of the header */
     name?: string;
-    /** Header is for a month instead of day */
-    ismonth?: boolean;
+    /** Bucket granularity this header represents, when shown (see date.ts's getHeadRowName) */
+    groupMode?: 'day' | 'week' | 'month' | 'year';
+    /** Group by: None -- header exists for bucket bookkeeping (dayId/day) but isn't rendered */
+    collapsed?: boolean;
     /**  Boolean if the entire day is selected */
     selected: boolean;
     /** Bigger header text */

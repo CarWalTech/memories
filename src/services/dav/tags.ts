@@ -7,6 +7,7 @@ import client from './client';
 import { API } from '@services/API';
 import { translate as t, translatePlural as n } from '@services/l10n';
 import * as utils from '@services/utils';
+import { sortScope } from '@services/list-scope';
 
 import type { ICluster } from '@typings';
 
@@ -22,13 +23,21 @@ export interface ITag {
  * Get list of tags.
  */
 export async function getTags() {
-  const tags = (await axios.get<ICluster[]>(API.TAG_LIST())).data;
+  await sortScope.init();
+  const sort = sortScope.resolve('TagsList', null);
+  const url = API.Q(API.TAG_LIST(), { sortKey: sort.key, sortDir: sort.dir });
+  const tags = (await axios.get<ICluster[]>(url)).data;
 
   // Translate tag names
   tags.forEach((tag) => (tag.display_name = t('recognize', tag.name)));
 
-  // Sort tags by display name (locale aware)
-  tags.sort((a, b) => a.display_name!.localeCompare(b.display_name!, getLanguage(), { numeric: true }));
+  // Name sort must happen client-side against the *translated* display name
+  // (the backend only knows the raw systemtag name) -- every other sort key
+  // is fully server-side.
+  if (sort.key === 'name') {
+    tags.sort((a, b) => a.display_name!.localeCompare(b.display_name!, getLanguage(), { numeric: true }));
+    if (sort.dir === 'desc') tags.reverse();
+  }
 
   return tags;
 }

@@ -6,6 +6,10 @@ declare module '@typings' {
     name: string;
     /** Full route path segments, set only for Folders-view root picker tiles */
     path?: string[];
+    /** Total size of folder contents in bytes; not set for root picker tiles */
+    size?: number;
+    /** Last modified time (Unix seconds); not set for root picker tiles */
+    mtime?: number;
   }
 
   export interface IEmbeddedTagFolder extends IPhoto {

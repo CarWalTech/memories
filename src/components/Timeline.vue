@@ -57,7 +57,7 @@
 
       <template v-slot="{ item, index }">
         <RowHead
-          v-if="item.type === 0"
+          v-if="item.type === 0 && !item.collapsed"
           :item="item"
           :zoom-scale="photoZoomScale"
           @click="refs.selectionManager.selectHead(item)"
@@ -107,7 +107,7 @@
       ref="selectionManager"
       :heads="heads"
       :rows="list"
-      :isreverse="isMonthView"
+      :isreverse="isGroupReverse"
       :recycler="refs.recycler?.$el"
       :scrollerManager="refs.scrollerManager"
       @updateLoading="updateLoading"
@@ -144,6 +144,8 @@ import * as utils from '@services/utils';
 import * as nativex from '@native';
 
 import { API, DaysFilterType } from '@services/API';
+import { sortScope, groupScope } from '@services/list-scope';
+import { listScopeTargetFor, type ListScopeTarget, type SortSetting, type GroupSetting } from '@services/sort-group-defs';
 
 import type { IDay, IHeadRow, IPhoto, IRow, IFilters } from '@typings';
 
@@ -268,6 +270,8 @@ export default defineComponent({
   },
 
   created() {
+    sortScope.init();
+    groupScope.init();
     utils.bus.on('memories:user-config-changed', this.onUserConfigChanged);
     utils.bus.on('files:file:created', this.softRefresh);
     utils.bus.on('memories:window:resize', this.handleResizeWithDelay);
@@ -314,13 +318,43 @@ export default defineComponent({
       return zoomScale(this.config.grid_zoom);
     },
 
-    isMonthView(): boolean {
-      if (this.$route.query.sort === 'timeline') return false;
-      if (this.$route.query.sort === 'album') return true;
-      return (
-        (this.config.sort_album_month && (this.routeIsAlbums || this.routeIsAlbumShare)) ||
-        (this.config.sort_folder_month && this.routeIsFolders)
-      );
+    /** Which Sort by / Group by target governs this route (see @services/sort-group-defs). */
+    listScopeTarget(): ListScopeTarget | null {
+      return listScopeTargetFor(this.routeId, this.$route);
+    },
+
+    effectiveGroupSetting(): GroupSetting {
+      return groupScope.resolve(this.listScopeTarget, this.scopeKey);
+    },
+
+    effectiveSortSetting(): SortSetting {
+      return sortScope.resolve(this.listScopeTarget, this.scopeKey);
+    },
+
+    /** Whether day/week/month/year headers should be rendered. */
+    isGrouped(): boolean {
+      return this.effectiveGroupSetting.key !== 'none';
+    },
+
+    /**
+     * Backend bucket granularity -- 'none' still buckets/paginates by day
+     * internally (identical to 'day'), just without a visible header; see
+     * isGrouped/RowHead's `v-if` in the template. Timeline never offers
+     * 'name' grouping (see TIMELINE_FAMILY_DEF), so it's excluded here too.
+     */
+    backendGroupMode(): 'day' | 'week' | 'month' | 'year' {
+      const key = this.effectiveGroupSetting.key;
+      return key === 'none' || key === 'name' ? 'day' : key;
+    },
+
+    /** Whether the day-bucket list itself is in reverse (oldest-first) order. */
+    isGroupReverse(): boolean {
+      return this.isGrouped && this.effectiveGroupSetting.dir === 'asc';
+    },
+
+    /** Whether photos within each bucket are in reverse (ascending) order. */
+    isSortReverse(): boolean {
+      return this.effectiveSortSetting.dir === 'asc';
     },
 
     /** Nothing to show here */
@@ -860,10 +894,18 @@ export default defineComponent({
         set(DaysFilterType.MAP_BOUNDS, bounds);
       }
 
-      // Month view
-      if (this.isMonthView) {
-        set(DaysFilterType.MONTH_VIEW);
-        set(DaysFilterType.REVERSE);
+      // Group by / Sort by
+      if ('day' !== this.backendGroupMode) {
+        set(DaysFilterType.GROUP_MODE, this.backendGroupMode);
+      }
+      if (this.isGroupReverse) {
+        set(DaysFilterType.GROUP_REVERSE);
+      }
+      if ('created' !== this.effectiveSortSetting.key) {
+        set(DaysFilterType.SORT_KEY, this.effectiveSortSetting.key);
+      }
+      if (this.isSortReverse) {
+        set(DaysFilterType.SORT_REVERSE);
       }
 
       return query;
@@ -1001,21 +1043,27 @@ export default defineComponent({
         const head: IHeadRow = {
           id: `${day.dayid}-head`,
           num: -1,
-          size: Math.round(40 * this.photoZoomScale),
+          size: this.isGrouped ? Math.round(40 * this.photoZoomScale) : 0,
           type: 0, // head
           selected: false,
           dayId: day.dayid,
           day: day,
         };
 
-        // Mark month view to change the header title
-        if (this.isMonthView) head.ismonth = true;
+        if (this.isGrouped) {
+          // Set the bucket granularity to change the header title
+          head.groupMode = this.backendGroupMode;
+        } else {
+          // Group by: None -- header exists for bucket bookkeeping (dayId/day) only
+          head.collapsed = true;
+        }
 
         // Special headers
         if (this.routeIsThisDay && (!prevDay || Math.abs(prevDay.dayid - day.dayid) > 30)) {
-          // thisday view with new year title
+          // thisday view with new year title -- always shown, regardless of Group by
           head.size = Math.round(67 * this.photoZoomScale);
           head.super = utils.getFromNowStr(utils.dayIdToDate(day.dayid), { padding: 10 });
+          head.collapsed = false;
         }
 
         // Add header to list
