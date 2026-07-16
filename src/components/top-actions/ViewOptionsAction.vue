@@ -26,7 +26,7 @@
         {{ t('memories', 'View mode') }}: {{ shapeLabel }}
       </NcActionButton>
 
-      <NcActionButton @click="panel = 'props'">
+      <NcActionButton @click="openPropsPanel">
         <template #icon><TuneIcon :size="20" /></template>
         {{ t('memories', 'Image properties') }}
       </NcActionButton>
@@ -1154,8 +1154,34 @@ export default defineComponent({
       }
     },
 
+    openPropsPanel(): void {
+      console.warn('[MEM-DEBUG-PROPS] opening props panel, snapshot:', {
+        routeId: this.routeId,
+        scopeKey: this.scopeKey,
+        effectiveShape: this.effectiveShape,
+        effectiveImageProps: this.effectiveImageProps,
+        rawConfigSubset: {
+          show_owner_name_timeline: this.config.show_owner_name_timeline,
+          enable_exif_photo_rating_in_gallery: this.config.enable_exif_photo_rating_in_gallery,
+          metadata_in_gallery: this.config.metadata_in_gallery,
+          show_filename_in_gallery: this.config.show_filename_in_gallery,
+          show_datetime_in_gallery: this.config.show_datetime_in_gallery,
+          show_extension_in_gallery: this.config.show_extension_in_gallery,
+          show_dimensions_in_gallery: this.config.show_dimensions_in_gallery,
+        },
+      });
+      this.panel = 'props';
+    },
+
     toggleImageProp(key: keyof ImagePropsBundle): void {
       const shape = this.effectiveShape;
+      console.warn('[MEM-DEBUG-PROPS] toggleImageProp() clicked', {
+        key,
+        shape,
+        routeId: this.routeId,
+        scopeKey: this.scopeKey,
+        currentValue: this.effectiveImageProps[key],
+      });
       if (shape === 'dynamic') {
         this.toggle(key, REMOTE_NAMES[key]);
         return;
