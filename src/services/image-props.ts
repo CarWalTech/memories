@@ -50,21 +50,17 @@ function pick(config: IConfig): ImagePropsBundle {
 class ImagePropsStore {
   private data = Vue.observable<ImagePropsModesData>(emptyData());
   private initialized = false;
-  private lastResolveLog = '';
 
   public async init() {
     if (this.initialized) return;
     this.initialized = true;
 
     const raw = await staticConfig.get('image_props_modes');
-    console.warn('[MEM-DEBUG-PROPS] init() loaded raw image_props_modes:', raw);
     try {
       const parsed = JSON.parse(raw || '{}');
       this.data.square = parsed.square ?? {};
       this.data.list = parsed.list ?? {};
-      console.warn('[MEM-DEBUG-PROPS] init() parsed ->', JSON.parse(JSON.stringify(this.data)));
-    } catch (e) {
-      console.warn('[MEM-DEBUG-PROPS] init() FAILED to parse, starting fresh:', e);
+    } catch {
       // ignore malformed blob, start fresh
     }
   }
@@ -72,19 +68,11 @@ class ImagePropsStore {
   /** Sparsely layers the Square/List mode's saved overrides over the Dynamic (global) baseline. */
   public resolve(mode: ImageDisplayShape, config: IConfig): ImagePropsBundle {
     const base = pick(config);
-    const result = mode === 'dynamic' ? base : { ...base, ...this.data[mode] };
-
-    const logKey = JSON.stringify({ mode, base, override: mode === 'dynamic' ? null : this.data[mode], result });
-    if (logKey !== this.lastResolveLog) {
-      this.lastResolveLog = logKey;
-      console.warn('[MEM-DEBUG-PROPS] resolve() ->', { mode, base, override: mode === 'dynamic' ? null : this.data[mode], result });
-    }
-
-    return result;
+    if (mode === 'dynamic') return base;
+    return { ...base, ...this.data[mode] };
   }
 
   public setModeProp<K extends keyof ImagePropsBundle>(mode: OverridableMode, key: K, value: ImagePropsBundle[K]) {
-    console.warn('[MEM-DEBUG-PROPS] setModeProp()', { mode, key, value });
     Vue.set(this.data[mode], key, value);
     this.persist();
   }

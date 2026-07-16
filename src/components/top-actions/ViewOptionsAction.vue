@@ -163,49 +163,49 @@
 
       <NcActionCheckbox
         :checked="effectiveImageProps.show_owner_name_timeline"
-        @update:checked="toggleImageProp('show_owner_name_timeline')"
+        @update:checked="toggleImageProp('show_owner_name_timeline', $event)"
       >
         {{ t('memories', 'Owner Name') }}
       </NcActionCheckbox>
 
       <NcActionCheckbox
         :checked="effectiveImageProps.enable_exif_photo_rating_in_gallery"
-        @update:checked="toggleImageProp('enable_exif_photo_rating_in_gallery')"
+        @update:checked="toggleImageProp('enable_exif_photo_rating_in_gallery', $event)"
       >
         {{ t('memories', 'Rating') }}
       </NcActionCheckbox>
 
       <NcActionCheckbox
         :checked="effectiveImageProps.metadata_in_gallery"
-        @update:checked="toggleImageProp('metadata_in_gallery')"
+        @update:checked="toggleImageProp('metadata_in_gallery', $event)"
       >
         {{ t('memories', 'Embedded Tags') }}
       </NcActionCheckbox>
 
       <NcActionCheckbox
         :checked="effectiveImageProps.show_filename_in_gallery"
-        @update:checked="toggleImageProp('show_filename_in_gallery')"
+        @update:checked="toggleImageProp('show_filename_in_gallery', $event)"
       >
         {{ t('memories', 'Filename') }}
       </NcActionCheckbox>
 
       <NcActionCheckbox
         :checked="effectiveImageProps.show_datetime_in_gallery"
-        @update:checked="toggleImageProp('show_datetime_in_gallery')"
+        @update:checked="toggleImageProp('show_datetime_in_gallery', $event)"
       >
         {{ t('memories', 'Date & Time') }}
       </NcActionCheckbox>
 
       <NcActionCheckbox
         :checked="effectiveImageProps.show_extension_in_gallery"
-        @update:checked="toggleImageProp('show_extension_in_gallery')"
+        @update:checked="toggleImageProp('show_extension_in_gallery', $event)"
       >
         {{ t('memories', 'Extension') }}
       </NcActionCheckbox>
 
       <NcActionCheckbox
         :checked="effectiveImageProps.show_dimensions_in_gallery"
-        @update:checked="toggleImageProp('show_dimensions_in_gallery')"
+        @update:checked="toggleImageProp('show_dimensions_in_gallery', $event)"
       >
         {{ t('memories', 'Image Dimensions') }}
       </NcActionCheckbox>
@@ -1155,39 +1155,25 @@ export default defineComponent({
     },
 
     openPropsPanel(): void {
-      console.warn('[MEM-DEBUG-PROPS] opening props panel, snapshot:', {
-        routeId: this.routeId,
-        scopeKey: this.scopeKey,
-        effectiveShape: this.effectiveShape,
-        effectiveImageProps: this.effectiveImageProps,
-        rawConfigSubset: {
-          show_owner_name_timeline: this.config.show_owner_name_timeline,
-          enable_exif_photo_rating_in_gallery: this.config.enable_exif_photo_rating_in_gallery,
-          metadata_in_gallery: this.config.metadata_in_gallery,
-          show_filename_in_gallery: this.config.show_filename_in_gallery,
-          show_datetime_in_gallery: this.config.show_datetime_in_gallery,
-          show_extension_in_gallery: this.config.show_extension_in_gallery,
-          show_dimensions_in_gallery: this.config.show_dimensions_in_gallery,
-        },
-      });
       this.panel = 'props';
     },
 
-    toggleImageProp(key: keyof ImagePropsBundle): void {
+    /**
+     * NcActionCheckbox's v-model shim re-emits `update:checked` with its
+     * current resolved value when it's freshly patched into the DOM (e.g.
+     * right as this panel opens), not only on a real user click. Setting to
+     * the emitted `value` directly (rather than inverting whatever the
+     * checkbox currently resolves to) makes that spurious echo a no-op
+     * instead of silently flipping the setting.
+     */
+    toggleImageProp(key: keyof ImagePropsBundle, value: boolean): void {
       const shape = this.effectiveShape;
-      console.warn('[MEM-DEBUG-PROPS] toggleImageProp() clicked', {
-        key,
-        shape,
-        routeId: this.routeId,
-        scopeKey: this.scopeKey,
-        currentValue: this.effectiveImageProps[key],
-      });
       if (shape === 'dynamic') {
-        this.toggle(key, REMOTE_NAMES[key]);
+        this.toggle(key, value, REMOTE_NAMES[key]);
         return;
       }
 
-      imageProps.setModeProp(shape, key, !this.effectiveImageProps[key]);
+      imageProps.setModeProp(shape, key, value);
     },
 
     zoomOut(): void {
@@ -1203,8 +1189,8 @@ export default defineComponent({
       this.updateSetting('grid_zoom');
     },
 
-    toggle<K extends keyof ImagePropsBundle>(key: K, remote?: string): void {
-      (this.config as any)[key] = !this.config[key];
+    toggle<K extends keyof ImagePropsBundle>(key: K, value: boolean, remote?: string): void {
+      (this.config as any)[key] = value;
       this.updateSetting(key, remote);
     },
   },
