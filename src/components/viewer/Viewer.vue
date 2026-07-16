@@ -142,7 +142,9 @@ export default defineComponent({
     show: false,
     showControls: false,
     fullyOpened: false,
-    sidebarOpen: false,
+    // Default to open on desktop-sized screens; the user's later
+    // open/close choices persist across viewer sessions from here.
+    sidebarOpen: !utils.isMobile(),
     sidebarWidth: 400,
     outerWidth: '100vw',
 
