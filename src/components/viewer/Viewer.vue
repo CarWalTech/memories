@@ -142,9 +142,9 @@ export default defineComponent({
     show: false,
     showControls: false,
     fullyOpened: false,
-    // Default to open on desktop-sized screens; the user's later
-    // open/close choices persist across viewer sessions from here.
-    sidebarOpen: !utils.isMobile(),
+    sidebarOpen: false,
+    /** Whether the desktop-default sidebar auto-open has been triggered yet */
+    sidebarDefaultApplied: false,
     sidebarWidth: 400,
     outerWidth: '100vw',
 
@@ -622,9 +622,18 @@ export default defineComponent({
       this.photoswipe.on('openingAnimationStart', () => {
         this.isOpen = true;
         this.fullyOpened = false;
-        if (this.sidebarOpen) {
+
+        // Open the sidebar if it was already open, or (once per session,
+        // so it doesn't fight a later explicit close) default it to open
+        // on desktop-sized screens. sidebarOpen itself is only flipped to
+        // true once the sidebar actually reports opening (see
+        // handleAppSidebarOpen), so the photo layout doesn't reserve space
+        // for it before it's actually there.
+        if (this.sidebarOpen || (!this.sidebarDefaultApplied && !utils.isMobile())) {
           this.openSidebar();
         }
+        this.sidebarDefaultApplied = true;
+
         nativex.setTheme('#000000', true); // viewer is always dark
       });
       this.photoswipe.on('openingAnimationEnd', () => {

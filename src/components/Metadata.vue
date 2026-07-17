@@ -60,7 +60,32 @@
         </NcActions>
       </div>
     </div>
-    
+
+    <div v-if="canEdit" class="top-field top-field--collab-tags">
+      <div class="icon">
+        <TagIcon :size="24" />
+      </div>
+
+      <div class="text">
+        <div class="title">{{ t('memories', 'Collaborative Tags') }} ({{ tagNames.length }})</div>
+        <div class="tags-container" v-if="tagNames.length > 0">
+          <NcChip v-for="(name, idx) in tagNames" :key="`collab-tag-${idx}`" :text="name" no-close />
+        </div>
+        <div v-else class="subtitle">
+          {{ t('memories', 'Click edit to add tags') }}
+        </div>
+      </div>
+
+      <div class="edit" v-if="canEdit">
+        <NcActions :inline="1">
+          <NcActionButton :aria-label="t('memories', 'Edit')" @click="editTags()">
+            {{ t('memories', 'Edit') }}
+            <template #icon> <EditIcon :size="20" /> </template>
+          </NcActionButton>
+        </NcActions>
+      </div>
+    </div>
+
     <div v-if="embeddedTags.length > 0 || canEdit" class="top-field top-field--embedded-tags">
       <div class="icon">
         <TagIcon :size="24" />
@@ -71,13 +96,10 @@
         <div class="tags-container" v-if="embeddedTags.length > 0">
           <template v-for="(tag, idx) in embeddedTags">
             <NcChip v-if="tag.length === 1" :key="`tag-${idx}`" :text="tag[0]" no-close />
-            <div v-else-if="tag.length > 1" :key="`taglist-${idx}`" style="display: inline-block; margin: 2px;">
+            <div v-else-if="tag.length > 1" :key="`taglist-${idx}`" style="display: inline-block; margin: 2px">
               <NcPopover no-focus-trap>
                 <template #trigger>
-                  <NcChip
-                    :text="tag[tag.length - 1]"
-                    no-close
-                  >
+                  <NcChip :text="tag[tag.length - 1]" no-close>
                     <template #icon>
                       <TreeIcon :size="16" />
                     </template>
@@ -106,7 +128,14 @@
     </div>
 
     <div class="top-field top-field--rating">
-      <RatingStars :rating="rating ?? 0" :readonly="!canEdit" @update:rating="updateRating" />
+      <div class="icon">
+        <StarIcon :size="24" />
+      </div>
+
+      <div class="text">
+        <div class="title">{{ t('memories', 'Rating') }}</div>
+        <RatingStars class="rating-stars-inline" :rating="rating ?? 0" :readonly="!canEdit" @update:rating="updateRating" />
+      </div>
     </div>
 
     <div v-if="lat && lon" class="map">
@@ -149,6 +178,7 @@ import ImageIcon from 'vue-material-design-icons/Image.vue';
 import LocationIcon from 'vue-material-design-icons/MapMarker.vue';
 import TagIcon from 'vue-material-design-icons/Tag.vue';
 import TreeIcon from 'vue-material-design-icons/FileTree.vue';
+import StarIcon from 'vue-material-design-icons/Star.vue';
 
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
@@ -180,6 +210,7 @@ export default defineComponent({
     EditIcon,
     TagIcon,
     TreeIcon,
+    StarIcon,
     RatingStars,
   },
 
@@ -190,6 +221,10 @@ export default defineComponent({
     filename: '',
     exif: {} as IExif,
     baseInfo: {} as IImageInfo,
+    /** Reference to the IPhoto object this panel was opened for, if any -- kept so
+     * edits can be written back to it and reactively update any grid/viewer tile
+     * sharing the same object (see update()). */
+    photo: null as IPhoto | null,
     lock: false,
     error: false,
 
@@ -240,15 +275,6 @@ export default defineComponent({
                 filename: this.filepath,
               })
             : undefined,
-        });
-      }
-
-      if (this.tagNamesStr) {
-        list.push({
-          title: this.tagNamesStr,
-          subtitle: [],
-          icon: TagIcon,
-          edit: this.editTags,
         });
       }
 
@@ -425,16 +451,12 @@ export default defineComponent({
       return rating > 0 ? rating : null;
     },
 
-    embeddedTags(): string[][]  {
+    embeddedTags(): string[][] {
       return utils.getTagsFromExif(this.exif);
     },
 
     tagNames(): string[] {
       return Object.values(this.baseInfo?.tags || {}).map((tag: string) => this.t('recognize', tag));
-    },
-
-    tagNamesStr(): string | null {
-      return this.tagNames.length > 0 ? this.tagNames.join(', ') : null;
     },
 
     mapUrl(): string {
@@ -476,8 +498,15 @@ export default defineComponent({
   },
 
   methods: {
-    async update(photo: number | IPhoto): Promise<IImageInfo | null> {
+    async update(photo: number | IPhoto, current = false): Promise<IImageInfo | null> {
       this.invalidateUnless(0);
+
+      // Remember the IPhoto object (if we were given one) so later refreshes
+      // (e.g. after an edit) can write back into it -- this is what keeps grid/
+      // viewer tiles sharing this same object in sync without a full reload.
+      if ('object' === typeof photo) {
+        this.photo = photo;
+      }
 
       // which clusters to get
       const clusters = this.routeIsPublic
@@ -494,7 +523,7 @@ export default defineComponent({
       const tags = this.config.systemtags_enabled ? 1 : undefined;
 
       // get image info
-      const url = API.Q(utils.getImageInfoUrl(photo), { tags, clusters });
+      const url = API.Q(utils.getImageInfoUrl(photo), { tags, clusters, current: current ? 1 : undefined });
       const res = await this.guardState(axios.get<IImageInfo>(url));
       if (!res) return null;
 
@@ -502,13 +531,25 @@ export default defineComponent({
       this.baseInfo = res.data;
       this.fileid = this.baseInfo.fileid;
       this.filename = this.baseInfo.basename;
-      this.exif = this.baseInfo.exif ?? {};
+      // Prefer the freshly re-read exif over the indexed one: the background
+      // reindex triggered by an edit can still be in flight, so the indexed
+      // row may briefly lag behind what was just written.
+      this.exif = this.baseInfo.current ?? this.baseInfo.exif ?? {};
+
+      // Write back into the remembered IPhoto so any grid/viewer tile sharing
+      // this object (e.g. Photo.vue's rating badge) reflects the fresh data
+      // immediately, without waiting for its own list to be refetched. Photo.vue
+      // reads imageInfo.exif directly, so fold the live `current` data in there
+      // too rather than leaving the (possibly still-indexing) `exif` field.
+      if (this.photo?.fileid === this.baseInfo.fileid) {
+        this.photo.imageInfo = { ...this.baseInfo, exif: this.exif };
+      }
 
       return this.baseInfo;
     },
 
     async refresh() {
-      if (this.fileid) await this.update(this.fileid);
+      if (this.fileid) await this.update(this.fileid, true);
     },
 
     /**
@@ -551,8 +592,7 @@ export default defineComponent({
         //optimistically update the exif
         this.exif = { ...raw, ...fields };
         await axios.patch<IImageInfo>(API.IMAGE_SETEXIF(fileid), { raw: this.exif });
-      }
-      catch (e) {
+      } catch (e) {
         console.error('Failed to save metadata for', fileid, e);
         if (e.response?.data?.message) {
           showError(e.response.data.message);
@@ -703,6 +743,13 @@ export default defineComponent({
   aspect-ratio: 16 / 10;
   min-height: 200px;
   max-height: 250px;
+}
+
+.rating-stars-inline {
+  width: fit-content;
+  margin-top: 2px;
+  margin-left: -4px; // offset the star buttons' own padding so they align with other titles
+  margin-right: auto; // force left alignment, overriding any inherited centering
 }
 
 .tags-container {

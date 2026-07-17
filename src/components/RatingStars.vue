@@ -10,14 +10,7 @@
       :disabled="readonly"
     >
       <template #icon>
-        <StarIcon 
-          v-if="star <= rating"
-          :size="size" 
-        />
-        <StarOutlineIcon 
-          v-else
-          :size="size" 
-        />
+        <StarIcon :size="size" />
       </template>
     </NcActionButton>
   </NcActions>
@@ -27,17 +20,15 @@
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import StarIcon from 'vue-material-design-icons/Star.vue';
-import StarOutlineIcon from 'vue-material-design-icons/StarOutline.vue';
 import { translate as t } from '@services/l10n';
 
 export default {
   name: 'RatingStars',
-  
+
   components: {
     NcActions,
     NcActionButton,
     StarIcon,
-    StarOutlineIcon,
   },
 
   props: {
@@ -81,65 +72,64 @@ export default {
 
   &.readonly {
     pointer-events: none;
-    
+
     :deep .button-vue {
       cursor: default;
       background-color: transparent !important;
-      
+
       &:hover {
         background-color: transparent !important;
       }
     }
-    
-    // Filled stars: yellow/warning color
-    :deep .material-design-icon.star-icon {
-      color: var(--color-warning);
+
+    // Rated stars: same gold used for favorited files elsewhere in Nextcloud
+    :deep .button-vue.filled .material-design-icon {
+      color: var(--color-favorite);
     }
-    
-    // Outline stars: inherit color (white on dark, dark on light)
-    :deep .material-design-icon.star-outline-icon {
+
+    // Unrated stars: still a solid star, just dimmed instead of outlined
+    :deep .button-vue:not(.filled) .material-design-icon {
       color: currentColor;
-      opacity: 0.7;
+      opacity: 0.3;
     }
   }
 
   &.interactive {
     :deep .button-vue {
       transition: color 0.2s ease;
-      
+
       &:hover {
         background-color: var(--color-background-hover) !important;
       }
     }
 
     // Default state (not hovering): show current rating
-    // Filled stars: yellow/warning color
-    :deep .material-design-icon.star-icon {
-      color: var(--color-warning);
+    // Rated stars: same gold used for favorited files elsewhere in Nextcloud
+    :deep .button-vue.filled .material-design-icon {
+      color: var(--color-favorite);
     }
-    
-    // Outline stars: inherit color (adapts to theme/context)
-    :deep .material-design-icon.star-outline-icon {
+
+    // Unrated stars: still a solid star, just dimmed instead of outlined
+    :deep .button-vue:not(.filled) .material-design-icon {
       color: currentColor;
-      opacity: 0.7;
+      opacity: 0.3;
     }
-    
+
     // Hover state: when hovering the parent container, show hover preview
     &:hover {
-      // During hover, show all stars in preview mode
-      // All stars become yellow when hovered or after hovered star
+      // During hover, show all stars dimmed by default
       :deep .button-vue {
         .material-design-icon {
           color: currentColor;
-          opacity: 0.7;
+          opacity: 0.3;
         }
       }
-      
-      // Hovered star and following siblings (visually to the left) become filled/yellow
+
+      // Hovered star and following siblings (visually to the left) become gold
       :deep .button-vue:hover,
       :deep .button-vue:hover ~ .button-vue {
         .material-design-icon {
-          color: var(--color-warning) !important;
+          color: var(--color-favorite) !important;
           opacity: 1 !important;
         }
       }

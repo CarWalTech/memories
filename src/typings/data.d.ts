@@ -128,6 +128,15 @@ declare module '@typings' {
 
     exif?: IExif;
 
+    /**
+     * Freshly re-read exif (embedded file + sidecar merge per the user's read
+     * mode), only present when requested with `current=1`. The plain `exif`
+     * field above comes from the background-indexed DB row, which can lag
+     * behind an edit that hasn't been reindexed yet -- callers that just wrote
+     * metadata and need the true current value should prefer this field.
+     */
+    current?: IExif;
+
     clusters?: {
       albums?: IAlbum[];
       recognize?: IFace[];
