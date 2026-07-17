@@ -439,7 +439,7 @@ export default defineComponent({
 
       set(items: AvailableNavItem[]) {
         this.config.mobile_nav_items = items.map((item) => item.name);
-        this.updateSetting('mobile_nav_items');
+        this.updateSetting('mobile_nav_items', 'mobileNavItems');
       },
     },
 

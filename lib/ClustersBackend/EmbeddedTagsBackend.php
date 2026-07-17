@@ -176,6 +176,60 @@ final class EmbeddedTagsBackend extends Backend
     }
 
     /**
+     * Compute the photo count and up to 4 cover previews for each of the
+     * given tag paths in a single pass over the account's indexed photos,
+     * instead of one whole-account getPhotos() scan per path (previously
+     * N+1 -- see getClustersInternal() above for the same fix applied to
+     * the flat cluster listing). Matching is recursive per path, same as
+     * getPhotos().
+     *
+     * @param string[] $paths
+     *
+     * @return array<string, array{count: int, previews: array<array{fileid: int, etag: string}>}> keyed by $paths entries
+     */
+    public function getPhotoStatsForPaths(array $paths): array
+    {
+        if (empty($paths)) {
+            return [];
+        }
+
+        $stats = [];
+        foreach ($paths as $path) {
+            $stats[$path] = ['count' => 0, 'previews' => []];
+        }
+
+        foreach ($this->getAllExifRows() as $row) {
+            if (empty($row['exif'])) {
+                continue;
+            }
+
+            $exif = json_decode((string) $row['exif'], true);
+            if (!\is_array($exif)) {
+                continue;
+            }
+
+            $tagPaths = Exif::extractEmbeddedTags($exif, true);
+
+            foreach ($paths as $path) {
+                foreach ($tagPaths as $tagPath) {
+                    if (!Exif::embeddedTagPathMatches($tagPath, $path, true)) {
+                        continue;
+                    }
+
+                    ++$stats[$path]['count'];
+                    if (\count($stats[$path]['previews']) < 4) {
+                        $stats[$path]['previews'][] = ['fileid' => (int) $row['fileid'], 'etag' => $row['etag']];
+                    }
+
+                    break; // don't double-count this photo for this path
+                }
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
      * Whether any photo -- including archived/hidden ones -- is currently
      * tagged with this path or any of its sub-tags. Used to decide whether a
      * tag is safe to permanently delete: if this returns true, deleting the

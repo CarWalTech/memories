@@ -42,6 +42,7 @@
           :to="category.link"
           @click="category.click?.()"
           type="tertiary-no-background"
+          alignment="start"
         >
           <template #icon>
             <component :is="category.icon" />
@@ -66,10 +67,12 @@ import ImageMultipleOutline from 'vue-material-design-icons/ImageMultipleOutline
 import FolderIcon from 'vue-material-design-icons/Folder.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';
 import VideoIcon from 'vue-material-design-icons/PlayCircle.vue';
+import AlbumIcon from 'vue-material-design-icons/ImageAlbum.vue';
 import ArchiveIcon from 'vue-material-design-icons/PackageDown.vue';
 import CalendarIcon from 'vue-material-design-icons/Calendar.vue';
 import MapIcon from 'vue-material-design-icons/Map.vue';
 import CogIcon from 'vue-material-design-icons/Cog.vue';
+import TagIcon from 'vue-material-design-icons/Tag.vue';
 
 import { translate as t } from '@services/l10n';
 import config from '@services/static-config';
@@ -117,6 +120,12 @@ export default defineComponent({
         link: '/favorites',
       },
       {
+        name: t('memories', 'Albums'),
+        icon: AlbumIcon,
+        link: '/albums',
+        if: () => config.getSync('albums_enabled'),
+      },
+      {
         name: t('memories', 'Videos'),
         icon: VideoIcon,
         link: '/videos',
@@ -135,6 +144,11 @@ export default defineComponent({
         name: t('memories', 'Map'),
         icon: MapIcon,
         link: '/map',
+      },
+      {
+        name: t('memories', 'Tags'),
+        icon: TagIcon,
+        link: config.getSync('systemtags_enabled') ? '/tags' : '/embeddedtags',
       },
       {
         name: t('memories', 'Settings'),
@@ -264,7 +278,8 @@ export default defineComponent({
       margin: 3px;
       opacity: 0.8;
       @media (max-width: 768px) {
-        width: calc(50% - 6px);
+        display: block;
+        width: 100%;
         border-radius: 10px;
         opacity: 1;
       }

@@ -50,6 +50,8 @@ class StaticConfig {
       window.caches?.delete('memories-pages');
     }
 
+    this.migrateLegacyMobileNavItems();
+
     // Assign to existing default
     for (const k in this.config) {
       const key = k as keyof IConfig;
@@ -65,6 +67,27 @@ class StaticConfig {
 
     // Resolve all promises
     this.initPromises.forEach((resolve) => resolve());
+  }
+
+  /**
+   * One-time migration from the old browser-local-only `mobile_nav_items`
+   * selection to the server-persisted setting. Only pushes to the server
+   * when a local value exists and differs from what the server returned
+   * (i.e. never migrated before); the raw item is removed either way so
+   * this never runs again after the first successful load.
+   */
+  private migrateLegacyMobileNavItems() {
+    const legacy = this.getRawItem('mobile_nav_items');
+    if (legacy == null) return;
+
+    const legacyItems = legacy.split(',').filter(Boolean);
+    const serverItems = this.config?.mobile_nav_items ?? [];
+    this.removeRawItem('mobile_nav_items');
+
+    if (legacyItems.join(',') === serverItems.join(',')) return;
+
+    this.config!.mobile_nav_items = legacyItems;
+    axios.put(API.CONFIG('mobileNavItems'), { value: legacyItems.join(',') }).catch(() => {});
   }
 
   private async waitForInit() {

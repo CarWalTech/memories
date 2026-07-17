@@ -136,6 +136,9 @@ final class OtherController extends GenericApiController
 
                 // album settings
                 'show_hidden_albums' => 'true' === $getAppConfig('showHiddenAlbums', 'false'),
+
+                // mobile settings
+                'mobile_nav_items' => array_values(array_filter(explode(',', $getAppConfig('mobileNavItems', 'timeline,explore,albums')))),
             ], Http::STATUS_OK);
         });
     }

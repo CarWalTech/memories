@@ -79,22 +79,29 @@ class EmbeddedTagsController extends GenericApiController
 
             $path = trim($path, '/');
 
+            $children = $this->etq->getChildTags($path);
+
+            // Compute counts/previews for every child in one pass over the
+            // account's photos instead of one whole-account scan per child
+            // (previously N+1 -- see getPhotoStatsForPaths() for details).
+            // The count reflects the full (unlimited) match set so a tag
+            // whose last photo was just retagged away correctly shows 0,
+            // instead of falling back to stale/empty previews that look
+            // identical to "still loading".
+            $stats = $this->backend->getPhotoStatsForPaths(array_map(
+                static fn ($child) => $child['path'],
+                $children,
+            ));
+
             $list = [];
-            foreach ($this->etq->getChildTags($path) as $child) {
-                // Fetch the full (unlimited) match set so the count reflects
-                // reality -- a tag whose last photo was just retagged away
-                // must show 0, not just fall back to stale/empty previews
-                // that look identical to "still loading".
-                $photos = $this->backend->getPhotos($child['path']);
+            foreach ($children as $child) {
+                $stat = $stats[$child['path']];
 
                 $list[] = [
                     'name' => $child['tag'],
                     'path' => $child['path'],
-                    'count' => \count($photos),
-                    'previews' => array_map(static fn ($p) => [
-                        'fileid' => (int) $p['fileid'],
-                        'etag' => $p['etag'],
-                    ], \array_slice($photos, 0, 4)),
+                    'count' => $stat['count'],
+                    'previews' => $stat['previews'],
                 ];
             }
 

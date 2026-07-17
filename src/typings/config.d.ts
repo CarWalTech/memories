@@ -62,10 +62,12 @@ declare module '@typings' {
     // album settings
     show_hidden_albums: boolean;
 
+    // mobile settings
+    mobile_nav_items: string[];
+
     // local settings
     high_res_cond: HighResCond | null;
     show_face_rect: boolean;
-    mobile_nav_items: string[];
     grid_zoom: number;
     blur_thumbnails: boolean;
   };

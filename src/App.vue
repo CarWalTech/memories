@@ -249,7 +249,9 @@ export default defineComponent({
         }
 
         // Show on any of the app's top-level nav destinations (sidebar/bottom bar)
-        return this.navItems.some((item) => item.name === this.$route.name);
+        return this.navItems.some(
+          (item) => item.name === this.$route.name || item.activeNames?.includes(this.$route.name ?? ''),
+        );
       }
 
       return true;
@@ -357,6 +359,11 @@ export default defineComponent({
           name: 'favorites',
           icon: Star,
           title: t('memories', 'Favorites'),
+        },
+        {
+          name: 'videos',
+          icon: Video,
+          title: t('memories', 'Videos'),
         },
         {
           name: 'albums',
