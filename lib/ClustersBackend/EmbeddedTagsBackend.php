@@ -79,21 +79,62 @@ final class EmbeddedTagsBackend extends Backend
             throw new \Exception('EmbeddedTagsBackend: fileid filter not implemented');
         }
 
+        $leaves = $this->etq->getLeafTagPaths();
+        if (empty($leaves)) {
+            return [];
+        }
+
+        // Lookup from lowercased path -> tag row, so every photo's embedded
+        // tags can be matched against all leaves in one pass below instead
+        // of running one getPhotos() scan of the whole account per leaf
+        // (previously N+1 full table scans for N tags).
+        $byPath = [];
+        foreach ($leaves as $tag) {
+            $byPath[strtolower($tag['path'])] = $tag;
+        }
+
+        $buckets = []; // lowercased path => ['count' => int, 'cover' => fileid, 'cover_etag' => etag]
+
+        foreach ($this->getAllExifRows() as $row) {
+            if (empty($row['exif'])) {
+                continue;
+            }
+
+            $exif = json_decode((string) $row['exif'], true);
+            if (!\is_array($exif)) {
+                continue;
+            }
+
+            foreach (Exif::extractEmbeddedTags($exif, true) as $tagPath) {
+                $key = strtolower($tagPath);
+                if (!isset($byPath[$key])) {
+                    continue;
+                }
+
+                if (!isset($buckets[$key])) {
+                    $buckets[$key] = [
+                        'count' => 0,
+                        'cover' => (int) $row['fileid'],
+                        'cover_etag' => $row['etag'],
+                    ];
+                }
+
+                ++$buckets[$key]['count'];
+            }
+        }
+
         $list = [];
-        foreach ($this->etq->getLeafTagPaths() as $tag) {
-            // Fetch once and derive both the count and the cover from it,
-            // instead of two separate (potentially PHP-side) full scans.
-            $photos = $this->getPhotos($tag['path']);
-            if (empty($photos)) {
+        foreach ($byPath as $key => $tag) {
+            if (!isset($buckets[$key])) {
                 continue;
             }
 
             $list[] = [
                 'id' => (int) $tag['id'],
                 'name' => $tag['path'],
-                'count' => \count($photos),
-                'cover' => $photos[0]['fileid'] ?? null,
-                'cover_etag' => $photos[0]['etag'] ?? null,
+                'count' => $buckets[$key]['count'],
+                'cover' => $buckets[$key]['cover'],
+                'cover_etag' => $buckets[$key]['cover_etag'],
             ];
         }
 
@@ -230,6 +271,21 @@ final class EmbeddedTagsBackend extends Backend
         }
 
         return $this->etq->getTagsCount() - $before;
+    }
+
+    /**
+     * Fetch every indexed photo's fileid, etag and stored EXIF once for the
+     * whole account. Used to compute counts/covers for all leaf tags in a
+     * single pass instead of one query per tag.
+     */
+    private function getAllExifRows(): array
+    {
+        $query = $this->tq->getBuilder();
+        $query->select('m.fileid', 'm.exif', 'f.etag')->from('memories', 'm');
+        $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
+        $query = $this->tq->filterFilecache($query, $this->wholeAccountRoot(), true, false, false);
+
+        return $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
     }
 
     /**
