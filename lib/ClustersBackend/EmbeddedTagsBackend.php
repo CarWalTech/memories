@@ -93,9 +93,62 @@ final class EmbeddedTagsBackend extends Backend
             $byPath[strtolower($tag['path'])] = $tag;
         }
 
-        $buckets = []; // lowercased path => ['count' => int, 'cover' => fileid, 'cover_etag' => etag]
+        $buckets = $this->countLeavesByPath($byPath, $this->wholeAccountRoot());
 
-        foreach ($this->getAllExifRows() as $row) {
+        // A tag whose only matches are all in an excluded folder isn't really
+        // "empty" (deleting it would just have it silently reappear next time
+        // those photos are reindexed, same as hasAnyPhotos() below) -- it's
+        // just hidden by choice. Only tags with truly zero matches anywhere,
+        // excluded folders included, should show up as the deletable/empty
+        // placeholders the rest of this app expects; matches everywhere else
+        // are simply left out of the list rather than shown as a fake 0.
+        $trueBuckets = null;
+
+        $list = [];
+        foreach ($byPath as $key => $tag) {
+            if (isset($buckets[$key])) {
+                $list[] = [
+                    'id' => (int) $tag['id'],
+                    'name' => $tag['path'],
+                    'count' => $buckets[$key]['count'],
+                    'cover' => $buckets[$key]['cover'],
+                    'cover_etag' => $buckets[$key]['cover_etag'],
+                ];
+
+                continue;
+            }
+
+            // Only computed once, and only if some tag actually needs it.
+            $trueBuckets ??= $this->countLeavesByPath($byPath, $this->wholeAccountRoot(false));
+
+            if (!isset($trueBuckets[$key])) {
+                $list[] = [
+                    'id' => (int) $tag['id'],
+                    'name' => $tag['path'],
+                    'count' => 0,
+                    'cover' => null,
+                    'cover_etag' => null,
+                ];
+            }
+        }
+
+        return $list;
+    }
+
+    /**
+     * Count matches and pick a cover for each of the given (lowercased path
+     * => tag row) leaf entries, scoped to $root, in a single pass over the
+     * account's indexed photos.
+     *
+     * @param array<string, array{id: int, path: string}> $byPath lowercased path => tag row
+     *
+     * @return array<string, array{count: int, cover: int, cover_etag: string}> lowercased path => bucket
+     */
+    private function countLeavesByPath(array $byPath, TimelineRoot $root): array
+    {
+        $buckets = [];
+
+        foreach ($this->getAllExifRows($root) as $row) {
             if (empty($row['exif'])) {
                 continue;
             }
@@ -123,22 +176,7 @@ final class EmbeddedTagsBackend extends Backend
             }
         }
 
-        $list = [];
-        foreach ($byPath as $key => $tag) {
-            if (!isset($buckets[$key])) {
-                continue;
-            }
-
-            $list[] = [
-                'id' => (int) $tag['id'],
-                'name' => $tag['path'],
-                'count' => $buckets[$key]['count'],
-                'cover' => $buckets[$key]['cover'],
-                'cover_etag' => $buckets[$key]['cover_etag'],
-            ];
-        }
-
-        return $list;
+        return $buckets;
     }
 
     #[\Override]
@@ -183,9 +221,16 @@ final class EmbeddedTagsBackend extends Backend
      * the flat cluster listing). Matching is recursive per path, same as
      * getPhotos().
      *
+     * A path whose only matches are all in an excluded folder is left out of
+     * the returned map entirely (not included as a fake 0) -- same reasoning
+     * as getClustersInternal(): it isn't really empty, just hidden by choice,
+     * so it shouldn't show up as the deletable/empty placeholder the rest of
+     * this app reserves for tags with truly zero matches. Callers should skip
+     * any requested path missing from the result rather than assume count 0.
+     *
      * @param string[] $paths
      *
-     * @return array<string, array{count: int, previews: array<array{fileid: int, etag: string}>}> keyed by $paths entries
+     * @return array<string, array{count: int, previews: array<array{fileid: int, etag: string}>}> keyed by (a subset of) $paths entries
      */
     public function getPhotoStatsForPaths(array $paths): array
     {
@@ -193,12 +238,44 @@ final class EmbeddedTagsBackend extends Backend
             return [];
         }
 
+        $stats = $this->countPathsMatches($paths, $this->wholeAccountRoot());
+
+        // Only computed if some path came back with zero visible matches --
+        // need to tell "truly empty" apart from "hidden by exclusion" for those.
+        $trueStats = null;
+
+        foreach ($paths as $path) {
+            if (0 !== $stats[$path]['count']) {
+                continue;
+            }
+
+            $trueStats ??= $this->countPathsMatches($paths, $this->wholeAccountRoot(false));
+
+            if (0 !== $trueStats[$path]['count']) {
+                unset($stats[$path]); // hidden by exclusion, not truly empty
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Count matches and collect up to 4 previews for each of the given tag
+     * paths, scoped to $root, in a single pass over the account's indexed
+     * photos. Matching is recursive per path, same as getPhotos().
+     *
+     * @param string[] $paths
+     *
+     * @return array<string, array{count: int, previews: array<array{fileid: int, etag: string}>}> keyed by $paths entries
+     */
+    private function countPathsMatches(array $paths, TimelineRoot $root): array
+    {
         $stats = [];
         foreach ($paths as $path) {
             $stats[$path] = ['count' => 0, 'previews' => []];
         }
 
-        foreach ($this->getAllExifRows() as $row) {
+        foreach ($this->getAllExifRows($root) as $row) {
             if (empty($row['exif'])) {
                 continue;
             }
@@ -230,16 +307,18 @@ final class EmbeddedTagsBackend extends Backend
     }
 
     /**
-     * Whether any photo -- including archived/hidden ones -- is currently
-     * tagged with this path or any of its sub-tags. Used to decide whether a
-     * tag is safe to permanently delete: if this returns true, deleting the
-     * tag's dictionary entry would just have it silently reappear the next
-     * time those photos get (re-)indexed, since deleting never touches photo
-     * EXIF data itself.
+     * Whether any photo -- including archived/hidden and excluded-folder ones
+     * -- is currently tagged with this path or any of its sub-tags. Used to
+     * decide whether a tag is safe to permanently delete: if this returns
+     * true, deleting the tag's dictionary entry would just have it silently
+     * reappear the next time those photos get (re-)indexed, since deleting
+     * never touches photo EXIF data itself. Deliberately ignores the user's
+     * folder exclusions (ie. the TRUE scope, not what's displayed) -- a tag
+     * that's merely hidden by an exclusion setting is not safe to delete.
      */
     public function hasAnyPhotos(string $path): bool
     {
-        $root = $this->wholeAccountRoot();
+        $root = $this->wholeAccountRoot(false);
 
         if ($this->tq->shouldFilterExifBySQL()) {
             return !empty($this->getPhotosSQL($path, 1, null, true, $root));
@@ -290,12 +369,16 @@ final class EmbeddedTagsBackend extends Backend
 
     /**
      * Scan every indexed photo in the whole account (including archived/
-     * hidden ones) and ensure any embedded tag found in its stored EXIF data
-     * exists in the current user's tag dictionary. This never reads files
-     * from disk -- it only reuses the EXIF already cached in the `memories`
-     * table -- so it's cheap to run on demand to repair a dictionary that
-     * has drifted out of sync with the photos' actual tags (e.g. tags added
-     * to a migration that ran before the dictionary table existed).
+     * hidden and excluded-folder ones) and ensure any embedded tag found in
+     * its stored EXIF data exists in the current user's tag dictionary. This
+     * never reads files from disk -- it only reuses the EXIF already cached
+     * in the `memories` table -- so it's cheap to run on demand to repair a
+     * dictionary that has drifted out of sync with the photos' actual tags
+     * (e.g. tags added to a migration that ran before the dictionary table
+     * existed). Deliberately ignores folder exclusions (the TRUE scope): the
+     * dictionary should reflect what's actually indexed, not what's currently
+     * displayed -- an excluded photo's tags are still real and should still
+     * exist in the dictionary, just hidden from view like the photo itself.
      *
      * @return int number of new tag dictionary entries created
      */
@@ -307,7 +390,7 @@ final class EmbeddedTagsBackend extends Backend
         $query = $this->tq->getBuilder();
         $query->select('m.exif')->from('memories', 'm');
         $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
-        $query = $this->tq->filterFilecache($query, $this->wholeAccountRoot(), true, false, true);
+        $query = $this->tq->filterFilecache($query, $this->wholeAccountRoot(false), true, false, true);
 
         $rows = $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
 
@@ -329,15 +412,15 @@ final class EmbeddedTagsBackend extends Backend
 
     /**
      * Fetch every indexed photo's fileid, etag and stored EXIF once for the
-     * whole account. Used to compute counts/covers for all leaf tags in a
-     * single pass instead of one query per tag.
+     * given root. Used to compute counts/covers for all leaf tags in a single
+     * pass instead of one query per tag.
      */
-    private function getAllExifRows(): array
+    private function getAllExifRows(TimelineRoot $root): array
     {
         $query = $this->tq->getBuilder();
         $query->select('m.fileid', 'm.exif', 'f.etag')->from('memories', 'm');
         $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
-        $query = $this->tq->filterFilecache($query, $this->wholeAccountRoot(), true, false, false);
+        $query = $this->tq->filterFilecache($query, $root, true, false, false);
 
         return $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
     }
@@ -350,12 +433,33 @@ final class EmbeddedTagsBackend extends Backend
      * view-level preferences -- so every embedded-tag query needs to search
      * the same scope, or it'll report tags as empty/unused that are still
      * very much in use just outside the configured timeline path.
+     *
+     * @param bool $applyExclusions Whether to apply the user's configured
+     *                              folder exclusions (Settings > "All Photos:
+     *                              Excluded Paths"), the same way
+     *                              FsManager::populateRoot() does for every
+     *                              other recursive view -- this root is built
+     *                              by hand instead of going through
+     *                              populateRoot(), so it doesn't get that for
+     *                              free. Default true for what gets displayed
+     *                              (counts/previews/browsing a tag) -- an
+     *                              excluded photo shouldn't count or show up
+     *                              as a preview. Pass false for the TRUE
+     *                              scope: dictionary-integrity checks
+     *                              (hasAnyPhotos()/findMissingTags()) must
+     *                              ignore exclusions, since a tag that's
+     *                              merely hidden by a view preference is not
+     *                              actually unused and isn't safe to prune.
      */
-    private function wholeAccountRoot(): TimelineRoot
+    private function wholeAccountRoot(bool $applyExclusions = true): TimelineRoot
     {
         $root = new TimelineRoot();
         $root->addFolder(Util::getUserFolder());
         $root->addMountPoints();
+
+        if ($applyExclusions) {
+            $root->setExcludedFolderIds(Util::resolveExcludedFolderIds(Util::getUID(), Util::getUserFolder()));
+        }
 
         return $root;
     }

@@ -42,7 +42,14 @@ trait TimelineQueryCTE
         $CLS_HIDDEN_JOIN = $hidden ? '1 = 1' : "f.name NOT LIKE '.%'";
 
         // Whether to exclude configured folder ids (and thus everything under them,
-        // since an excluded folder never gets added to the CTE for children to join against)
+        // since an excluded folder never gets added to the CTE for children to join
+        // against). Deliberately only applied in the recursive join below, never in
+        // the base case: exclusions are meant to keep a folder out of BROADER scans
+        // that would otherwise sweep it in as a descendant (All Photos, Embedded
+        // Tags, Timeline recursion) -- not to make it vanish when it's the folder
+        // the user explicitly navigated to or started this root at. Applying it to
+        // the base case too would make an excluded folder (and any recursive query
+        // rooted directly at it) appear completely empty even when browsed on purpose.
         $CLS_EXCLUDE = $exclude ? 'f.fileid NOT IN (:excludeFolderIds)' : '1 = 1';
 
         // On MySQL or MariaDB, provide the hint to use the index
@@ -59,7 +66,6 @@ trait TimelineQueryCTE
             FROM *PREFIX*filecache f
             WHERE (
                 f.fileid IN (:topFolderIds) AND
-                {$CLS_EXCLUDE} AND
                 {$CLS_NOMEDIA}
             )
 

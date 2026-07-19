@@ -10,6 +10,7 @@ use OC\Files\Search\SearchQuery;
 use OCA\Memories\AppInfo\Application;
 use OCA\Memories\Settings\SystemConfig;
 use OCP\App\IAppManager;
+use OCP\Files\Folder;
 use OCP\Files\Node;
 use OCP\Files\Search\ISearchBinaryOperator;
 use OCP\Files\Search\ISearchComparison;
@@ -344,10 +345,13 @@ final class Util
     }
 
     /**
-     * Get list of paths excluded from the "All Photos" view.
-     * Unlike getTimelinePaths(), invalid/empty entries are silently
-     * dropped instead of throwing -- this list is optional and
-     * user-editable in a way timeline_path isn't.
+     * Get list of paths excluded from the user's photo views. Configured as
+     * "All Photos: Excluded Paths" in Settings (the one user-facing exclusion
+     * list this app has), but applied to every recursive view that builds a
+     * TimelineRoot -- not just "All Photos" -- via resolveExcludedFolderIds()
+     * below. Unlike getTimelinePaths(), invalid/empty entries are silently
+     * dropped instead of throwing -- this list is optional and user-editable
+     * in a way timeline_path isn't.
      *
      * @return string[] List of paths
      */
@@ -365,6 +369,34 @@ final class Util
             static fn ($path) => self::sanitizePath(trim($path)),
             explode(';', $paths),
         )));
+    }
+
+    /**
+     * Resolve the user's configured exclude-paths list (see
+     * getAllPhotosExcludePaths()) to fileids, for TimelineRoot::
+     * setExcludedFolderIds(). Shared by every recursive root builder
+     * (FsManager::populateRoot() and EmbeddedTagsBackend::wholeAccountRoot())
+     * so the same user-facing setting is honored everywhere, not just in
+     * "All Photos" mode.
+     *
+     * Best-effort: paths that no longer exist (deleted/renamed) are silently
+     * skipped rather than failing the whole request, since this list is
+     * user-editable.
+     *
+     * @return int[]
+     */
+    public static function resolveExcludedFolderIds(string $uid, Folder $userFolder): array
+    {
+        $ids = [];
+        foreach (self::getAllPhotosExcludePaths($uid) as $path) {
+            try {
+                $ids[] = $userFolder->get($path)->getId();
+            } catch (\OCP\Files\NotFoundException) {
+                // Skip paths that no longer exist
+            }
+        }
+
+        return $ids;
     }
 
     /**

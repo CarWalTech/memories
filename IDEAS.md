@@ -1,4 +1,12 @@
-[ ] Saving Mobile Navigation Bar Per User
-[x] Multi-Select Folder Paths in Settings is Closer to how it is done for the Mobile Navigation Bar Settings
-[x] Combine Tags/Collab Tags Views into One View Seperated by a Tab Bar
-[ ] Add a Tree View to Folder / Tag Views for quicker navigation
+- [x] Saving Mobile Navigation Bar Per User
+- [x] Multi-Select Folder Paths in Settings is Closer to how it is done for the Mobile Navigation Bar Settings
+- [x] Combine Tags/Collab Tags Views into One View Seperated by a Tab Bar
+- [ ] Add a Tree View to Folder / Tag Views for quicker navigation
+- [ ] Enhanced Search / Filter Options
+- [ ] A Shortcut to Admin Options from Memories App
+- [ ] Show Collaborative Tags Similarly on Photo.vue like Embedded Tags are, implementing it in image propeties respectively as a seperate togglable option
+- [ ] Rename the following view modes: Dynamic -> Flow & Square to Grid
+- [ ] Make Grid Mode Use a fixed number of items per row
+- [ ] Add a "clear / x" button to the ratings picker in Metadata.vue to be able to remove the rating
+- [ ] Drag N Drop Support for Folder/Album Management
+- [ ] Add proper unit tests

@@ -411,6 +411,17 @@ export default defineComponent({
         if (this.routeIsFolders && !utils.isFoldersRootPicker(this.config.folders_path, this.$route.params.path)) {
           autoScanFolderOnNavigate(utils.getFolderRoutePath(this.config.folders_path));
         }
+
+        // Embedded tags aren't tied to a single browsed folder (a photo
+        // anywhere in the account can carry one, see EmbeddedTagsBackend),
+        // so there's no equivalent single-folder path to scan here -- go
+        // recursive over the configured root instead. Same rate-limited,
+        // untracked-only scan as Folders above: catches newly-tagged files
+        // that never went through Nextcloud's own write path without
+        // waiting on the periodic index job.
+        if (this.routeIsEmbeddedTags) {
+          autoScanFolderOnNavigate(this.config.folders_path, true);
+        }
       }
 
       // Do a soft refresh if the query changes

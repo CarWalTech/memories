@@ -95,6 +95,13 @@ class EmbeddedTagsController extends GenericApiController
 
             $list = [];
             foreach ($children as $child) {
+                // A child whose only matches are all in an excluded folder is
+                // left out of $stats entirely (see getPhotoStatsForPaths()) --
+                // skip it here too rather than assume count 0.
+                if (!isset($stats[$child['path']])) {
+                    continue;
+                }
+
                 $stat = $stats[$child['path']];
 
                 $list[] = [

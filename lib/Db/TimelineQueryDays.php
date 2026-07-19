@@ -218,7 +218,13 @@ trait TimelineQueryDays
             });
         }
 
-        return $day;
+        // array_filter() preserves keys, so any filter above that drops a
+        // non-trailing photo leaves gaps in the numeric keys. json_encode()
+        // then serializes a gappy array as a JSON object instead of an array
+        // (e.g. {"3":{...}} instead of [{...}]), which the frontend can't
+        // iterate ("data is not iterable") -- reindex so this is always a
+        // proper JSON array regardless of what got filtered out.
+        return array_values($day);
     }
 
     public function executeQueryWithCTEs(IQueryBuilder $query, string $psql = ''): \OCP\DB\IResult
@@ -409,7 +415,11 @@ trait TimelineQueryDays
                 $filteredRows[] = [
                     'dayid' => $dayId,
                     'count' => $filteredCount,
-                    'fileIds' => array_map(static fn ($photo) => $photo['fileid'], $dayPhotos),
+                    // array_map() preserves the (possibly gappy, see getDay()) keys
+                    // of $dayPhotos, which would make 'fileIds' serialize as a JSON
+                    // object instead of an array if any filter above dropped a
+                    // non-trailing photo -- reindex first so this is always an array.
+                    'fileIds' => array_values(array_map(static fn ($photo) => $photo['fileid'], $dayPhotos)),
                 ];
             }
         }
@@ -525,7 +535,7 @@ trait TimelineQueryDays
         ClustersBackend\Manager::applyDayPostTransforms($this->request, $row);
 
         // Already fetched for the GROUP BY / ORDER BY clause; keep it, it's free
-        $row['datetaken'] = (int) $row['datetaken'];
+        $row['datetaken'] = Util::sqlUtcToTimestamp($row['datetaken']);
 
         // Calculate the AUID if we can
         if (($epoch = $row['epoch'] ?? null) && ($size = $row['size'] ?? null)) {

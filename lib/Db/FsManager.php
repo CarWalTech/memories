@@ -172,11 +172,13 @@ final class FsManager
             $root->excludePaths($this->getNoMediaFolders($userFolder, md5($etag)));
         }
 
-        // Resolve and apply "All Photos" folder exclusions. Best-effort: paths
-        // that no longer exist (deleted/renamed) are silently skipped rather
-        // than failing the whole request, since this list is user-editable.
-        if ($isAllPhotos) {
-            $root->setExcludedFolderIds($this->resolveExcludedFolderIds($uid, $userFolder));
+        // Resolve and apply the user's configured folder exclusions. Applied
+        // to every recursive root (not just "All Photos") so the setting is
+        // honored consistently across views -- see Util::getAllPhotosExcludePaths().
+        // Not applied when browsing non-recursively: navigating directly into
+        // an excluded folder should still show its contents.
+        if ($recursive) {
+            $root->setExcludedFolderIds(Util::resolveExcludedFolderIds($uid, $userFolder));
         }
 
         return $root;
@@ -470,25 +472,6 @@ final class FsManager
         }
 
         return true;
-    }
-
-    /**
-     * Resolve the configured "All Photos" exclude paths to fileids.
-     *
-     * @return int[]
-     */
-    private function resolveExcludedFolderIds(string $uid, Folder $userFolder): array
-    {
-        $ids = [];
-        foreach (Util::getAllPhotosExcludePaths($uid) as $path) {
-            try {
-                $ids[] = $userFolder->get($path)->getId();
-            } catch (\OCP\Files\NotFoundException) {
-                // Skip paths that no longer exist
-            }
-        }
-
-        return $ids;
     }
 
     /**

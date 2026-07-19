@@ -38,33 +38,49 @@ const autoScannedFolders = new Map<string, number>();
 const AUTO_SCAN_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Best-effort, silent scan of a single folder (non-recursive) for files
- * that exist on disk but aren't indexed yet -- e.g. dropped onto external
- * storage outside Nextcloud's own upload path, where the usual
- * write-event listener never fires. Meant to be called on every Folders-view
+ * Best-effort, silent scan of a folder for files that exist on disk but
+ * aren't indexed yet -- e.g. dropped onto external storage outside
+ * Nextcloud's own upload path, where the usual write-event listener never
+ * fires. Meant to be called on every Folders-view/Embedded-Tags-view
  * navigation so browsing the library opportunistically keeps it fresh,
- * without waiting on the periodic background index job.
+ * without waiting on the periodic background index job (which, being a
+ * single cron-driven process, is one stuck run away from silently not
+ * catching up for arbitrarily long).
  *
- * Deliberately non-recursive and rate-limited per folder: the cost of a
- * cheap "anything new here?" check is bounded by AUTO_SCAN_TTL_MS, while
- * genuinely new files still get indexed for real (synchronously, up to the
- * server's usual budget, with its existing background fallback for large
- * folders) via the same endpoint the manual "Refresh Folder" action uses.
+ * Rate-limited per folder+recursive-flag pair: the cost of a cheap
+ * "anything new here?" check is bounded by AUTO_SCAN_TTL_MS, while genuinely
+ * new files still get indexed for real (synchronously, up to the server's
+ * usual budget, with its existing background fallback for large folders)
+ * via the same endpoint the manual "Refresh Folder" action uses.
+ *
+ * Always runs in 'untracked' mode -- cheap, only catches files Nextcloud
+ * has never seen. It deliberately does NOT catch metadata edited on an
+ * already-indexed file's backend (e.g. re-tagging in Lightroom directly on
+ * a NAS share) -- detecting that requires an mtime-refreshing rescan, too
+ * expensive to run opportunistically on every navigation for a large
+ * external mount. That case still depends on the periodic index job or a
+ * manual refresh.
  *
  * Errors are swallowed -- this runs on every navigation, so it must never
  * toast or interrupt browsing. The manual refresh actions remain available
  * for the user to retry by hand.
+ *
+ * @param path      folder to scan
+ * @param recursive whether to scan subfolders too (Folders view only scans
+ *                  the single browsed folder; Embedded Tags aren't tied to
+ *                  one folder, so it scans the whole configured root instead)
  */
-export async function autoScanFolderOnNavigate(path: string): Promise<void> {
+export async function autoScanFolderOnNavigate(path: string, recursive = false): Promise<void> {
+  const key = `${recursive ? 'r:' : 'f:'}${path}`;
   const now = Date.now();
-  const last = autoScannedFolders.get(path);
+  const last = autoScannedFolders.get(key);
   if (last && now - last < AUTO_SCAN_TTL_MS) return;
-  autoScannedFolders.set(path, now); // mark eagerly to dedupe concurrent triggers
+  autoScannedFolders.set(key, now); // mark eagerly to dedupe concurrent triggers
 
   try {
     const res = await axios.post<{ done?: boolean }>(API.INDEX_REFRESH_FOLDER(), {
       path,
-      recursive: false,
+      recursive,
       mode: 'untracked',
       background: true,
     });
@@ -73,6 +89,6 @@ export async function autoScanFolderOnNavigate(path: string): Promise<void> {
       bus.emit('memories:timeline:soft-refresh', null);
     }
   } catch {
-    autoScannedFolders.delete(path); // allow a retry on the next visit
+    autoScannedFolders.delete(key); // allow a retry on the next visit
   }
 }
