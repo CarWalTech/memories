@@ -397,12 +397,16 @@ export default defineComponent({
 
     tagsToExifFields(tags: string[]) {
       // Convert tag strings to all four EXIF fields
+      // If tags are being cleared, explicitly null out all fields. This must
+      // be null, not undefined: the request body is JSON-serialized, and
+      // JSON.stringify drops undefined-valued keys entirely, which would
+      // silently turn this into a no-op that leaves the old tags in place.
       if (tags.length === 0) {
         return {
-          Keywords: undefined,
-          Subject: undefined,
-          TagsList: undefined,
-          HierarchicalSubject: undefined,
+          Keywords: null,
+          Subject: null,
+          TagsList: null,
+          HierarchicalSubject: null,
         };
       }
 

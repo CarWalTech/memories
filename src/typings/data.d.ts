@@ -175,10 +175,10 @@ declare module '@typings' {
 
     Rating?: number;
 
-    TagsList?: string[];
-    Keywords?: string[];
-    Subject?: string[];
-    HierarchicalSubject?: string[];
+    TagsList?: string[] | null;
+    Keywords?: string[] | null;
+    Subject?: string[] | null;
+    HierarchicalSubject?: string[] | null;
 
     GPSAltitude?: number;
     GPSLatitude?: number;

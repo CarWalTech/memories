@@ -16,6 +16,7 @@ return [
         // Vue routes for deep links
         ['name' => 'Page#main', 'url' => '/', 'verb' => 'GET'],
         ['name' => 'Page#favorites', 'url' => '/favorites', 'verb' => 'GET'],
+        ['name' => 'Page#allphotos', 'url' => '/all', 'verb' => 'GET'],
         ['name' => 'Page#videos', 'url' => '/videos', 'verb' => 'GET'],
         ['name' => 'Page#archive', 'url' => '/archive', 'verb' => 'GET'],
         ['name' => 'Page#thisday', 'url' => '/thisday', 'verb' => 'GET'],

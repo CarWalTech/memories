@@ -315,11 +315,17 @@ export function getTagsFromExif(exif: any): string[][] {
   addTags(hierarchicalSubject);
   
   // Extract from Keywords (as individual tags)
-  const keywords = ensureArray(exif.Keywords).map((tag) => {
-    // Keywords might contain paths with '/' or '|' separator
-    return tag.includes('/') ? tag.split('/') : 
-           tag.includes('|') ? tag.split('|') : [tag];
-  });
+  // Keywords is not reliably a list tag (e.g. XMP-pdf:Keywords is a scalar):
+  // a writer assigning several values to it may have joined them with ", ",
+  // so split that back apart first -- otherwise two unrelated tags read back
+  // glued into one garbled hierarchical path.
+  const keywords = ensureArray(exif.Keywords).flatMap((tag) =>
+    tag.split(/,\s*/).filter(Boolean).map((part) => {
+      // Keywords might contain paths with '/' or '|' separator
+      return part.includes('/') ? part.split('/') :
+             part.includes('|') ? part.split('|') : [part];
+    })
+  );
   addTags(keywords);
   
   // Extract from Subject (as individual tags)

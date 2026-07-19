@@ -504,13 +504,24 @@ final class Exif
         if (!empty($exif['Keywords'])) {
             $keywords = $ensureArray($exif['Keywords']);
             foreach ($keywords as $keyword) {
-                // Keywords might contain paths with '/' or '|' separator
-                if (str_contains($keyword, '/')) {
-                    $addTags([$keyword], '/');
-                } elseif (str_contains($keyword, '|')) {
-                    $addTags([$keyword], '|');
-                } else {
-                    $addTags([[$keyword]], '/');
+                // Keywords is not reliably a list tag (e.g. XMP-pdf:Keywords
+                // is a scalar): a writer assigning several values to it may
+                // have joined them with ", ", so split that back apart first
+                // -- otherwise two unrelated tags read back glued into one
+                // garbled hierarchical path.
+                foreach (preg_split('/,\s*/', $keyword) as $part) {
+                    if ('' === $part) {
+                        continue;
+                    }
+
+                    // Keywords might contain paths with '/' or '|' separator
+                    if (str_contains($part, '/')) {
+                        $addTags([$part], '/');
+                    } elseif (str_contains($part, '|')) {
+                        $addTags([$part], '|');
+                    } else {
+                        $addTags([[$part]], '/');
+                    }
                 }
             }
         }
@@ -653,6 +664,16 @@ final class Exif
                 break;
         }
 
+        // Touch the file first so its mtime reflects this update. Critical
+        // in sidecar mode: the main file's bytes may not have changed on
+        // their own, but TimelineWrite::processFile compares mtime against
+        // the previously indexed row to decide whether to re-read exif --
+        // the touch must land before the event dispatch below, or the
+        // listener sees the pre-touch mtime, assumes nothing changed, and
+        // skips the reindex entirely (this DB cache is what info()/tags
+        // read from, so a skipped reindex means the edit never appears).
+        $file->touch();
+
         // Dispatch NodeWrittenEvent to trigger processing by other apps
         try {
             $eventDispatcher = \OCP\Server::get(IEventDispatcher::class);
@@ -660,13 +681,6 @@ final class Exif
         } catch (\Exception) {
             // Not our problem
         }
-
-        // Touch the file, triggering a reprocess through the hook.
-        // Critical in sidecar mode: the main file's bytes/mtime may not have
-        // changed on their own, but TimelineWrite::processFile compares mtime
-        // to decide whether to re-read exif, so this forces a re-index that
-        // picks up the (now different) sidecar-merged data.
-        $file->touch();
     }
 
     public static function getBinaryExifProp(string $path, string $prop): string
@@ -837,6 +851,16 @@ final class Exif
      */
     private static function setSidecarExif(File $file, array $data): void
     {
+        // A bare XMP file has no embedded IPTC/JPEG container to anchor the
+        // generic "Keywords" tag to, so ExifTool resolves it to the scalar
+        // XMP-pdf:Keywords property instead of a proper list. Writing more
+        // than one value there silently joins them into one comma-separated
+        // string, which a later read then mis-parses as a single (garbled)
+        // hierarchical tag, permanently merging unrelated tags together.
+        // TagsList/HierarchicalSubject/Subject already carry the same data
+        // via tags that are genuinely list-typed, so just drop it here.
+        unset($data['Keywords']);
+
         // Let this throw naturally (write path, not fail-open like reads)
         $parent = $file->getParent();
         $name = $file->getName().'.xmp';
