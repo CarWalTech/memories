@@ -109,16 +109,18 @@ export default defineComponent({
     },
 
     tagsToExifFields(tags: string[]) {
-      // If tags are being cleared, explicitly null out all fields. This must
-      // be null, not undefined: the request body is JSON-serialized, and
-      // JSON.stringify drops undefined-valued keys entirely, which would
-      // silently turn this into a no-op that leaves the old tags in place.
+      // If tags are being cleared, explicitly send empty arrays for all
+      // fields. This must not be undefined: the request body is
+      // JSON-serialized, and JSON.stringify drops undefined-valued keys
+      // entirely, which would silently turn this into a no-op that leaves
+      // the old tags in place. An empty array (rather than null) survives
+      // serialization the same way non-empty tag lists do.
       if (tags.length === 0) {
         return {
-          Keywords: null,
-          Subject: null,
-          TagsList: null,
-          HierarchicalSubject: null,
+          Keywords: [],
+          Subject: [],
+          TagsList: [],
+          HierarchicalSubject: [],
         };
       }
 
