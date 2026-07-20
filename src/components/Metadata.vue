@@ -747,11 +747,14 @@ export default defineComponent({
     },
 
     updateRating(rating: number) {
-      this.updateExif(this.fileid!, { Rating: rating === this.exif.Rating ? undefined : rating });
+      // Clicking the current rating again clears it. Clearing must send an explicit 0
+      // (xmp:Rating 0 = unrated), never undefined: JSON.stringify drops undefined keys, so the
+      // PATCH body would be empty and the clear would silently no-op.
+      this.updateExif(this.fileid!, { Rating: rating === (this.exif.Rating ?? 0) ? 0 : rating });
     },
 
     clearRating() {
-      this.updateExif(this.fileid!, { Rating: undefined });
+      this.updateExif(this.fileid!, { Rating: 0 });
     },
 
     handleFileUpdated({ fileid }: utils.BusEvent['files:file:updated']) {
