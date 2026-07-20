@@ -54,6 +54,16 @@ final class Exif
         'GPSCoordinates', 'GPSAltitude',
         'Keywords', 'Subject', 'TagsList', 'HierarchicalSubject',
         'Rating',
+        // The caption/description (XMP dc:description). This is a user-editable, sidecar-owned
+        // field: without it here, sidecar-only reads drop the value entirely (so a description
+        // set in Immich and surfaced only via the bridge's generated sidecar never displays),
+        // and writes get misrouted to the embedded file instead of the sidecar.
+        'Description',
+        // Title (XMP dc:title) and Label (XMP xmp:Label). Immich has no field for these, so the
+        // Immich File Bridge persists them straight to the on-disk .xmp and preserves them on read.
+        // Routing them through the sidecar (rather than embedding in the file) keeps them editable
+        // and durable across the Memories→bridge→Immich round-trip.
+        'Title', 'Label',
     ];
 
     private const READ_MODES = [
