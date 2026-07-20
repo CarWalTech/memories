@@ -617,6 +617,8 @@ final class Exif
 
             throw new \Exception('Could not set exif data: '.$stdout);
         }
+
+        error_log('MEMORIES_DEBUG: setExif exiftool stdout='.trim((string) $stdout).' stderr='.trim((string) $stderr));
     }
 
     /**
@@ -632,6 +634,8 @@ final class Exif
      */
     public static function setFileExif(File $file, array $data, string $writeMode = self::WRITE_MODE_FILE_ONLY): void
     {
+        error_log('MEMORIES_DEBUG: setFileExif path='.$file->getPath().' writeMode='.$writeMode.' data='.json_encode($data, JSON_UNESCAPED_UNICODE));
+
         // Tracks whether writeEmbedded() ran on $file itself (not a sidecar)
         // during this call -- if so, its bytes (and therefore mtime) already
         // changed via the write, and touch() below must be skipped: on
@@ -852,12 +856,16 @@ final class Exif
             throw new \Exception('Failed to get local file path');
         }
 
+        error_log('MEMORIES_DEBUG: writeEmbedded file='.$file->getPath().' localPath='.$path.' isLocal='.($file->getStorage()->isLocal() ? '1' : '0').' data='.json_encode($data, JSON_UNESCAPED_UNICODE));
+
         // Set exif data
         self::setExif($path, $data);
 
         // Update remote file if not local
         if (!$file->getStorage()->isLocal()) {
+            error_log('MEMORIES_DEBUG: writeEmbedded uploading '.filesize($path).' bytes back to '.$file->getPath());
             $file->putContent(fopen($path, 'r')); // closes the handler
+            error_log('MEMORIES_DEBUG: writeEmbedded upload complete for '.$file->getPath());
         }
     }
 
@@ -869,6 +877,8 @@ final class Exif
      */
     private static function setSidecarExif(File $file, array $data): void
     {
+        error_log('MEMORIES_DEBUG: setSidecarExif file='.$file->getPath().' data='.json_encode($data, JSON_UNESCAPED_UNICODE));
+
         // A bare XMP file has no embedded IPTC/JPEG container to anchor the
         // generic "Keywords" tag to, so ExifTool resolves it to the scalar
         // XMP-pdf:Keywords property instead of a proper list. Writing more
