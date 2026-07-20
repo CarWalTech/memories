@@ -1,10 +1,5 @@
 <template>
   <div class="outer" v-if="fileid">
-    <div v-if="title || description" class="exif-head" @click="editEXIF()">
-      <div class="title" v-if="title">{{ title }}</div>
-      <div class="description" v-if="description">{{ description }}</div>
-    </div>
-
     <div v-if="isShared" class="shared-by">
       <div class="section-title">{{ t('memories', 'Shared By') }}</div>
       <div class="top-field">
@@ -26,6 +21,61 @@
     </div>
 
     <div class="section-title">{{ t('memories', 'Metadata') }}</div>
+
+    <div v-if="canEdit || title" class="top-field top-field--title">
+      <div class="icon">
+        <FormatTitleIcon :size="24" />
+      </div>
+      <div class="text">
+        <span class="title">{{ t('memories', 'Title') }}</span>
+        <NcTextField
+          class="edit-field"
+          :label="t('memories', 'Title')"
+          :label-outside="true"
+          :disabled="!canEdit || lock"
+          :value.sync="editBuffer.Title"
+          @blur="saveField('Title')"
+          @keypress.enter="onEnterBlur"
+        />
+      </div>
+    </div>
+
+    <div v-if="canEdit || description" class="top-field top-field--description">
+      <div class="icon">
+        <TextBoxIcon :size="24" />
+      </div>
+      <div class="text">
+        <span class="title">{{ t('memories', 'Description') }}</span>
+        <NcTextField
+          class="edit-field"
+          :label="t('memories', 'Description')"
+          :label-outside="true"
+          :disabled="!canEdit || lock"
+          :value.sync="editBuffer.Description"
+          @blur="saveField('Description')"
+          @keypress.enter="onEnterBlur"
+        />
+      </div>
+    </div>
+
+    <div v-if="canEdit || exif.Label" class="top-field top-field--label">
+      <div class="icon">
+        <LabelIcon :size="24" />
+      </div>
+      <div class="text">
+        <span class="title">{{ t('memories', 'Label') }}</span>
+        <NcTextField
+          class="edit-field"
+          :label="t('memories', 'Label')"
+          :label-outside="true"
+          :disabled="!canEdit || lock"
+          :value.sync="editBuffer.Label"
+          @blur="saveField('Label')"
+          @keypress.enter="onEnterBlur"
+        />
+      </div>
+    </div>
+
     <div v-for="field of topFields" :key="field.title" :class="`top-field top-field--${field.id}`">
       <div class="icon">
         <component :is="field.icon" :size="24" />
@@ -134,13 +184,32 @@
 
       <div class="text">
         <div class="title">{{ t('memories', 'Rating') }}</div>
-        <RatingStars class="rating-stars-inline" :rating="rating ?? 0" :readonly="!canEdit" @update:rating="updateRating" />
+        <RatingStars
+          class="rating-stars-inline"
+          :rating="rating ?? 0"
+          :readonly="!canEdit || lock"
+          @update:rating="updateRating"
+        />
+      </div>
+
+      <div class="edit" v-if="canEdit && rating">
+        <NcActions :inline="1">
+          <NcActionButton :aria-label="t('memories', 'Clear rating')" @click="clearRating()">
+            {{ t('memories', 'Clear rating') }}
+            <template #icon> <CloseIcon :size="20" /> </template>
+          </NcActionButton>
+        </NcActions>
       </div>
     </div>
 
     <div v-if="lat && lon" class="map">
       <iframe class="fill-block" :src="mapUrl"></iframe>
     </div>
+
+    <NcButton v-if="canEdit" class="edit-all-button" type="tertiary" @click="editAll()">
+      {{ t('memories', 'Edit all metadata') }}
+      <template #icon> <EditIcon :size="20" /> </template>
+    </NcButton>
   </div>
   <div class="loading-icon fill-block" v-else-if="loading">
     <XLoadingIcon />
@@ -161,6 +230,7 @@ import NcPopover from '@nextcloud/vue/dist/Components/NcPopover.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 
 const NcAvatar = () => import('@nextcloud/vue/dist/Components/NcAvatar.js');
+const NcTextField = () => import('@nextcloud/vue/dist/Components/NcTextField.js');
 
 import axios from '@nextcloud/axios';
 import { getCanonicalLocale } from '@nextcloud/l10n';
@@ -172,6 +242,7 @@ import AlbumsList from '@components/modal/AlbumsList.vue';
 import RatingStars from '@components/RatingStars.vue';
 
 import EditIcon from 'vue-material-design-icons/Pencil.vue';
+import CloseIcon from 'vue-material-design-icons/Close.vue';
 import CalendarIcon from 'vue-material-design-icons/Calendar.vue';
 import CameraIrisIcon from 'vue-material-design-icons/CameraIris.vue';
 import ImageIcon from 'vue-material-design-icons/Image.vue';
@@ -179,6 +250,11 @@ import LocationIcon from 'vue-material-design-icons/MapMarker.vue';
 import TagIcon from 'vue-material-design-icons/Tag.vue';
 import TreeIcon from 'vue-material-design-icons/FileTree.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';
+import CopyrightIcon from 'vue-material-design-icons/Copyright.vue';
+import FormatTitleIcon from 'vue-material-design-icons/FormatTitle.vue';
+import TextBoxIcon from 'vue-material-design-icons/TextBox.vue';
+import LabelIcon from 'vue-material-design-icons/Label.vue';
+import LensIcon from 'vue-material-design-icons/ImageFilterCenterFocus.vue';
 
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
@@ -196,6 +272,9 @@ interface TopField {
   edit?: () => void;
 }
 
+/** EXIF text fields editable inline in the sidebar, saved on blur */
+const TEXT_FIELDS: (keyof IExif)[] = ['Title', 'Description', 'Label'];
+
 export default defineComponent({
   name: 'Metadata',
   components: {
@@ -205,12 +284,19 @@ export default defineComponent({
     NcChip,
     NcPopover,
     NcButton,
+    NcTextField,
     AlbumsList,
     Cluster,
     EditIcon,
+    CloseIcon,
     TagIcon,
     TreeIcon,
     StarIcon,
+    CopyrightIcon,
+    FormatTitleIcon,
+    TextBoxIcon,
+    LabelIcon,
+    LensIcon,
     RatingStars,
   },
 
@@ -227,6 +313,9 @@ export default defineComponent({
     photo: null as IPhoto | null,
     lock: false,
     error: false,
+
+    /** Local, immediately-editable mirror of the text EXIF fields, saved on blur */
+    editBuffer: {} as Partial<Record<keyof IExif, string>>,
 
     loading: 0,
     state: 0,
@@ -255,14 +344,6 @@ export default defineComponent({
         });
       }
 
-      if (this.camera) {
-        list.push({
-          title: this.camera,
-          subtitle: this.cameraSub,
-          icon: CameraIrisIcon,
-        });
-      }
-
       if (this.imageInfoTitle) {
         list.push({
           id: 'image-info', // adds class
@@ -288,11 +369,40 @@ export default defineComponent({
         });
       }
 
+      if (this.camera) {
+        list.push({
+          title: this.camera,
+          subtitle: this.cameraSub,
+          icon: CameraIrisIcon,
+          edit: this.editEXIF,
+        });
+      }
+
+      if (this.lens) {
+        list.push({
+          title: this.lens,
+          subtitle: [],
+          icon: LensIcon,
+          edit: this.editEXIF,
+        });
+      }
+
+      if (this.exif.Copyright) {
+        list.push({
+          title: this.exif.Copyright,
+          subtitle: [],
+          icon: CopyrightIcon,
+          edit: this.editEXIF,
+        });
+      }
+
       return list;
     },
 
+    /** Whether the user has permission to edit -- kept independent of `lock` so
+     * fields with no value don't flicker out of the list while a save is in flight. */
     canEdit(): boolean {
-      return this.baseInfo?.permissions?.includes('U') && !this.lock;
+      return this.baseInfo?.permissions?.includes('U') ?? false;
     },
 
     /** Title EXIF value */
@@ -391,6 +501,11 @@ export default defineComponent({
       } else {
         return `${Math.round(speed * 10) / 10}s`;
       }
+    },
+
+    /** Lens model info */
+    lens(): string | null {
+      return this.exif.LensModel || null;
     },
 
     /** Image info */
@@ -535,6 +650,7 @@ export default defineComponent({
       // reindex triggered by an edit can still be in flight, so the indexed
       // row may briefly lag behind what was just written.
       this.exif = this.baseInfo.current ?? this.baseInfo.exif ?? {};
+      this.syncEditBuffer();
 
       // Write back into the remembered IPhoto so any grid/viewer tile sharing
       // this object (e.g. Photo.vue's rating badge) reflects the fresh data
@@ -563,6 +679,26 @@ export default defineComponent({
       this.error = false;
       this.fileid = null;
       this.exif = {};
+      this.syncEditBuffer();
+    },
+
+    /** Reset the inline-editable text field buffer to match the loaded EXIF data */
+    syncEditBuffer() {
+      for (const field of TEXT_FIELDS) {
+        this.editBuffer[field] = String(this.exif[field] ?? '');
+      }
+    },
+
+    /** Save a single inline-editable text field, if its value actually changed */
+    saveField(field: keyof IExif) {
+      const value = this.editBuffer[field] ?? '';
+      if (value === String(this.exif[field] ?? '')) return;
+      this.updateExif(this.fileid!, { [field]: value } as Partial<IExif>);
+    },
+
+    /** Blur the input on Enter, triggering its save-on-blur handler */
+    onEnterBlur(e: KeyboardEvent) {
+      (e.target as HTMLInputElement)?.blur();
     },
 
     editDate() {
@@ -577,12 +713,17 @@ export default defineComponent({
       _m.modals.editMetadata([_m.viewer.currentPhoto!], [6]);
     },
 
+    editGeo() {
+      _m.modals.editMetadata([_m.viewer.currentPhoto!], [4]);
+    },
+
     editEXIF() {
       _m.modals.editMetadata([_m.viewer.currentPhoto!], [3]);
     },
 
-    editGeo() {
-      _m.modals.editMetadata([_m.viewer.currentPhoto!], [4]);
+    /** Open the full "Edit metadata" modal, covering every section */
+    editAll() {
+      _m.modals.editMetadata([_m.viewer.currentPhoto!]);
     },
 
     async updateExif(fileid: number, fields: Partial<IExif>) {
@@ -591,7 +732,7 @@ export default defineComponent({
         const raw = this.exif ?? {};
         //optimistically update the exif
         this.exif = { ...raw, ...fields };
-        await axios.patch<IImageInfo>(API.IMAGE_SETEXIF(fileid), { raw: this.exif });
+        await axios.patch<IImageInfo>(API.IMAGE_SETEXIF(fileid), { raw: fields });
       } catch (e) {
         console.error('Failed to save metadata for', fileid, e);
         if (e.response?.data?.message) {
@@ -607,6 +748,10 @@ export default defineComponent({
 
     updateRating(rating: number) {
       this.updateExif(this.fileid!, { Rating: rating === this.exif.Rating ? undefined : rating });
+    },
+
+    clearRating() {
+      this.updateExif(this.fileid!, { Rating: undefined });
     },
 
     handleFileUpdated({ fileid }: utils.BusEvent['files:file:updated']) {
@@ -732,6 +877,52 @@ export default defineComponent({
   &--image-info .title {
     user-select: all; // filename or basename
   }
+
+  &--title,
+  &--description,
+  &--label {
+    .edit-field {
+      margin-top: 2px;
+      --input-padding-start: 0px;
+      --input-padding-end: 0px;
+
+      :deep(.input-field__main-wrapper) {
+        height: auto;
+      }
+
+      :deep(.input-field__input) {
+        background: transparent;
+        box-shadow: none !important;
+        border: none;
+        border-bottom: 1px solid var(--color-border-dark);
+        border-radius: 0;
+        padding: 2px 0;
+        height: auto !important;
+        cursor: text;
+      }
+
+      :deep(.input-field__input:hover:not(:disabled)) {
+        box-shadow: none !important;
+        border-bottom-color: var(--color-main-text);
+      }
+
+      :deep(.input-field__input:focus),
+      :deep(.input-field__input:active) {
+        box-shadow: none !important;
+        border-bottom: 2px solid var(--color-primary-element);
+      }
+
+      :deep(.input-field__input:disabled) {
+        cursor: default;
+        border-bottom-style: dotted;
+      }
+    }
+  }
+}
+
+.edit-all-button {
+  margin: 10px auto 0;
+  display: flex;
 }
 
 .loading-icon {

@@ -70,5 +70,7 @@ declare module '@typings' {
     show_face_rect: boolean;
     grid_zoom: number;
     blur_thumbnails: boolean;
+    /** Whether the viewer's info sidebar should be open by default, per-device */
+    sidebar_open: boolean;
   };
 }

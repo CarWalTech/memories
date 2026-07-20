@@ -205,6 +205,8 @@ class StaticConfig {
       mobile_nav_items: ['timeline', 'explore', 'albums'],
       grid_zoom: ZOOM_DEFAULT,
       blur_thumbnails: false,
+      // Auto-open on desktop the first time, same as the old per-session default
+      sidebar_open: !utils.isMobile(),
     };
 
     const set = <K extends keyof IConfig, V extends IConfig[K]>(key: K, value: string | null) => {

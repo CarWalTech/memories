@@ -153,8 +153,11 @@ declare module '@typings' {
 
     Title?: string;
     Description?: string;
+    Label?: string;
     Make?: string;
     Model?: string;
+    LensModel?: string;
+    Copyright?: string;
 
     CreateDate?: string;
     DateTimeOriginal?: string;

@@ -913,8 +913,11 @@ div.img-outer {
 
     // Pin the remaining-tags count to the right edge of the row, i.e.
     // the bottom-right corner of the thumbnail, regardless of how much
-    // room the (shrinking) tag chips end up using
+    // room the (shrinking) tag chips end up using. Sized off the same
+    // --chip-size formula as .nc-chip above so the "+N" pill matches the
+    // tag chips' height/shape instead of reading as plain, hard-to-see text.
     .more-tags {
+      --chip-size: calc(24px * var(--zoom-scale, 1));
       font-size: 0.7em;
       flex-shrink: 0;
       margin-left: auto;
@@ -1103,6 +1106,7 @@ div.img-outer {
     }
 
     .more-tags {
+      --chip-size: calc(24px * var(--zoom-scale, 1));
       font-size: 0.7em;
       flex-shrink: 0;
       margin-left: auto;

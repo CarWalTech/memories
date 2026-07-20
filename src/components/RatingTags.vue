@@ -141,7 +141,9 @@ export default defineComponent({
     }
     
     .more-tags {
+      background-color: rgba(255, 255, 255, 0.2);
       color: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(4px);
     }
   }
 }
@@ -170,9 +172,16 @@ export default defineComponent({
 }
 
 .more-tags {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--chip-size, 24px);
+  padding: 0 calc(var(--chip-size, 24px) * 0.35);
+  border-radius: calc(var(--chip-size, 24px) / 2);
+  background-color: var(--color-background-hover);
   font-size: 0.85em;
   color: var(--color-text-lighter);
-  margin-left: 4px;
   white-space: nowrap;
 }
 

@@ -93,12 +93,19 @@ clean-dev:
 # Deploying to a local dev instance
 NEXTCLOUD_CONTAINER ?= nextcloud-app-1
 
+nextcloud-quickrefresh:
+	docker exec $(NEXTCLOUD_CONTAINER) php occ config:app:set theming cachebuster --value="$$(date +%s)"
+
 nextcloud-bump-version:
 	@perl -pi -e 's/(<version>\d+\.\d+\.\d+-DEV-)(\d+)(<\/version>)/$$1.($$2+1).$$3/e' appinfo/info.xml
 	@echo "Bumped version to $$(grep -oP '(?<=<version>).*(?=</version>)' appinfo/info.xml)"
 
 nextcloud-bumpgrade: nextcloud-bump-version
 	$(MAKE) nextcloud-upgrade
+
+nextcloud-quickbuild:
+	$(MAKE) build-js
+	$(MAKE) nextcloud-quickrefresh
 
 nextcloud-upgrade: 
 	docker exec $(NEXTCLOUD_CONTAINER) php occ upgrade
@@ -107,4 +114,4 @@ nextcloud-build: nextcloud-bump-version
 	$(MAKE) build-js
 	$(MAKE) nextcloud-upgrade
 
-.PHONY: nextcloud-bump-version nextcloud-upgrade nextcloud-build
+.PHONY: nextcloud-bump-version nextcloud-upgrade nextcloud-build 

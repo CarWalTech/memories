@@ -4,57 +4,55 @@
     ref="outer"
     class="memories_viewer outer"
     :class="{ fullyOpened, slideshowTimer }"
-    :style="{ width: outerWidth }"
     @fullscreenchange="fullscreenChange"
   >
-    <ImageEditor v-if="editorOpen && currentPhoto" :photo="currentPhoto" @close="editorOpen = false" />
+    <!-- Always full-screen and solid black, so narrowing .content for the
+         sidebar never exposes a gap of page background behind it. -->
+    <div class="content" :style="{ width: outerWidth }">
+      <ImageEditor v-if="editorOpen && currentPhoto" :photo="currentPhoto" @close="editorOpen = false" />
 
-    <!-- Loading indicator -->
-    <XLoadingIcon class="loading-icon centered" v-if="loading" />
+      <!-- Loading indicator -->
+      <XLoadingIcon class="loading-icon centered" v-if="loading" />
 
-    <div
-      ref="inner"
-      class="inner"
-      v-show="!editorOpen"
-      @pointermove.passive="setUiVisible"
-      @pointerdown.passive="setUiVisible"
-    >
-      <div class="top-bar" v-if="photoswipe" :class="{ visible: showControls }">
-        <NcActions :inline="numInlineActions" container=".memories_viewer .pswp">
-          <NcActionButton
-            v-for="action of actions"
-            :key="action.id"
-            :aria-label="action.name"
-            close-after-click
-            @click="action.callback()"
-          >
-            {{ action.name }}
-            <template #icon>
-              <component :is="action.icon" :size="24" v-bind="action.iconArgs ?? {}" />
-            </template>
-          </NcActionButton>
-        </NcActions>
-      </div>
-
-      <div class="bottom-bar" v-if="photoswipe" :class="{ visible: showBottomBar }">
-        <div class="bottom-bar-left">
-          <div class="exif title" v-if="currentPhoto?.imageInfo?.exif?.Title">
-            {{ currentPhoto.imageInfo.exif.Title }}
-          </div>
-          <div class="exif description" v-if="currentPhoto?.imageInfo?.exif?.Description">
-            {{ currentPhoto.imageInfo.exif.Description }}
-          </div>
-          <div class="exif date" v-if="currentDateTaken">
-            {{ currentDateTaken }}
-          </div>
+      <div
+        ref="inner"
+        class="inner"
+        v-show="!editorOpen"
+        @pointermove.passive="setUiVisible"
+        @pointerdown.passive="setUiVisible"
+      >
+        <div class="top-bar" v-if="photoswipe" :class="{ visible: showControls }">
+          <NcActions :inline="numInlineActions" :container="actionsContainer">
+            <NcActionButton
+              v-for="action of actions"
+              :key="action.id"
+              :aria-label="action.name"
+              close-after-click
+              @click="action.callback()"
+            >
+              {{ action.name }}
+              <template #icon>
+                <component :is="action.icon" :size="24" v-bind="action.iconArgs ?? {}" />
+              </template>
+            </NcActionButton>
+          </NcActions>
         </div>
-        <div class="bottom-bar-right" v-if="config.metadata_in_slideshow">
-          <RatingTags 
-            :rating="currentRating"
-            :tags="currentTags"
-            :slideshow="true"
-            :compact="true"
-          />
+
+        <div class="bottom-bar" v-if="photoswipe" :class="{ visible: showBottomBar }">
+          <div class="bottom-bar-left">
+            <div class="exif title" v-if="currentPhoto?.imageInfo?.exif?.Title">
+              {{ currentPhoto.imageInfo.exif.Title }}
+            </div>
+            <div class="exif description" v-if="currentPhoto?.imageInfo?.exif?.Description">
+              {{ currentPhoto.imageInfo.exif.Description }}
+            </div>
+            <div class="exif date" v-if="currentDateTaken">
+              {{ currentDateTaken }}
+            </div>
+          </div>
+          <div class="bottom-bar-right" v-if="config.metadata_in_slideshow">
+            <RatingTags :rating="currentRating" :tags="currentTags" :slideshow="true" :compact="true" />
+          </div>
         </div>
       </div>
     </div>
@@ -142,14 +140,18 @@ export default defineComponent({
     show: false,
     showControls: false,
     fullyOpened: false,
+    isFullscreen: false,
     sidebarOpen: false,
-    /** Whether the desktop-default sidebar auto-open has been triggered yet */
-    sidebarDefaultApplied: false,
     sidebarWidth: 400,
     outerWidth: '100vw',
 
-    /** User interaction detection */
+    /** User interaction detection, for auto-hiding controls */
     activityTimer: 0,
+
+    /** Whether the current vertical-drag gesture has been claimed to open the
+     * sidebar instead of letting PhotoSwipe treat it as close-on-drag. Reset
+     * on every new pointerdown (see setUiVisible). */
+    swipeIntercepted: false,
 
     /** Base dialog */
     photoswipe: null as PhotoSwipe | null,
@@ -232,6 +234,15 @@ export default defineComponent({
       }
     },
 
+    /** Where the overflow-actions popper should render. Normally the popper
+     * defaults to `body`, which lets it escape the viewer's own clipping --
+     * but while actually fullscreened (native Fullscreen API), only
+     * descendants of the fullscreen element remain visible, so it has to be
+     * anchored inside `.pswp` in that case instead. */
+    actionsContainer(): string {
+      return this.isFullscreen ? '.memories_viewer .pswp' : 'body';
+    },
+
     /** Get the currently open photo */
     currentPhoto(): IPhoto | null {
       if (!this.list.length || !this.photoswipe) return null;
@@ -246,11 +257,25 @@ export default defineComponent({
     actions(): IViewerAction[] {
       return [
         {
-          id: 'share',
-          name: this.t('memories', 'Share'),
-          icon: ShareIcon,
-          callback: this.shareCurrent,
-          if: this.canShare,
+          id: 'info',
+          name: this.t('memories', 'Info'),
+          icon: InfoIcon,
+          callback: this.toggleSidebar,
+          if: true,
+        },
+        {
+          id: 'favorite',
+          name: this.t('memories', 'Favorite'),
+          icon: this.isFavorite ? StarIcon : StarOutlineIcon,
+          callback: this.favoriteCurrent,
+          if: !this.routeIsPublic && !this.isLocal,
+        },
+        {
+          id: 'edit',
+          name: this.t('memories', 'Edit'),
+          icon: TuneIcon,
+          callback: this.openEditor,
+          if: this.canEdit && !this.isVideo,
         },
         {
           id: 'delete',
@@ -258,6 +283,13 @@ export default defineComponent({
           icon: DeleteIcon,
           callback: this.deleteCurrent,
           if: !this.routeIsAlbums && this.canDelete,
+        },
+        {
+          id: 'share',
+          name: this.t('memories', 'Share'),
+          icon: ShareIcon,
+          callback: this.shareCurrent,
+          if: this.canShare,
         },
         {
           id: 'remove-from-album',
@@ -276,27 +308,6 @@ export default defineComponent({
           },
           callback: this.playLivePhoto,
           if: this.isLivePhoto,
-        },
-        {
-          id: 'favorite',
-          name: this.t('memories', 'Favorite'),
-          icon: this.isFavorite ? StarIcon : StarOutlineIcon,
-          callback: this.favoriteCurrent,
-          if: !this.routeIsPublic && !this.isLocal,
-        },
-        {
-          id: 'info',
-          name: this.t('memories', 'Info'),
-          icon: InfoIcon,
-          callback: this.toggleSidebar,
-          if: true,
-        },
-        {
-          id: 'edit',
-          name: this.t('memories', 'Edit'),
-          icon: TuneIcon,
-          callback: this.openEditor,
-          if: this.canEdit && !this.isVideo,
         },
         {
           id: 'download',
@@ -490,6 +501,10 @@ export default defineComponent({
     /** User interacted with the page with mouse */
     setUiVisible(event: PointerEvent | false) {
       clearTimeout(this.activityTimer);
+      if (event && event.type === 'pointerdown') {
+        // Fresh gesture: allow another swipe-up-to-open-sidebar attempt
+        this.swipeIntercepted = false;
+      }
       if (event) {
         // If directly triggered, always update ui visibility
         // If triggered through a pointer event, only update if this is not
@@ -539,6 +554,9 @@ export default defineComponent({
         hideAnimationDuration: 250,
 
         closeTitle: this.t('memories', 'Close'),
+        closeSVG:
+          '<svg aria-hidden="true" class="pswp__icn" viewBox="0 0 24 24" width="24" height="24">' +
+          '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
         arrowPrevTitle: this.t('memories', 'Previous'),
         arrowNextTitle: this.t('memories', 'Next'),
         getViewportSizeFn: () => {
@@ -586,6 +604,32 @@ export default defineComponent({
         }
       });
 
+      // On mobile, a clear upward swipe opens the sidebar instead of letting
+      // PhotoSwipe treat it as its own close-on-vertical-drag gesture.
+      // Downward drags are untouched (still close as before).
+      //
+      // This event is only ever dispatched while the image is at its default
+      // zoom -- PhotoSwipe doesn't fire it at all while zoomed in (dragging
+      // then means panning the zoomed image instead), so this never competes
+      // with pan gestures.
+      //
+      // preventDefault() must be called on every dispatch from the very first
+      // one that qualifies, not just once some distance threshold is crossed:
+      // PhotoSwipe only decides to close (on release) if it had already begun
+      // dimming the background during earlier frames, so claiming the gesture
+      // late still lets it close. Claiming from frame one means it never pans
+      // or dims at all, so there's nothing left for it to act on at the end.
+      this.photoswipe.on('verticalDrag', (e) => {
+        if (!utils.isMobile() || this.sidebarOpen) return;
+
+        const restY = this.photoswipe?.currSlide?.bounds.center.y ?? 0;
+        if (this.swipeIntercepted || e.panY < restY) {
+          this.swipeIntercepted = true;
+          e.preventDefault();
+          this.openSidebar();
+        }
+      });
+
       // Handle keydown
       this.photoswipe.on('keydown', (e) => {
         if (e.defaultPrevented) return;
@@ -623,16 +667,14 @@ export default defineComponent({
         this.isOpen = true;
         this.fullyOpened = false;
 
-        // Open the sidebar if it was already open, or (once per session,
-        // so it doesn't fight a later explicit close) default it to open
-        // on desktop-sized screens. sidebarOpen itself is only flipped to
-        // true once the sidebar actually reports opening (see
+        // Open the sidebar if it was already open, or if that's the user's
+        // persisted per-device preference. sidebarOpen itself is only flipped
+        // to true once the sidebar actually reports opening (see
         // handleAppSidebarOpen), so the photo layout doesn't reserve space
         // for it before it's actually there.
-        if (this.sidebarOpen || (!this.sidebarDefaultApplied && !utils.isMobile())) {
+        if (this.sidebarOpen || this.config.sidebar_open) {
           this.openSidebar();
         }
-        this.sidebarDefaultApplied = true;
 
         nativex.setTheme('#000000', true); // viewer is always dark
       });
@@ -1213,6 +1255,11 @@ export default defineComponent({
       if (this.show && this.photoswipe) {
         this.sidebarOpen = true;
         this.photoswipe.updateSize();
+
+        if (!this.config.sidebar_open) {
+          this.config.sidebar_open = true;
+          this.updateSetting('sidebar_open');
+        }
       }
     },
 
@@ -1220,6 +1267,11 @@ export default defineComponent({
       if (this.show && this.photoswipe && this.fullyOpened) {
         this.sidebarOpen = false;
         this.photoswipe.updateSize();
+
+        if (this.config.sidebar_open) {
+          this.config.sidebar_open = false;
+          this.updateSetting('sidebar_open');
+        }
       }
     },
 
@@ -1323,7 +1375,8 @@ export default defineComponent({
      * Detect change in fullscreen
      */
     fullscreenChange() {
-      if (!document.fullscreenElement) {
+      this.isFullscreen = Boolean(document.fullscreenElement);
+      if (!this.isFullscreen) {
         this.stopSlideshow();
       }
       this.photoswipe?.updateSize();
@@ -1357,6 +1410,15 @@ export default defineComponent({
   left: 0;
   overflow: hidden;
   color: white;
+  // Always full-width and solid black -- .content (which narrows for the
+  // sidebar) sits on top of this, so there's never a gap of page background
+  // showing through while the sidebar animates in/out.
+  background: #000;
+}
+
+.content {
+  position: relative;
+  height: 100%;
 
   > .loading-icon {
     z-index: 1000000;
@@ -1367,8 +1429,12 @@ export default defineComponent({
   z-index: 100001;
   position: absolute;
   top: 8px;
-  right: 50px;
+  right: 8px;
   --default-clickable-area: 44px;
+
+  @media (min-width: 769px) {
+    right: 56px;
+  }
 
   :deep .button-vue--icon-only {
     color: white;
@@ -1478,7 +1544,12 @@ export default defineComponent({
 }
 
 :deep .pswp {
-  contain: strict;
+  // Match upstream PhotoSwipe's own containment (layout style size) rather than
+  // the stricter `strict` (which adds paint containment) -- paint containment
+  // clips any overflowing content to this box, including the NcActions overflow
+  // popper, which then gets cut off whenever it needs to render near an edge
+  // (e.g. when the sidebar narrows the available width).
+  contain: layout style size;
 
   .pswp__zoom-wrap {
     width: 100%;
@@ -1497,6 +1568,21 @@ export default defineComponent({
     }
   }
 
+  .pswp__button--close {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin-right: 0;
+  }
+
+  .pswp__counter {
+    position: absolute;
+    left: 24px;
+    top: 15px;
+    transform: translateX(24px);
+    margin: 0;
+  }
+
   .pswp__icn-shadow {
     display: none;
   }
@@ -1508,12 +1594,10 @@ export default defineComponent({
     }
   }
 
-  // Prevent the popper from overlapping with the sidebar
+  // Popper library sets its own overflow on this wrapper; make sure it can
+  // still render outside the .pswp box now that paint containment is off.
   > div > .v-popper__wrapper {
     overflow: visible !important;
-    > .v-popper__inner {
-      transform: translateX(-20px);
-    }
   }
 }
 </style>

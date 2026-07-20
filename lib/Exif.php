@@ -632,6 +632,16 @@ final class Exif
      */
     public static function setFileExif(File $file, array $data, string $writeMode = self::WRITE_MODE_FILE_ONLY): void
     {
+        // Tracks whether writeEmbedded() ran on $file itself (not a sidecar)
+        // during this call -- if so, its bytes (and therefore mtime) already
+        // changed via the write, and touch() below must be skipped: on
+        // non-local storages (e.g. a WebDAV mount) touch() re-checks
+        // file_exists() right after we just wrote the file, and if that
+        // stat races with the backend (any eventual-consistency lag), core's
+        // DAV storage falls back to file_put_contents($path, '') -- silently
+        // truncating the file we just wrote.
+        $wroteEmbeddedFile = false;
+
         switch ($writeMode) {
             case self::WRITE_MODE_SIDECAR_ONLY:
                 $sidecarData = array_intersect_key($data, array_flip(self::SIDECAR_DESCRIPTIVE_FIELDS));
@@ -642,6 +652,7 @@ final class Exif
                 }
                 if ($embeddedData) {
                     self::writeEmbedded($file, $embeddedData);
+                    $wroteEmbeddedFile = true;
                 }
 
                 break;
@@ -654,25 +665,32 @@ final class Exif
 
                 // Full data (including Orientation) still goes to the file too.
                 self::writeEmbedded($file, $data);
+                $wroteEmbeddedFile = true;
 
                 break;
 
             case self::WRITE_MODE_FILE_ONLY:
             default:
                 self::writeEmbedded($file, $data);
+                $wroteEmbeddedFile = true;
 
                 break;
         }
 
-        // Touch the file first so its mtime reflects this update. Critical
-        // in sidecar mode: the main file's bytes may not have changed on
-        // their own, but TimelineWrite::processFile compares mtime against
-        // the previously indexed row to decide whether to re-read exif --
-        // the touch must land before the event dispatch below, or the
-        // listener sees the pre-touch mtime, assumes nothing changed, and
-        // skips the reindex entirely (this DB cache is what info()/tags
-        // read from, so a skipped reindex means the edit never appears).
-        $file->touch();
+        // Touch the file so its mtime reflects this update -- but only when
+        // writeEmbedded() didn't just run on it. Critical in sidecar mode:
+        // the main file's bytes may not have changed on their own, but
+        // TimelineWrite::processFile compares mtime against the previously
+        // indexed row to decide whether to re-read exif -- the touch must
+        // land before the event dispatch below, or the listener sees the
+        // pre-touch mtime, assumes nothing changed, and skips the reindex
+        // entirely (this DB cache is what info()/tags read from, so a
+        // skipped reindex means the edit never appears). When the file WAS
+        // just rewritten, its mtime is already fresh from that write, so
+        // touching it again is both unnecessary and (per above) unsafe.
+        if (!$wroteEmbeddedFile) {
+            $file->touch();
+        }
 
         // Dispatch NodeWrittenEvent to trigger processing by other apps
         try {

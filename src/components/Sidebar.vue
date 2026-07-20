@@ -1,32 +1,48 @@
 <template>
-  <aside id="app-sidebar-vue" class="app-sidebar reduced" v-if="reducedOpen">
-    <div class="top-info" v-if="info">
-      <div class="title">
-        <h2>{{ info.basename }}</h2>
-
-        <NcActions :inline="1">
-          <NcActionButton :aria-label="t('memories', 'Close')" @click="close()">
-            {{ t('memories', 'Close') }}
+  <transition name="sidebar-slide">
+    <aside
+      id="app-sidebar-vue"
+      class="app-sidebar reduced"
+      v-if="reducedOpen"
+      @touchstart.passive="touchstart"
+      @touchmove.passive="touchmove"
+      @touchend.passive="touchend"
+    >
+      <div class="top-info" v-if="info">
+        <div class="title-row">
+          <NcButton
+            class="close-button"
+            type="tertiary-no-background"
+            :aria-label="t('memories', 'Close')"
+            @click="close()"
+          >
             <template #icon> <CloseIcon :size="20" /> </template>
-          </NcActionButton>
-        </NcActions>
+          </NcButton>
+          <h2>{{ info.basename }}</h2>
+        </div>
+
+        <div class="action-row">
+          <div class="subtitle">
+            <span v-if="info.size">{{ utils.humanFileSize(info.size) }}</span>
+            <span v-if="info.mtime">{{ utils.getFromNowStr(new Date(info.mtime * 1000)) }}</span>
+          </div>
+        </div>
+
+        <NcButton v-if="canOpenNative" class="open-native" type="tertiary" @click="openNative()">
+          {{ t('memories', 'Open in Files sidebar') }}
+          <template #icon> <OpenInNewIcon :size="18" /> </template>
+        </NcButton>
       </div>
 
-      <div class="subtitle">
-        <span v-if="info.size">{{ utils.humanFileSize(info.size) }}</span>
-        <span v-if="info.mtime">{{ utils.getFromNowStr(new Date(info.mtime * 1000)) }}</span>
-      </div>
-    </div>
-
-    <Metadata ref="metadata" />
-  </aside>
+      <Metadata ref="metadata" />
+    </aside>
+  </transition>
 </template>
 
 <script lang="ts">
 import Vue, { defineComponent } from 'vue';
 
-import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
-import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import { registerDavProperty } from '@nextcloud/files/dav';
 
 import Metadata from '@components/Metadata.vue';
@@ -36,15 +52,16 @@ import * as utils from '@services/utils';
 import type { IImageInfo, IPhoto } from '@typings';
 
 import CloseIcon from 'vue-material-design-icons/Close.vue';
+import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue';
 import InfoSvg from '@assets/info.svg';
 
 export default defineComponent({
   name: 'Sidebar',
   components: {
     Metadata,
-    NcActions,
-    NcActionButton,
+    NcButton,
     CloseIcon,
+    OpenInNewIcon,
   },
 
   data: () => ({
@@ -54,6 +71,15 @@ export default defineComponent({
     lastKnownWidth: 0,
     nativeMetadata: null as null | InstanceType<typeof Metadata>,
     utils: Object.freeze(utils),
+
+    /** Filename of the photo currently shown in the reduced sidebar,
+     * only set when the native Files sidebar is also available for it. */
+    nativeFilename: null as string | null,
+
+    /** Swipe-down-to-close tracking (mobile only) */
+    swipeActive: false,
+    swipeStartY: 0,
+    swipeCurrentY: 0,
   }),
 
   computed: {
@@ -65,6 +91,11 @@ export default defineComponent({
 
     native() {
       return globalThis.OCA?.Files?.Sidebar;
+    },
+
+    /** Whether the "Open in Files sidebar" button should be shown */
+    canOpenNative(): boolean {
+      return Boolean(this.native && this.nativeFilename);
     },
   },
 
@@ -97,14 +128,17 @@ export default defineComponent({
 
   methods: {
     async open(photo: IPhoto | number, filename?: string, useNative = false) {
-      if (!this.reducedOpen && this.native && (!photo || useNative)) {
-        // Open native sidebar
+      if (!this.reducedOpen && this.native && !photo) {
+        // Explicit request to open the native sidebar directly (e.g. sharing UI)
         this.nativeInit();
         this.native?.setFullScreenMode?.(true);
         this.native?.open(filename);
       } else {
-        // Open reduced sidebar
+        // Open the Memories-styled reduced sidebar. The native Files sidebar
+        // (sharing, activity, comments, etc.) stays one click away via the
+        // "Open in Files sidebar" button, instead of replacing this view.
         this.reducedOpen = true;
+        this.nativeFilename = useNative ? (filename ?? null) : null;
         await this.$nextTick();
 
         // Update metadata compoenent
@@ -112,6 +146,14 @@ export default defineComponent({
         if (!this.info) return; // failure or state change
         this.handleOpen();
       }
+    },
+
+    /** Close the reduced sidebar and open the full native Files sidebar instead */
+    openNative() {
+      if (!this.nativeFilename) return;
+      const filename = this.nativeFilename;
+      this.close();
+      this.open(0, filename, true);
     },
 
     async close() {
@@ -128,6 +170,48 @@ export default defineComponent({
 
     isOpen() {
       return this.reducedOpen || this.nativeOpen;
+    },
+
+    /** Start of a potential swipe-down-to-close gesture (mobile only) */
+    touchstart(e: TouchEvent) {
+      if (!utils.isMobile()) return;
+
+      // Only take over the gesture when already scrolled to the top,
+      // so normal scrolling within the sidebar isn't hijacked.
+      const el = e.currentTarget as HTMLElement;
+      if (el.scrollTop > 0) return;
+
+      this.swipeStartY = this.swipeCurrentY = e.touches[0].clientY;
+      this.swipeActive = true;
+    },
+
+    touchmove(e: TouchEvent) {
+      if (!this.swipeActive) return;
+      this.swipeCurrentY = e.touches[0].clientY;
+
+      // Follow the finger downward (never upward -- already fully open)
+      const delta = Math.max(0, this.swipeCurrentY - this.swipeStartY);
+      const el = e.currentTarget as HTMLElement;
+      el.style.transition = 'none';
+      el.style.transform = delta ? `translateY(${delta}px)` : '';
+    },
+
+    touchend(e: TouchEvent) {
+      if (!this.swipeActive) return;
+      this.swipeActive = false;
+
+      const el = e.currentTarget as HTMLElement;
+
+      if (this.swipeCurrentY - this.swipeStartY > 80) {
+        // Past the threshold: let go and let the leave-transition take over
+        el.style.transition = '';
+        el.style.transform = '';
+        this.close();
+      } else {
+        // Short of the threshold: animate back to fully open
+        el.style.transition = 'transform 0.2s ease';
+        el.style.transform = '';
+      }
     },
 
     setTab(tab: string) {
@@ -255,8 +339,8 @@ export default defineComponent({
   position: fixed;
   top: 0;
   right: 0;
-  width: 27vw;
-  min-width: 300px;
+  width: 34vw;
+  min-width: 380px;
   height: 100% !important;
   z-index: 2525;
   padding: 10px;
@@ -273,10 +357,15 @@ export default defineComponent({
     padding-right: 0;
   }
 
-  .title {
+  .title-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 4px;
+
+    .close-button {
+      flex-shrink: 0;
+      margin-left: -10px; // flush with the sidebar's left edge
+    }
 
     h2 {
       overflow: hidden;
@@ -286,11 +375,35 @@ export default defineComponent({
     }
   }
 
+  .action-row {
+    margin-top: 4px;
+  }
+
   .subtitle {
     color: var(--color-text-lighter);
     > span {
       margin-right: 4px;
     }
+  }
+
+  .open-native {
+    margin-top: 8px;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+// Slide up/down to match the swipe-up-to-open / swipe-down-to-close
+// gestures, mobile only (desktop keeps the instant show/hide).
+@media (max-width: 512px) {
+  .sidebar-slide-enter-active,
+  .sidebar-slide-leave-active {
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar-slide-enter,
+  .sidebar-slide-leave-to {
+    transform: translateY(100%);
   }
 }
 </style>
@@ -298,7 +411,7 @@ export default defineComponent({
 <style lang="scss">
 // Prevent sidebar from becoming too big
 #app-sidebar-vue {
-  max-width: 360px !important;
+  max-width: 480px !important;
   position: fixed !important;
 
   &.reduced {

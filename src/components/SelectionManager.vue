@@ -12,7 +12,7 @@
         {{ n('memories', '{n} selected', '{n} selected', size, { n: size }) }}
       </div>
 
-      <NcActions :inline="3">
+      <NcActions :inline="5">
         <NcActionButton
           v-for="action of getActions()"
           :key="action.name"
@@ -206,6 +206,41 @@ export default defineComponent({
     // Make default actions
     this.defaultActions = [
       {
+        name: t('memories', 'Favorite'),
+        icon: StarIcon,
+        callback: this.favoriteSelection.bind(this),
+      },
+      {
+        name: t('memories', 'Move to folder'),
+        icon: FolderMoveIcon,
+        callback: this.moveToFolder.bind(this),
+        if: () => !this.routeIsAlbums && !this.routeIsArchiveFolder(),
+      },
+      {
+        name: t('memories', 'Add to album'),
+        icon: AlbumsIcon,
+        callback: this.addToAlbum.bind(this),
+        if: (self: any) => self.config.albums_enabled && !self.routeIsAlbums,
+      },
+      {
+        name: t('memories', 'Remove from album'),
+        icon: AlbumRemoveIcon,
+        callback: this.deleteSelection.bind(this),
+        if: () => this.routeIsAlbums,
+      },
+      {
+        name: t('memories', 'Archive'),
+        icon: ArchiveIcon,
+        callback: this.archiveSelection.bind(this),
+        if: () => !this.routeIsArchiveFolder() && !this.routeIsAlbums,
+      },
+      {
+        name: t('memories', 'Unarchive'),
+        icon: UnarchiveIcon,
+        callback: this.archiveSelection.bind(this),
+        if: () => this.routeIsArchiveFolder(),
+      },
+      {
         name: t('memories', 'Delete'),
         icon: DeleteIcon,
         callback: (selection: Selection) =>
@@ -222,12 +257,6 @@ export default defineComponent({
         if: () => this.selectionHasFolders() && this.selection.size === 1,
       },
       {
-        name: t('memories', 'Remove from album'),
-        icon: AlbumRemoveIcon,
-        callback: this.deleteSelection.bind(this),
-        if: () => this.routeIsAlbums,
-      },
-      {
         name: t('memories', 'Share'),
         icon: ShareIcon,
         callback: this.shareSelection.bind(this),
@@ -239,23 +268,6 @@ export default defineComponent({
         callback: this.downloadSelection.bind(this),
         allowPublic: true,
         if: () => !this.initstate.noDownload,
-      },
-      {
-        name: t('memories', 'Favorite'),
-        icon: StarIcon,
-        callback: this.favoriteSelection.bind(this),
-      },
-      {
-        name: t('memories', 'Archive'),
-        icon: ArchiveIcon,
-        callback: this.archiveSelection.bind(this),
-        if: () => !this.routeIsArchiveFolder() && !this.routeIsAlbums,
-      },
-      {
-        name: t('memories', 'Unarchive'),
-        icon: UnarchiveIcon,
-        callback: this.archiveSelection.bind(this),
-        if: () => this.routeIsArchiveFolder(),
       },
       {
         name: t('memories', 'Edit metadata'),
@@ -278,18 +290,6 @@ export default defineComponent({
         icon: ImageCheckIcon,
         callback: this.setClusterCover.bind(this),
         if: () => this.selection.size === 1 && this.routeIsCluster && !this.routeIsRecognizeUnassigned,
-      },
-      {
-        name: t('memories', 'Move to folder'),
-        icon: FolderMoveIcon,
-        callback: this.moveToFolder.bind(this),
-        if: () => !this.routeIsAlbums && !this.routeIsArchiveFolder(),
-      },
-      {
-        name: t('memories', 'Add to album'),
-        icon: AlbumsIcon,
-        callback: this.addToAlbum.bind(this),
-        if: (self: any) => self.config.albums_enabled && !self.routeIsAlbums,
       },
       {
         id: 'face-move',
