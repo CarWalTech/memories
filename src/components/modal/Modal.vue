@@ -170,8 +170,8 @@ export default defineComponent({
     .modal-wrapper > .modal-container {
       max-height: calc(99% - env(keyboard-inset-height, 0px));
       height: unset;
-      top: unset;
-      bottom: env(keyboard-inset-height, 0px);
+      top: 0;
+      bottom: unset;
 
       // Hide scrollbar
       scrollbar-width: none;
