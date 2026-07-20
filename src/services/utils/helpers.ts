@@ -21,7 +21,10 @@ export const isAdmin = Boolean(getCurrentUser()?.isAdmin);
  * Check if width <= 768px
  */
 export function isMobile() {
-  return _m.window.innerWidth <= 768;
+  // _m.window is only populated in the main app (see globals.d.ts) -- fall
+  // back to the real window when running under admin.ts, which has no
+  // resize-cache wiring for it.
+  return (_m.window?.innerWidth ?? window.innerWidth) <= 768;
 }
 
 /** Preview generation options */

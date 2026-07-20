@@ -21,7 +21,17 @@
             <template #icon> <PlusIcon :size="20" /> </template>
           </NcActionButton>
         </NcActions>
-        <ViewOptionsAction />
+        <ViewOptionsAction>
+          <template v-if="isAlbumList">
+            <NcActionSeparator />
+
+            <NcActionCaption :name="t('memories', 'Album options')" />
+
+            <NcActionCheckbox :checked="config.show_hidden_albums" @update:checked="toggleShowHiddenAlbums">
+              {{ t('memories', 'Show hidden albums') }}
+            </NcActionCheckbox>
+          </template>
+        </ViewOptionsAction>
         <FilterDropdownButton />
         <RefreshOptionsAction />
         <NcActions :inline="isMobile ? 0 : 2" v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
@@ -83,6 +93,8 @@ import UserConfig from '@mixins/UserConfig';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
+import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
+import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 
 import axios from '@nextcloud/axios';
 
@@ -111,6 +123,8 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     NcActionCheckbox,
+    NcActionCaption,
+    NcActionSeparator,
 
     AlbumCreateModal,
     AlbumDeleteModal,
@@ -158,6 +172,11 @@ export default defineComponent({
   methods: {
     back() {
       this.$router.go(-1);
+    },
+
+    toggleShowHiddenAlbums(): void {
+      this.config.show_hidden_albums = !this.config.show_hidden_albums;
+      this.updateSetting('show_hidden_albums', 'showHiddenAlbums');
     },
 
     openShareModal() {

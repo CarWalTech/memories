@@ -145,68 +145,26 @@
       </NcAppSettingsSection>
 
       <NcAppSettingsSection id="metadata-settings" :name="names.metadata">
-        <div class="radio-group">
+        <div class="select-group">
           <div class="title">{{ t('memories', 'Where to write edited metadata (dates, location, tags, rating)') }}</div>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_write_mode"
-            value="sidecar_only"
-            name="metadata_write_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataWriteMode($event)"
-            >{{ t('memories', 'Sidecars only (created if needed)') }}
-          </NcCheckboxRadioSwitch>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_write_mode"
-            value="file_only"
-            name="metadata_write_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataWriteMode($event)"
-            >{{ t('memories', 'Photo metadata only') }}
-          </NcCheckboxRadioSwitch>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_write_mode"
-            value="file_and_sidecar"
-            name="metadata_write_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataWriteMode($event)"
-            >{{ t('memories', 'Photo metadata and sidecars') }}
-          </NcCheckboxRadioSwitch>
+          <NcSelect
+            v-model="metadataWriteMode"
+            :options="metadataWriteModeOptions"
+            :reduce="reduceMetadataMode"
+            :clearable="false"
+            label="label"
+          />
         </div>
 
-        <div class="radio-group">
+        <div class="select-group">
           <div class="title">{{ t('memories', 'Where to read metadata from, when a sidecar file exists') }}</div>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_read_mode"
-            value="sidecar_only"
-            name="metadata_read_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataReadMode($event)"
-            >{{ t('memories', 'Sidecar only (fall back to photo if no sidecar exists)') }}
-          </NcCheckboxRadioSwitch>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_read_mode"
-            value="prefer_sidecar"
-            name="metadata_read_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataReadMode($event)"
-            >{{ t('memories', 'Prioritize sidecar data') }}
-          </NcCheckboxRadioSwitch>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_read_mode"
-            value="prefer_file"
-            name="metadata_read_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataReadMode($event)"
-            >{{ t('memories', 'Prioritize photo metadata') }}
-          </NcCheckboxRadioSwitch>
-          <NcCheckboxRadioSwitch
-            :checked="config.metadata_read_mode"
-            value="file_only"
-            name="metadata_read_mode_radio"
-            type="radio"
-            @update:checked="updateMetadataReadMode($event)"
-            >{{ t('memories', 'Photo metadata only (ignore sidecars)') }}
-          </NcCheckboxRadioSwitch>
+          <NcSelect
+            v-model="metadataReadMode"
+            :options="metadataReadModeOptions"
+            :reduce="reduceMetadataMode"
+            :clearable="false"
+            label="label"
+          />
         </div>
       </NcAppSettingsSection>
 
@@ -266,32 +224,16 @@
           @click="chooseFavoriteFolders"
           readonly
         />
-
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.show_hidden_folders"
-          @update:checked="updateShowHidden"
-          type="switch"
-        >
-          {{ t('memories', 'Show hidden folders') }}
-        </NcCheckboxRadioSwitch>
-
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.show_empty_folders"
-          @update:checked="updateShowEmpty"
-          type="switch"
-        >
-          {{ t('memories', 'Show empty folders') }}
-        </NcCheckboxRadioSwitch>
       </NcAppSettingsSection>
 
-      <NcAppSettingsSection id="albums-settings" :name="names.albums">
-        <NcCheckboxRadioSwitch
-          :checked.sync="config.show_hidden_albums"
-          @update:checked="updateShowHidden"
-          type="switch"
-        >
-          {{ t('memories', 'Show hidden albums') }}
-        </NcCheckboxRadioSwitch>
+      <NcAppSettingsSection id="admin-settings" :name="names.admin" v-if="isAdmin">
+        <p class="settings-hint">
+          {{ t('memories', 'Server-wide indexing, external storage, and other admin-only options.') }}
+        </p>
+        <NcButton @click="openAdminSettings" type="secondary">
+          {{ t('memories', 'Open admin settings') }}
+          <template #icon><OpenInNewIcon :size="20" /></template>
+        </NcButton>
       </NcAppSettingsSection>
     </NcAppSettingsDialog>
 
@@ -328,6 +270,7 @@ import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 import * as nativex from '@native';
 import { availableNavState, withRequiredNavItem, REQUIRED_NAV_ITEM, type AvailableNavItem } from '@services/nav-items';
+import { generateUrl } from '@nextcloud/router';
 
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 const NcTextField = () => import('@nextcloud/vue/dist/Components/NcTextField.js');
@@ -340,6 +283,7 @@ import MultiPathSelectionModal from '@components/modal/MultiPathSelectionModal.v
 
 import DragHandleIcon from 'vue-material-design-icons/DragVertical.vue';
 import CloseIcon from 'vue-material-design-icons/Close.vue';
+import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue';
 
 import type { IConfig } from '@typings';
 
@@ -357,6 +301,7 @@ export default defineComponent({
     draggable,
     DragHandleIcon,
     CloseIcon,
+    OpenInNewIcon,
   },
 
   mixins: [UserConfig],
@@ -375,7 +320,7 @@ export default defineComponent({
       metadata: t('memories', 'Metadata'),
       account: t('memories', 'Account'),
       folders: t('memories', 'Folders'),
-      albums: t('memories', 'Albums'),
+      admin: t('memories', 'Administration'),
     },
     MIN_MOBILE_NAV_ITEMS: 1,
     MAX_MOBILE_NAV_ITEMS: 5,
@@ -420,12 +365,51 @@ export default defineComponent({
       return nativex.has();
     },
 
+    isAdmin(): boolean {
+      return utils.isAdmin;
+    },
+
     user(): string {
       return utils.uid ?? String();
     },
 
     highResCond(): IConfig['high_res_cond_default'] {
       return this.config.high_res_cond || this.config.high_res_cond_default || 'zoom';
+    },
+
+    metadataWriteModeOptions(): { value: IConfig['metadata_write_mode']; label: string }[] {
+      return [
+        { value: 'sidecar_only', label: this.t('memories', 'Sidecars only (created if needed)') },
+        { value: 'file_only', label: this.t('memories', 'Photo metadata only') },
+        { value: 'file_and_sidecar', label: this.t('memories', 'Photo metadata and sidecars') },
+      ];
+    },
+
+    metadataWriteMode: {
+      get(): IConfig['metadata_write_mode'] {
+        return this.config.metadata_write_mode;
+      },
+      set(val: IConfig['metadata_write_mode']) {
+        this.updateMetadataWriteMode(val);
+      },
+    },
+
+    metadataReadModeOptions(): { value: IConfig['metadata_read_mode']; label: string }[] {
+      return [
+        { value: 'sidecar_only', label: this.t('memories', 'Sidecar only (fall back to photo if no sidecar exists)') },
+        { value: 'prefer_sidecar', label: this.t('memories', 'Prioritize sidecar data') },
+        { value: 'prefer_file', label: this.t('memories', 'Prioritize photo metadata') },
+        { value: 'file_only', label: this.t('memories', 'Photo metadata only (ignore sidecars)') },
+      ];
+    },
+
+    metadataReadMode: {
+      get(): IConfig['metadata_read_mode'] {
+        return this.config.metadata_read_mode;
+      },
+      set(val: IConfig['metadata_read_mode']) {
+        this.updateMetadataReadMode(val);
+      },
     },
 
     mobileNavOrder: {
@@ -582,6 +566,10 @@ export default defineComponent({
       await this.updateSetting('sidebar_filepath', 'sidebarFilepath');
     },
 
+    reduceMetadataMode(opt: { value: string }): string {
+      return opt.value;
+    },
+
     async updateMetadataWriteMode(val: IConfig['metadata_write_mode']) {
       this.config.metadata_write_mode = val;
       await this.updateSetting('metadata_write_mode', 'metadataWriteMode');
@@ -596,14 +584,9 @@ export default defineComponent({
       await this.updateSetting('metadata_in_slideshow', 'metadataInSlideshow');
     },
 
-    // Folders settings
-    async updateShowHidden() {
-      await this.updateSetting('show_hidden_folders', 'showHidden');
-      await this.updateSetting('show_hidden_albums', 'showHiddenAlbums');
-    },
-
-    async updateShowEmpty() {
-      await this.updateSetting('show_empty_folders', 'showEmpty');
+    // Admin settings
+    openAdminSettings(): void {
+      window.open(generateUrl('/settings/admin/memories'), '_blank');
     },
 
     // --------------- Native APIs start -----------------------------
@@ -669,6 +652,15 @@ export default defineComponent({
 
     .checkbox-radio-switch-radio {
       margin: 2px 16px; // indent for radio button
+    }
+  }
+
+  .select-group {
+    margin-top: 6px;
+
+    .title {
+      font-weight: 500;
+      margin-bottom: 4px;
     }
   }
 
