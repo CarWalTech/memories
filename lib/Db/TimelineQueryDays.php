@@ -377,11 +377,23 @@ trait TimelineQueryDays
 
         // Get filter parameters from request
         $minRating = (int) $this->request->getParam('minRating') ?: 0;
+        $maxRating = (int) $this->request->getParam('maxRating') ?: 0;
         $embeddedTags = $this->getEmbeddedTagsFromRequest();
         $embeddedTagActive = null !== $this->request->getParam('embeddedtag');
         $embeddedTagPath = trim((string) $this->request->getParam('embeddedtagpath'));
         $embeddedTagRecursive = null !== $this->request->getParam('recursive');
         $filterExpr = FilterExpression::fromRequest($this->request);
+        // Camera filters (only relevant here -- the SQL path, gated on
+        // shouldFilterExifBySQL(), is never wired up when this whole
+        // PHP-fallback function is in use in the first place, since
+        // shouldFilterExifBySQL() is false whenever this path runs. Filename/
+        // filepath/date-range/file-type filters need no PHP fallback: they
+        // have no EXIF/dialect dependency, so they're always applied exactly
+        // by SQL in the outer getDays() query that produced $rows already,
+        // regardless of which post-processing path runs afterward.)
+        $camMake = trim((string) $this->request->getParam('camMake', ''));
+        $camModel = trim((string) $this->request->getParam('camModel', ''));
+        $camLens = trim((string) $this->request->getParam('camLens', ''));
 
         // Get day IDs for filtering
         $dayIds = array_map(static fn ($row) => (int) $row['dayid'], $rows);
@@ -438,6 +450,22 @@ trait TimelineQueryDays
             // Apply EXIF filters
             if ($minRating > 0) {
                 $dayPhotos = array_filter($dayPhotos, static fn ($photo) => ($photo['rating'] ?? 0) >= $minRating);
+            }
+
+            if ($maxRating > 0) {
+                $dayPhotos = array_filter($dayPhotos, static fn ($photo) => ($photo['rating'] ?? 0) <= $maxRating);
+            }
+
+            if ('' !== $camMake) {
+                $dayPhotos = array_filter($dayPhotos, static fn ($photo) => 0 === strcasecmp((string) ($photo['exif']['Make'] ?? ''), $camMake));
+            }
+
+            if ('' !== $camModel) {
+                $dayPhotos = array_filter($dayPhotos, static fn ($photo) => 0 === strcasecmp((string) ($photo['exif']['Model'] ?? ''), $camModel));
+            }
+
+            if ('' !== $camLens) {
+                $dayPhotos = array_filter($dayPhotos, static fn ($photo) => 0 === strcasecmp((string) ($photo['exif']['LensModel'] ?? ''), $camLens));
             }
 
             if (!empty($embeddedTags)) {

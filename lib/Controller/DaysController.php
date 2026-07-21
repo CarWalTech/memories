@@ -118,9 +118,11 @@ final class DaysController extends GenericApiController
             $transforms[] = [$this->tq, 'transformMapBoundsFilter', $bounds];
         }
 
-        // Min rating filter - only if SQL filtering is enabled
-        if ($this->tq->shouldFilterExifBySQL() && ($minRating = $this->getMinRating())) {
-            $transforms[] = [$this->tq, 'transformMinRatingFilter', $minRating];
+        // Rating range filter - only if SQL filtering is enabled
+        $minRating = $this->getMinRating();
+        $maxRating = $this->getMaxRating();
+        if ($this->tq->shouldFilterExifBySQL() && ($minRating > 0 || $maxRating > 0)) {
+            $transforms[] = [$this->tq, 'transformRatingRangeFilter', $minRating, $maxRating];
         }
 
         // Embedded tags filter - only if SQL filtering is enabled
@@ -128,6 +130,38 @@ final class DaysController extends GenericApiController
             if (!empty($embeddedTags)) {
                 $transforms[] = [$this->tq, 'transformEmbeddedTagsFilter', $embeddedTags];
             }
+        }
+
+        // Filename / filepath filters - plain filecache lookups, no EXIF/dialect dependency
+        if ('' !== ($filename = trim((string) $this->request->getParam('filename', '')))) {
+            $transforms[] = [$this->tq, 'transformFilenameFilter', $filename];
+        }
+        if ('' !== ($filepath = trim((string) $this->request->getParam('filepath', '')))) {
+            $transforms[] = [$this->tq, 'transformFilepathFilter', $filepath];
+        }
+
+        // Date range filter (dayId range resolved from plain YYYY-MM-DD dates)
+        [$dateStartDayId, $dateEndDayId] = $this->getDateRangeFilter();
+        if (null !== $dateStartDayId || null !== $dateEndDayId) {
+            $transforms[] = [$this->tq, 'transformDateRangeFilter', $dateStartDayId, $dateEndDayId];
+        }
+
+        // File type filter (mimetype patterns, e.g. "image/%" or a specific format)
+        if (!empty($mimePatterns = $this->getFileTypePatterns())) {
+            $transforms[] = [$this->tq, 'transformFileTypeFilter', $mimePatterns];
+        }
+
+        // Camera make/model/lens filter - only if SQL filtering is enabled
+        $camMake = trim((string) $this->request->getParam('camMake', ''));
+        $camModel = trim((string) $this->request->getParam('camModel', ''));
+        $camLens = trim((string) $this->request->getParam('camLens', ''));
+        if ($this->tq->shouldFilterExifBySQL() && ('' !== $camMake || '' !== $camModel || '' !== $camLens)) {
+            $transforms[] = [
+                $this->tq, 'transformCameraFilter',
+                '' !== $camMake ? $camMake : null,
+                '' !== $camModel ? $camModel : null,
+                '' !== $camLens ? $camLens : null,
+            ];
         }
 
         // Tag/embeddedTag/recognize/facerecognition/place boolean expression
@@ -274,6 +308,11 @@ final class DaysController extends GenericApiController
         return (int) $this->request->getParam('minRating') ?? 0;
     }
 
+    private function getMaxRating(): int
+    {
+        return (int) $this->request->getParam('maxRating', 0);
+    }
+
     private function getEmbeddedTags(): array
     {
         $embeddedTagsParam = $this->request->getParam('embeddedTags');
@@ -285,5 +324,62 @@ final class DaysController extends GenericApiController
         }
 
         return [];
+    }
+
+    /**
+     * Resolve the `dateStart`/`dateEnd` request params (plain "YYYY-MM-DD"
+     * dates, e.g. an HTML date input's native value -- deliberately not
+     * dayIds or timestamps, so the frontend never has to know about the
+     * dayid=floor(localUnixTime/86400) convention or replicate it) into a
+     * dayId range, using the exact same "treat the date as if it were
+     * already UTC" convention TimelineWrite uses when computing dayid for a
+     * photo (see its "assume everything happens in Greenwich" comment) --
+     * this must match that convention exactly, or date-range filtering would
+     * be silently off by a day for some users.
+     *
+     * @return array{0: ?int, 1: ?int} [startDayId, endDayId], either may be null
+     */
+    private function getDateRangeFilter(): array
+    {
+        return [
+            $this->dateStringToDayId((string) $this->request->getParam('dateStart', '')),
+            $this->dateStringToDayId((string) $this->request->getParam('dateEnd', '')),
+        ];
+    }
+
+    private function dateStringToDayId(string $date): ?int
+    {
+        $date = trim($date);
+        if ('' === $date) {
+            return null;
+        }
+
+        // The "!" prefix resets every field the format doesn't specify
+        // (H:i:s and beyond) to the Unix epoch's defaults, i.e. midnight --
+        // so this is always exactly midnight on the given date, in UTC.
+        $dt = \DateTime::createFromFormat('!Y-m-d', $date, new \DateTimeZone('UTC'));
+        if (false === $dt) {
+            return null;
+        }
+
+        return intdiv($dt->getTimestamp(), 86400);
+    }
+
+    /**
+     * Resolve the `fileType` request param into a list of mimetype LIKE
+     * patterns. Accepts a comma-separated list of either a wildcard prefix
+     * (e.g. "image/%" for every image, "video/%" for every video) or an
+     * exact mimetype (e.g. "image/x-canon-cr2" for a specific RAW format).
+     *
+     * @return string[]
+     */
+    private function getFileTypePatterns(): array
+    {
+        $param = (string) $this->request->getParam('fileType', '');
+        if ('' === $param) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', urldecode($param)))));
     }
 }

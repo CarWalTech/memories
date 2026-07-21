@@ -245,6 +245,58 @@ final class SQL
     }
 
     /**
+     * Build a SQL boolean expression testing whether $column matches
+     * $pattern: a regex (MySQL/MariaDB `REGEXP`, PostgreSQL `~`) if $pattern
+     * looks like one, otherwise a case-insensitive substring LIKE. On DBs
+     * without a supported regex operator (SQLite, Oracle), a
+     * regex-shaped pattern silently falls back to a literal LIKE match
+     * instead of being treated as a real regex -- coarser, but never errors
+     * and never excludes the plain-substring case within it.
+     *
+     * Shared by every free-text pattern filter in this app (embedded tags
+     * dictionary search, filename/filepath filters) so the regex-detection
+     * heuristic and per-dialect operator choice live in exactly one place.
+     */
+    public static function patternMatchColumn(IQueryBuilder $query, string $column, string $pattern): string
+    {
+        if (self::isRegexPattern($pattern)) {
+            $provider = $query->getConnection()->getDatabaseProvider();
+            $param = $query->createNamedParameter($pattern);
+
+            $regexExpr = match ($provider) {
+                IDBConnection::PLATFORM_MYSQL => "{$column} REGEXP {$param}",
+                IDBConnection::PLATFORM_POSTGRES => "{$column} ~ {$param}",
+                default => null,
+            };
+
+            if (null !== $regexExpr) {
+                return $regexExpr;
+            }
+        }
+
+        return self::likePatternColumn($query, $column, $pattern);
+    }
+
+    /**
+     * Heuristic: does $pattern contain characters that suggest it's meant as
+     * a regex rather than a plain substring search?
+     */
+    private static function isRegexPattern(string $pattern): bool
+    {
+        return 1 === preg_match('/[.*+?^${}()|[\]\\\]/', $pattern);
+    }
+
+    private static function likePatternColumn(IQueryBuilder $query, string $column, string $pattern): string
+    {
+        $escaped = '%'.str_replace(['%', '_'], ['\%', '\_'], $pattern).'%';
+        $param = $query->createNamedParameter($escaped);
+
+        return IDBConnection::PLATFORM_POSTGRES === $query->getConnection()->getDatabaseProvider()
+            ? "{$column} ILIKE {$param}"
+            : "LOWER({$column}) LIKE LOWER({$param})";
+    }
+
+    /**
      * TRUNCATE a table (remove all rows and reset auto-increment).
      * This wrapper should be removed when support for Nextcloud <32 is dropped.
      *

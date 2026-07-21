@@ -11,9 +11,12 @@ use OCP\ITags;
 
 trait TimelineQueryFilters
 {
-    public function transformMinRatingFilter(IQueryBuilder &$query, bool $aggregate, int $minRating): void
+    /**
+     * @param int $maxRating 0 means unbounded (no maximum)
+     */
+    public function transformRatingRangeFilter(IQueryBuilder &$query, bool $aggregate, int $minRating, int $maxRating = 0): void
     {
-        if ($minRating <= 0) {
+        if ($minRating <= 0 && $maxRating <= 0) {
             return;
         }
 
@@ -24,8 +27,142 @@ trait TimelineQueryFilters
 
         // Dialect-aware JSON extraction (MySQL JSON_EXTRACT / Postgres jsonb cast)
         $ratingExpr = SQL::jsonExifNumeric($query, 'Rating');
-        $query->andWhere("{$ratingExpr} >= :minRating");
-        $query->setParameter('minRating', $minRating, IQueryBuilder::PARAM_INT);
+
+        if ($minRating > 0) {
+            $query->andWhere("{$ratingExpr} >= :minRating");
+            $query->setParameter('minRating', $minRating, IQueryBuilder::PARAM_INT);
+        }
+
+        if ($maxRating > 0) {
+            $query->andWhere("{$ratingExpr} <= :maxRating");
+            $query->setParameter('maxRating', $maxRating, IQueryBuilder::PARAM_INT);
+        }
+    }
+
+    /**
+     * Filter to photos whose filename (basename) matches $pattern -- see
+     * SQL::patternMatchColumn() for LIKE/regex semantics. Uses a correlated
+     * EXISTS on filecache rather than a direct `f.name` reference because the
+     * aggregate days-list query (TimelineQueryDays::getDays()) does not join
+     * filecache as `f` (only the per-day query does), so this must work
+     * without relying on any particular join being present.
+     */
+    public function transformFilenameFilter(IQueryBuilder &$query, bool $aggregate, string $pattern): void
+    {
+        $pattern = trim($pattern);
+        if ('' === $pattern) {
+            return;
+        }
+
+        $sub = $query->getConnection()->getQueryBuilder();
+        $sub->select($sub->expr()->literal(1))
+            ->from('filecache', 'fnf_f')
+            ->where($sub->expr()->eq('fnf_f.fileid', 'm.fileid'))
+            ->andWhere(SQL::patternMatchColumn($query, 'fnf_f.name', $pattern))
+        ;
+
+        $query->andWhere("EXISTS ({$sub->getSQL()})");
+    }
+
+    /**
+     * Filter to photos whose filecache path matches $pattern. Note
+     * `filecache.path` is storage-relative, not necessarily the exact
+     * human-visible Nextcloud path -- acceptable for a substring/regex
+     * search, but callers should present this as "matches folder path"
+     * rather than promising an exact path match.
+     */
+    public function transformFilepathFilter(IQueryBuilder &$query, bool $aggregate, string $pattern): void
+    {
+        $pattern = trim($pattern);
+        if ('' === $pattern) {
+            return;
+        }
+
+        $sub = $query->getConnection()->getQueryBuilder();
+        $sub->select($sub->expr()->literal(1))
+            ->from('filecache', 'fpf_f')
+            ->where($sub->expr()->eq('fpf_f.fileid', 'm.fileid'))
+            ->andWhere(SQL::patternMatchColumn($query, 'fpf_f.path', $pattern))
+        ;
+
+        $query->andWhere("EXISTS ({$sub->getSQL()})");
+    }
+
+    /**
+     * Filter to photos taken on a day within [$startDayId, $endDayId]
+     * (inclusive on both ends; either bound may be null for unbounded).
+     * Callers are responsible for converting a human-facing date range into
+     * dayIds (see DaysController::getDateRangeFilter()) -- this only needs
+     * the already-resolved integers, same as the bucket-id range conversion
+     * TimelineQueryDays::getDay() already does for week/month/year grouping.
+     */
+    public function transformDateRangeFilter(IQueryBuilder &$query, bool $aggregate, ?int $startDayId, ?int $endDayId): void
+    {
+        if (null !== $startDayId) {
+            $query->andWhere($query->expr()->gte('m.dayid', $query->createNamedParameter($startDayId, IQueryBuilder::PARAM_INT)));
+        }
+
+        if (null !== $endDayId) {
+            $query->andWhere($query->expr()->lte('m.dayid', $query->createNamedParameter($endDayId, IQueryBuilder::PARAM_INT)));
+        }
+    }
+
+    /**
+     * Filter to photos whose mimetype matches any of $mimePatterns (each a
+     * plain value or a LIKE pattern, e.g. "image/%" for every image type, or
+     * an exact "image/x-canon-cr2" for a specific RAW format). Correlated
+     * EXISTS for the same reason as transformFilenameFilter() -- `mimetypes`
+     * is only joined in the per-day query, not the aggregate days-list one.
+     *
+     * @param string[] $mimePatterns
+     */
+    public function transformFileTypeFilter(IQueryBuilder &$query, bool $aggregate, array $mimePatterns): void
+    {
+        if (empty($mimePatterns)) {
+            return;
+        }
+
+        $sub = $query->getConnection()->getQueryBuilder();
+        $sub->select($sub->expr()->literal(1))
+            ->from('filecache', 'ftf_f')
+            ->innerJoin('ftf_f', 'mimetypes', 'ftf_mt', $sub->expr()->eq('ftf_f.mimetype', 'ftf_mt.id'))
+            ->where($sub->expr()->eq('ftf_f.fileid', 'm.fileid'))
+        ;
+
+        $or = $sub->expr()->orX();
+        foreach ($mimePatterns as $pattern) {
+            $or->add($sub->expr()->like('ftf_mt.mimetype', $query->createNamedParameter($pattern, IQueryBuilder::PARAM_STR)));
+        }
+        $sub->andWhere($or);
+
+        $query->andWhere("EXISTS ({$sub->getSQL()})");
+    }
+
+    /**
+     * Filter to photos with an exact (case-insensitive) camera Make/Model/
+     * LensModel. Each parameter is independent -- pass null/empty to leave
+     * that field unconstrained. Exact equality (not substring) is
+     * intentional: these values come from a fixed, known vocabulary per
+     * account (a "pick from the cameras used in your library" UI), not a
+     * free-text search.
+     */
+    public function transformCameraFilter(IQueryBuilder &$query, bool $aggregate, ?string $make, ?string $model, ?string $lens): void
+    {
+        if (!$this->shouldFilterExifBySQL()) {
+            return;
+        }
+
+        if (null !== $make && '' !== $make) {
+            $this->addExifTextEquals($query, 'Make', $make, 'camMake');
+        }
+
+        if (null !== $model && '' !== $model) {
+            $this->addExifTextEquals($query, 'Model', $model, 'camModel');
+        }
+
+        if (null !== $lens && '' !== $lens) {
+            $this->addExifTextEquals($query, 'LensModel', $lens, 'camLens');
+        }
     }
 
     /**
@@ -144,5 +281,17 @@ trait TimelineQueryFilters
         ;
 
         return SQL::subquery($query, $sub);
+    }
+
+    /**
+     * AND a case-insensitive equality condition on a decoded EXIF text field.
+     * $paramName distinguishes multiple calls within the same query (e.g.
+     * transformCameraFilter() calling this for Make, Model, and LensModel).
+     */
+    private function addExifTextEquals(IQueryBuilder &$query, string $field, string $value, string $paramName): void
+    {
+        $textExpr = SQL::jsonExifText($query, $field);
+        $query->andWhere("LOWER({$textExpr}) = LOWER(:{$paramName})");
+        $query->setParameter($paramName, $value, IQueryBuilder::PARAM_STR);
     }
 }

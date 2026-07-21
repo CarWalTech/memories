@@ -43,37 +43,10 @@ trait EmbeddedTagsQueryFilters
             return;
         }
 
-        // Try to determine if this is a regex pattern or simple search
-        if ($this->isRegexPattern($pattern)) {
-            // Use REGEXP for MySQL/MariaDB or similar for other databases
-            $dbType = $this->connection->getDatabasePlatform()->getName();
-
-            if (\in_array($dbType, ['mysql', 'mariadb'], true)) {
-                $query->andWhere($query->expr()->orX(
-                    $query->createFunction('et.tag REGEXP '.$query->createNamedParameter($pattern)),
-                    $query->createFunction('et.path REGEXP '.$query->createNamedParameter($pattern)),
-                ));
-            } elseif ('postgresql' === $dbType) {
-                $query->andWhere($query->expr()->orX(
-                    $query->createFunction('et.tag ~ '.$query->createNamedParameter($pattern)),
-                    $query->createFunction('et.path ~ '.$query->createNamedParameter($pattern)),
-                ));
-            } else {
-                // Fallback to LIKE for SQLite and others
-                $likePattern = '%'.$this->escapeLikePattern($pattern).'%';
-                $query->andWhere($query->expr()->orX(
-                    $query->expr()->like('et.tag', $query->createNamedParameter($likePattern)),
-                    $query->expr()->like('et.path', $query->createNamedParameter($likePattern)),
-                ));
-            }
-        } else {
-            // Use LIKE for simple text search
-            $likePattern = '%'.$this->escapeLikePattern($pattern).'%';
-            $query->andWhere($query->expr()->orX(
-                $query->expr()->like('et.tag', $query->createNamedParameter($likePattern)),
-                $query->expr()->like('et.path', $query->createNamedParameter($likePattern)),
-            ));
-        }
+        $or = $query->expr()->orX();
+        $or->add(SQL::patternMatchColumn($query, 'et.tag', $pattern));
+        $or->add(SQL::patternMatchColumn($query, 'et.path', $pattern));
+        $query->andWhere($or);
     }
 
     /**
@@ -98,22 +71,5 @@ trait EmbeddedTagsQueryFilters
         if ($offset >= 0) {
             $query->setFirstResult($offset);
         }
-    }
-
-    /**
-     * Check if the pattern looks like a regex.
-     */
-    private function isRegexPattern(string $pattern): bool
-    {
-        // Simple heuristic: check for common regex characters
-        return 1 === preg_match('/[.*+?^${}()|[\]\\\]/', $pattern);
-    }
-
-    /**
-     * Escape special characters for LIKE pattern.
-     */
-    private function escapeLikePattern(string $pattern): string
-    {
-        return str_replace(['%', '_'], ['\%', '\_'], $pattern);
     }
 }
