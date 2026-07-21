@@ -8,6 +8,13 @@
       </NcNoteCard>
     </template>
 
+    <template v-if="status">
+      <NcNoteCard :type="binaryStatusType(status.perl, false)">
+        {{ binaryStatus('perl', status.perl) }}
+        {{ t('memories', 'You need perl only if the packaged exiftool binary does not work for some reason.') }}
+      </NcNoteCard>
+    </template>
+
     <NcTextField
       :label="t('memories', 'Path to packaged exiftool binary')"
       :label-visible="true"
@@ -15,13 +22,6 @@
       @change="update('memories.exiftool', $event.target.value)"
       readonly
     />
-
-    <template v-if="status">
-      <NcNoteCard :type="binaryStatusType(status.perl, false)">
-        {{ binaryStatus('perl', status.perl) }}
-        {{ t('memories', 'You need perl only if the packaged exiftool binary does not work for some reason.') }}
-      </NcNoteCard>
-    </template>
 
     <NcCheckboxRadioSwitch
       :checked.sync="config['memories.exiftool_no_local']"
