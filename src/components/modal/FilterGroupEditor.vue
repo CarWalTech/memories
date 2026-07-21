@@ -2,17 +2,10 @@
   <div class="filter-group-editor" :class="{ nested: depth > 0 }">
     <div class="group-header" v-if="showOpSelector">
       <span class="op-label">{{ t('memories', 'Match') }}</span>
-      <NcSelect
-        class="op-select"
-        :model-value="opOption"
-        @update:modelValue="onOpChange"
-        :options="opOptions"
-        :clearable="false"
-        :disabled="disabled"
-        :append-to-body="false"
-        label="label"
-        track-by="value"
-      />
+      <select class="op-select" v-model="opValue" :disabled="disabled">
+        <option value="and">{{ t('memories', 'AND') }}</option>
+        <option value="or">{{ t('memories', 'OR') }}</option>
+      </select>
     </div>
 
     <div class="group-children">
@@ -78,7 +71,6 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-import NcSelect from '@nextcloud/vue/dist/Components/NcSelect.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js';
 
@@ -88,15 +80,12 @@ import { translate as t } from '@services/l10n';
 import { asRow, rowToNode, unwrapNot, defaultRow, emptyGroup, type FilterRow } from '@services/filter-expression';
 import type { FilterGroup, FilterNode } from '@typings';
 
-type IOpOption = { value: 'and' | 'or'; label: string };
-
 type IChildDescriptor = { kind: 'row'; row: FilterRow; index: number } | { kind: 'group'; group: FilterGroup; negated: boolean; index: number };
 
 export default defineComponent({
   name: 'FilterGroupEditor',
 
   components: {
-    NcSelect,
     NcButton,
     NcCheckboxRadioSwitch,
     FilterConditionRow,
@@ -130,20 +119,27 @@ export default defineComponent({
   }),
 
   computed: {
-    opOptions(): IOpOption[] {
-      return [
-        { value: 'and', label: t('memories', 'AND') },
-        { value: 'or', label: t('memories', 'OR') },
-      ];
+    opValue: {
+      get(): 'and' | 'or' {
+        return this.modelValue.op as 'and' | 'or';
+      },
+      set(op: 'and' | 'or') {
+        this.emitUpdate(this.modelValue.children, op);
+      },
     },
 
-    opOption(): IOpOption {
-      return this.opOptions.find((o) => o.value === this.modelValue.op) ?? this.opOptions[0];
-    },
-
-    /** Only meaningful (and only shown) once there's something to combine */
+    /**
+     * Only meaningful (and only shown) once there are 2+ *total* conditions
+     * to combine, counting an in-progress draft as one -- a draft counts
+     * once it exists (children.length alone would miss it), but a draft
+     * alone (children.length === 0) is still just 1 total item, not 2, so
+     * this must sum them rather than OR the two conditions independently
+     * (which showed the selector as soon as any draft opened, even for a
+     * brand new first-ever condition with nothing yet to combine it with).
+     */
     showOpSelector(): boolean {
-      return this.modelValue.children.length > 1 || !!this.newRowDraft || !!this.newGroupDraft;
+      const draftCount = (this.newRowDraft ? 1 : 0) + (this.newGroupDraft ? 1 : 0);
+      return this.modelValue.children.length + draftCount > 1;
     },
 
     childDescriptors(): IChildDescriptor[] {
@@ -162,10 +158,6 @@ export default defineComponent({
   },
 
   methods: {
-    onOpChange(option: IOpOption | null) {
-      if (!option) return;
-      this.emitUpdate(this.modelValue.children, option.value);
-    },
 
     updateChild(index: number, newNode: FilterNode | null) {
       const children = [...this.modelValue.children];
@@ -271,8 +263,12 @@ export default defineComponent({
   }
 
   .op-select {
-    min-width: 80px;
-    width: 80px;
+    width: 70px;
+    padding: 4px 6px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border-dark);
+    background: var(--color-main-background);
+    color: var(--color-main-text);
   }
 }
 

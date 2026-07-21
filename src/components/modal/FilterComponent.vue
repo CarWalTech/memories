@@ -1,13 +1,6 @@
 <template>
   <div class="filter-component">
     <form @submit.prevent>
-      <!-- Favorites -->
-      <div class="filter-section">
-        <NcCheckboxRadioSwitch type="switch" :checked="filters.favorite" @update:checked="onFavoriteChange">
-          {{ t('memories', 'Favorites only') }}
-        </NcCheckboxRadioSwitch>
-      </div>
-
       <!-- Filename / filepath -->
       <div class="filter-section">
         <label class="filter-label">{{ t('memories', 'Filename') }}</label>
@@ -28,12 +21,13 @@
           <NcButton v-if="filters.dateStart || filters.dateEnd" type="tertiary-no-background" :aria-label="t('memories', 'Clear date range')" @click="clearDateRange">
             <template #icon><CloseIcon :size="14" /></template>
           </NcButton>
-        </div>
-        <div class="date-presets">
-          <NcButton type="tertiary" @click="applyDatePreset('last7')">{{ t('memories', 'Last 7 days') }}</NcButton>
-          <NcButton type="tertiary" @click="applyDatePreset('last30')">{{ t('memories', 'Last 30 days') }}</NcButton>
-          <NcButton type="tertiary" @click="applyDatePreset('thisMonth')">{{ t('memories', 'This month') }}</NcButton>
-          <NcButton type="tertiary" @click="applyDatePreset('thisYear')">{{ t('memories', 'This year') }}</NcButton>
+          <NcActions :aria-label="t('memories', 'Date presets')" :container="false">
+            <template #icon><DotsHorizontalIcon :size="20" /></template>
+            <NcActionButton @click="applyDatePreset('last7')">{{ t('memories', 'Last 7 days') }}</NcActionButton>
+            <NcActionButton @click="applyDatePreset('last30')">{{ t('memories', 'Last 30 days') }}</NcActionButton>
+            <NcActionButton @click="applyDatePreset('thisMonth')">{{ t('memories', 'This month') }}</NcActionButton>
+            <NcActionButton @click="applyDatePreset('thisYear')">{{ t('memories', 'This year') }}</NcActionButton>
+          </NcActions>
         </div>
       </div>
 
@@ -64,19 +58,21 @@
       <div class="filter-section">
         <label class="filter-label">{{ t('memories', 'Rating') }}</label>
         <div class="rating-row">
-          <span class="rating-caption">{{ t('memories', 'At least') }}</span>
-          <RatingStars :rating="filters.minRating" :size="18" @update:rating="onMinRatingChange" />
-          <NcButton v-if="filters.minRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear minimum rating')" @click="onMinRatingChange(0)">
-            <template #icon><CloseIcon :size="14" /></template>
-          </NcButton>
+          <select class="rating-select" v-model.number="filters.minRating" @change="emitFilterChange">
+            <option v-for="opt in ratingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <span class="rating-sep">{{ t('memories', 'to') }}</span>
+          <select class="rating-select" v-model.number="filters.maxRating" @change="emitFilterChange">
+            <option v-for="opt in ratingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
         </div>
-        <div class="rating-row">
-          <span class="rating-caption">{{ t('memories', 'At most') }}</span>
-          <RatingStars :rating="filters.maxRating" :size="18" @update:rating="onMaxRatingChange" />
-          <NcButton v-if="filters.maxRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear maximum rating')" @click="onMaxRatingChange(0)">
-            <template #icon><CloseIcon :size="14" /></template>
-          </NcButton>
-        </div>
+      </div>
+
+      <!-- Favorites -->
+      <div class="filter-section">
+        <NcCheckboxRadioSwitch type="switch" :checked="filters.favorite" @update:checked="onFavoriteChange">
+          {{ t('memories', 'Favorites only') }}
+        </NcCheckboxRadioSwitch>
       </div>
 
       <!-- Tag / embedded tag / people / places expression builder -->
@@ -106,11 +102,13 @@ import type { IFilters } from '@typings';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import NcTextField from '@nextcloud/vue/dist/Components/NcTextField.js';
 import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js';
+import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
+import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import CloseIcon from 'vue-material-design-icons/Close.vue';
+import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 
-import RatingStars from '@components/common/RatingStars.vue';
 import FilterExpressionBuilder from './FilterExpressionBuilder.vue';
 import { defineComponent, type PropType } from 'vue';
 import { emptyFilters, hasActiveFilters } from '@services/filters';
@@ -127,8 +125,10 @@ export default defineComponent({
     NcButton,
     NcTextField,
     NcCheckboxRadioSwitch,
-    RatingStars,
+    NcActions,
+    NcActionButton,
     CloseIcon,
+    DotsHorizontalIcon,
     FilterExpressionBuilder,
   },
 
@@ -154,6 +154,10 @@ export default defineComponent({
   computed: {
     hasActiveFilters(): boolean {
       return hasActiveFilters(this.filters);
+    },
+
+    ratingOptions(): { value: number; label: string }[] {
+      return [0, 1, 2, 3, 4, 5].map((n) => ({ value: n, label: 0 === n ? t('memories', 'Any') : '★'.repeat(n) }));
     },
   },
 
@@ -185,16 +189,6 @@ export default defineComponent({
 
     clearFilterExpr() {
       this.filters.filterExpr = null;
-      this.emitFilterChange();
-    },
-
-    onMinRatingChange(rating: number) {
-      this.filters.minRating = rating;
-      this.emitFilterChange();
-    },
-
-    onMaxRatingChange(rating: number) {
-      this.filters.maxRating = rating;
       this.emitFilterChange();
     },
 
@@ -297,12 +291,21 @@ export default defineComponent({
 .rating-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 
-  .rating-caption {
-    font-size: 12px;
+  .rating-select {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border-dark);
+    background: var(--color-main-background);
+    color: var(--color-main-text);
+  }
+
+  .rating-sep {
     color: var(--color-text-maxcontrast);
-    min-width: 56px;
+    font-size: 12px;
   }
 }
 
@@ -324,12 +327,6 @@ export default defineComponent({
   .date-sep {
     color: var(--color-text-maxcontrast);
   }
-}
-
-.date-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 .filetype-row,
