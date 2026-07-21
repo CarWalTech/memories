@@ -3,7 +3,7 @@
     <NcSelect
       class="field-select"
       :model-value="fieldOption"
-      @update:model-value="onFieldChange"
+      @update:modelValue="onFieldChange"
       :options="fieldOptions"
       :clearable="false"
       :disabled="disabled"
@@ -12,13 +12,13 @@
       track-by="value"
     />
 
-    <ClusterValuePicker class="value-picker" :field="modelValue.field" :multiple="true" :model-value="modelValue.values" @update:model-value="onValuesChange" :disabled="disabled" />
+    <ClusterValuePicker class="value-picker" :field="modelValue.field" :multiple="true" :model-value="modelValue.values" @update:modelValue="onValuesChange" :disabled="disabled" />
 
     <NcSelect
       v-if="modelValue.values.length > 1"
       class="mode-select"
       :model-value="modeOption"
-      @update:model-value="onModeChange"
+      @update:modelValue="onModeChange"
       :options="modeOptions"
       :clearable="false"
       :disabled="disabled"

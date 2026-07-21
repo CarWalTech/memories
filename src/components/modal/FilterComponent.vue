@@ -30,11 +30,11 @@
       <!-- Filename / filepath -->
       <div class="filter-section">
         <label class="filter-label">{{ t('memories', 'Filename') }}</label>
-        <NcTextField :value.sync="filters.filename" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'e.g. IMG_2024 or a regex')" />
+        <NcTextField :value="filters.filename" @update:value="onFieldInput('filename', $event)" :label-outside="true" :placeholder="t('memories', 'e.g. IMG_2024 or a regex')" />
       </div>
       <div class="filter-section">
         <label class="filter-label">{{ t('memories', 'Folder path') }}</label>
-        <NcTextField :value.sync="filters.filepath" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'e.g. Vacation/2024')" />
+        <NcTextField :value="filters.filepath" @update:value="onFieldInput('filepath', $event)" :label-outside="true" :placeholder="t('memories', 'e.g. Vacation/2024')" />
       </div>
 
       <!-- Date range -->
@@ -73,16 +73,16 @@
       <div class="filter-section">
         <label class="filter-label">{{ t('memories', 'Camera') }}</label>
         <div class="camera-row">
-          <NcTextField :value.sync="filters.camMake" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'Make')" />
-          <NcTextField :value.sync="filters.camModel" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'Model')" />
-          <NcTextField :value.sync="filters.camLens" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'Lens')" />
+          <NcTextField :value="filters.camMake" @update:value="onFieldInput('camMake', $event)" :label-outside="true" :placeholder="t('memories', 'Make')" />
+          <NcTextField :value="filters.camModel" @update:value="onFieldInput('camModel', $event)" :label-outside="true" :placeholder="t('memories', 'Model')" />
+          <NcTextField :value="filters.camLens" @update:value="onFieldInput('camLens', $event)" :label-outside="true" :placeholder="t('memories', 'Lens')" />
         </div>
       </div>
 
       <!-- Tag / embedded tag / people / places expression builder -->
       <div class="filter-section">
         <label class="filter-label">{{ t('memories', 'Tags & People') }}</label>
-        <FilterExpressionBuilder v-model="filters.filterExpr" :disabled="disabled" @update:modelValue="emitFilterChange" />
+        <FilterExpressionBuilder :model-value="filters.filterExpr" :disabled="disabled" @update:modelValue="onFilterExprChange" />
       </div>
 
       <!-- Filter Actions -->
@@ -168,7 +168,13 @@ export default defineComponent({
       this.$emit('filter-change', { ...this.filters });
     },
 
-    onScalarChange() {
+    onFieldInput(field: 'filename' | 'filepath' | 'camMake' | 'camModel' | 'camLens', value: string) {
+      this.filters[field] = value;
+      this.emitFilterChange();
+    },
+
+    onFilterExprChange(value: IFilters['filterExpr']) {
+      this.filters.filterExpr = value;
       this.emitFilterChange();
     },
 

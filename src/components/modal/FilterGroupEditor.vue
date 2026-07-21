@@ -5,7 +5,7 @@
       <NcSelect
         class="op-select"
         :model-value="opOption"
-        @update:model-value="onOpChange"
+        @update:modelValue="onOpChange"
         :options="opOptions"
         :clearable="false"
         :disabled="disabled"
