@@ -8,6 +8,7 @@
     :placeholder="placeholder"
     :disabled="disabled"
     :keep-open="true"
+    :append-to-body="false"
     label="label"
     track-by="value"
   />

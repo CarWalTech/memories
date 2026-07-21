@@ -7,6 +7,7 @@
       :options="fieldOptions"
       :clearable="false"
       :disabled="disabled"
+      :append-to-body="false"
       label="label"
       track-by="value"
     />
@@ -21,6 +22,7 @@
       :options="modeOptions"
       :clearable="false"
       :disabled="disabled"
+      :append-to-body="false"
       label="label"
       track-by="value"
     />
