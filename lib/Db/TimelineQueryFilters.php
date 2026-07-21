@@ -70,6 +70,22 @@ trait TimelineQueryFilters
         }
     }
 
+    /**
+     * WHERE-clause pre-filter for the tag/embeddedTag/recognize/
+     * facerecognition/place boolean expression builder (see FilterExpression
+     * for the full design). This is a safe superset, not the final answer:
+     * every embeddedTag leaf is uncertain in SQL (same reasoning as
+     * transformEmbeddedTagsFilter() above), so any row this lets through
+     * still needs FilterExpression::evaluate() run against its real data
+     * before a match is treated as final -- see
+     * TimelineQueryDays::hasFilterExprActive() and its callers.
+     */
+    public function transformFilterExprFilter(IQueryBuilder &$query, bool $aggregate, array $tree): void
+    {
+        $sql = FilterExpression::compileSqlSuperset($tree, $query);
+        $query->andWhere($sql);
+    }
+
     public function transformFavoriteFilter(IQueryBuilder &$query, bool $aggregate): void
     {
         if (Util::isLoggedIn()) {

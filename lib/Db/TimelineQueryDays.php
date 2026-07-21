@@ -58,14 +58,20 @@ trait TimelineQueryDays
         $rows = $this->executeQueryWithCTEs($query)->fetchAll();
 
         // Apply PHP post-filtering if SQL filtering is disabled, OR if an
-        // embedded-tags filter is active. The SQL-level embedded-tags
-        // condition (transformEmbeddedTagsFilter()) is a coarse, superset-safe
-        // text pre-filter, not an exact tag match (see its docblock), so the
-        // day list/counts still need this authoritative PHP recheck even when
-        // SQL filtering is otherwise enabled. Rating alone needs no recheck:
-        // SQL matches it exactly (unambiguous numeric comparison), so it's
-        // safe to trust postProcessDays() (no re-verification) in that case.
-        if (!$this->shouldFilterExifBySQL() || $this->hasEmbeddedTagFilterActive()) {
+        // embedded-tags filter is active, OR if a filter expression is
+        // active. The SQL-level embedded-tags condition
+        // (transformEmbeddedTagsFilter()) is a coarse, superset-safe text
+        // pre-filter, not an exact tag match (see its docblock), so the day
+        // list/counts still need this authoritative PHP recheck even when
+        // SQL filtering is otherwise enabled. A filter expression tree always
+        // needs this recheck too, even for trees using only exact fields
+        // (tag/recognize/facerecognition/place): it's simpler and safer to
+        // always re-verify the whole tree in PHP than to reason about which
+        // shapes could theoretically be trusted from SQL alone (see
+        // FilterExpression). Rating alone needs no recheck: SQL matches it
+        // exactly (unambiguous numeric comparison), so it's safe to trust
+        // postProcessDays() (no re-verification) in that case.
+        if (!$this->shouldFilterExifBySQL() || $this->hasEmbeddedTagFilterActive() || $this->hasFilterExprActive()) {
             $rows = $this->postProcessDaysWithFilters($rows, $groupMode);
         } else {
             // Post process the days normally
@@ -225,6 +231,33 @@ trait TimelineQueryDays
             });
         }
 
+        // Filter by the tag/embeddedTag/recognize/facerecognition/place
+        // boolean expression tree (see FilterExpression), if active. Applied
+        // unconditionally here (like the embeddedtagpath block above) for the
+        // same reason: this is the one place both the days-list preload and
+        // the actual per-day photo fetch both go through. Reads directly from
+        // the request rather than a passed-in parameter (like $embeddedTags
+        // above), so this also runs -- redundantly but harmlessly, since
+        // evaluate() is a pure function of each photo's real data -- when
+        // postProcessDaysWithFilters() re-fetches candidates via this same
+        // method; that function's own filterExpr recheck (over the same
+        // request) does the authoritative recount work anyway.
+        if ($filterExpr = FilterExpression::fromRequest($this->request)) {
+            $fields = FilterExpression::fieldsUsed($filterExpr);
+            $contexts = empty($day) ? [] : FilterExpression::buildContexts(
+                array_map(static fn ($photo) => (int) $photo['fileid'], $day),
+                $fields,
+                $this->connection,
+            );
+
+            $day = array_filter($day, static function ($photo) use ($filterExpr, $contexts) {
+                $context = $contexts[(int) $photo['fileid']] ?? [];
+                $context['embeddedTag'] = $photo['embedded_tags'] ?? [];
+
+                return FilterExpression::evaluate($filterExpr, $context);
+            });
+        }
+
         // array_filter() preserves keys, so any filter above that drops a
         // non-trailing photo leaves gaps in the numeric keys. json_encode()
         // then serializes a gappy array as a JSON object instead of an array
@@ -348,6 +381,7 @@ trait TimelineQueryDays
         $embeddedTagActive = null !== $this->request->getParam('embeddedtag');
         $embeddedTagPath = trim((string) $this->request->getParam('embeddedtagpath'));
         $embeddedTagRecursive = null !== $this->request->getParam('recursive');
+        $filterExpr = FilterExpression::fromRequest($this->request);
 
         // Get day IDs for filtering
         $dayIds = array_map(static fn ($row) => (int) $row['dayid'], $rows);
@@ -379,6 +413,20 @@ trait TimelineQueryDays
                 $photosByDay[$dayId] = [];
             }
             $photosByDay[$dayId][] = $photo;
+        }
+
+        // Fetch real tag/recognize/facerecognition/place membership for every
+        // candidate photo once, up front, for the filterExpr recheck below
+        // (embeddedTag doesn't need a query -- each photo's embedded_tags is
+        // already populated by postProcessDayPhoto() inside the getDay() call
+        // above).
+        $filterExprContexts = [];
+        if ($filterExpr && !empty($allPhotos)) {
+            $filterExprContexts = FilterExpression::buildContexts(
+                array_map(static fn ($photo) => (int) $photo['fileid'], $allPhotos),
+                FilterExpression::fieldsUsed($filterExpr),
+                $this->connection,
+            );
         }
 
         // Apply PHP filtering and recount
@@ -413,6 +461,15 @@ trait TimelineQueryDays
                     }
 
                     return false;
+                });
+            }
+
+            if ($filterExpr) {
+                $dayPhotos = array_filter($dayPhotos, static function ($photo) use ($filterExpr, $filterExprContexts) {
+                    $context = $filterExprContexts[(int) $photo['fileid']] ?? [];
+                    $context['embeddedTag'] = $photo['embedded_tags'] ?? [];
+
+                    return FilterExpression::evaluate($filterExpr, $context);
                 });
             }
 
@@ -476,6 +533,15 @@ trait TimelineQueryDays
     private function hasEmbeddedTagFilterActive(): bool
     {
         return !empty($this->getEmbeddedTagsFromRequest()) || null !== $this->request->getParam('embeddedtag');
+    }
+
+    /**
+     * Whether a `filterExpr` boolean expression filter (see FilterExpression)
+     * is active for this request.
+     */
+    private function hasFilterExprActive(): bool
+    {
+        return null !== FilterExpression::fromRequest($this->request);
     }
 
     /**

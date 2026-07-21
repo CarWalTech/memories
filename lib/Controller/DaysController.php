@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace OCA\Memories\Controller;
 
 use OCA\Memories\ClustersBackend;
+use OCA\Memories\Db\FilterExpression;
 use OCA\Memories\Util;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -127,6 +128,17 @@ final class DaysController extends GenericApiController
             if (!empty($embeddedTags)) {
                 $transforms[] = [$this->tq, 'transformEmbeddedTagsFilter', $embeddedTags];
             }
+        }
+
+        // Tag/embeddedTag/recognize/facerecognition/place boolean expression
+        // filter. Unlike the two filters above, this is NOT gated on
+        // shouldFilterExifBySQL(): tag/recognize/facerecognition/place leaves
+        // are plain relational joins with no EXIF/dialect dependency at all,
+        // and embeddedTag leaves never attempt real SQL matching in the first
+        // place (they always compile to a safe TRUE/FALSE placeholder, see
+        // FilterExpression) -- so this works identically on every database.
+        if ($filterExpr = FilterExpression::fromRequest($this->request)) {
+            $transforms[] = [$this->tq, 'transformFilterExprFilter', $filterExpr];
         }
 
         // Limit number of responses for day query
