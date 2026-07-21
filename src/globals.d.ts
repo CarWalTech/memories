@@ -1,7 +1,7 @@
 import type Router, { type Route } from 'vue-router';
 import type { ComponentPublicInstance } from 'vue';
 
-import type PlyrType from 'plyr';
+import PlyrType = require('plyr');
 import type videojsType from 'video.js';
 
 import type { IPhoto, TimelineState } from '@typings';

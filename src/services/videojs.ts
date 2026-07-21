@@ -3,7 +3,10 @@ _m.video.videojs = videojs;
 
 import 'video.js/dist/video-js.min.css';
 
-import Plyr from 'plyr';
+// The type defs for 'plyr' incorrectly use `export =` even though the package
+// is real ESM with only a default export, which confuses default imports.
+import * as PlyrModule from 'plyr';
+const Plyr = (PlyrModule as unknown as { default: typeof globalThis.Plyr }).default;
 _m.video.Plyr = Plyr;
 import 'plyr/dist/plyr.css';
 

@@ -3,6 +3,7 @@ import { getFilePickerBuilder, showError } from '@nextcloud/dialogs';
 import { translatePlural as n, translate as t } from '@services/l10n';
 import { bus } from './event-bus';
 import { fragment } from './fragment';
+import { isMobile } from './helpers';
 
 import type { Node } from '@nextcloud/files';
 import type { IFilePickerButton } from '@nextcloud/dialogs';
@@ -151,6 +152,66 @@ export async function prompt(opts: PromptOptions): Promise<string | null> {
   );
 }
 
+/**
+ * Wait for the NC file picker dialog to be created.
+ *
+ * @param callback Callback to run when the dialog is created
+ */
+function waitForFilePicker(callback: (dialog: HTMLElement) => void) {
+  let observer: MutationObserver;
+  const timeout = setTimeout(() => observer?.disconnect(), 5000);
+
+  observer = new MutationObserver((mutations) =>
+    mutations.forEach((record) => {
+      record.addedNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        const dialog = node.matches('.file-picker') ? node : node.querySelector<HTMLElement>('.file-picker');
+        if (dialog) {
+          observer.disconnect();
+          clearTimeout(timeout);
+          callback(dialog);
+        }
+      });
+    }),
+  );
+
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * The file picker's focus trap auto-focuses its filter input whenever the
+ * previously focused element (e.g. a folder row) is removed from the DOM,
+ * which happens both on open and on every directory change. On mobile this
+ * pops up the on-screen keyboard unprompted. Blur any input that receives
+ * focus without an immediately preceding tap on that same input.
+ *
+ * @param dialog The file picker dialog element
+ */
+function preventAutoKeyboard(dialog: HTMLElement) {
+  let tapTarget: EventTarget | null = null;
+  let tapTime = 0;
+
+  dialog.addEventListener(
+    'pointerdown',
+    (e) => {
+      tapTarget = e.target;
+      tapTime = Date.now();
+    },
+    true,
+  );
+
+  dialog.addEventListener(
+    'focusin',
+    (e) => {
+      const target = e.target as HTMLElement;
+      if (target?.tagName !== 'INPUT') return;
+      if (target === tapTarget && Date.now() - tapTime < 500) return;
+      target.blur();
+    },
+    true,
+  );
+}
+
 /** Default button factory for the file picker */
 function chooseButtonFactory(nodes: Node[]): IFilePickerButton[] {
   const fileName = nodes?.[0]?.attributes?.displayName || nodes?.[0]?.basename;
@@ -185,6 +246,11 @@ export async function chooseNcFolder(
     .allowDirectories()
     .startAt(initial)
     .build();
+
+  // Stop the on-screen keyboard from popping up unprompted
+  if (isMobile()) {
+    waitForFilePicker(preventAutoKeyboard);
+  }
 
   // Choose a folder
   let folder = await fragment.wrap(picker.pick(), fragment.types.dialog);
