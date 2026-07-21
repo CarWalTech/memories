@@ -57,8 +57,15 @@ trait TimelineQueryDays
         // FETCH all days
         $rows = $this->executeQueryWithCTEs($query)->fetchAll();
 
-        // Apply post-filtering if SQL filtering is disabled
-        if (!$this->shouldFilterExifBySQL()) {
+        // Apply PHP post-filtering if SQL filtering is disabled, OR if an
+        // embedded-tags filter is active. The SQL-level embedded-tags
+        // condition (transformEmbeddedTagsFilter()) is a coarse, superset-safe
+        // text pre-filter, not an exact tag match (see its docblock), so the
+        // day list/counts still need this authoritative PHP recheck even when
+        // SQL filtering is otherwise enabled. Rating alone needs no recheck:
+        // SQL matches it exactly (unambiguous numeric comparison), so it's
+        // safe to trust postProcessDays() (no re-verification) in that case.
+        if (!$this->shouldFilterExifBySQL() || $this->hasEmbeddedTagFilterActive()) {
             $rows = $this->postProcessDaysWithFilters($rows, $groupMode);
         } else {
             // Post process the days normally
@@ -456,6 +463,19 @@ trait TimelineQueryDays
         }
 
         return [];
+    }
+
+    /**
+     * Whether any embedded-tags-based filter is active for this request: the
+     * flat multi-tag AND filter, or the folder-style tag browse. Both are only
+     * ever pre-filtered coarsely at the SQL level (see
+     * TimelineQueryFilters::transformEmbeddedTagsFilter() and
+     * ClustersBackend\EmbeddedTagsBackend::transformDayQuery()), so callers
+     * use this to decide whether an authoritative PHP recheck is still needed.
+     */
+    private function hasEmbeddedTagFilterActive(): bool
+    {
+        return !empty($this->getEmbeddedTagsFromRequest()) || null !== $this->request->getParam('embeddedtag');
     }
 
     /**

@@ -61,27 +61,16 @@ final class TimelineQuery
             return false;
         }
 
-        /** @var \OCP\IDBConnection $db */
-        $dbProvider = $this->connection->getDatabaseProvider();
-
-        if ('pgsql' === $dbProvider) {
-            // PostgreSQL - could implement later if needed
-            return false;
-        }
-        if ('mysql' === $dbProvider) {
-            // MySQL/MariaDB - supports JSON operations
-            return true;
-        }
-        if ('sqlite' === $dbProvider) {
-            // SQLite - limited JSON support
-            return false;
-        }
-        if ('oci' === $dbProvider) {
-            // Oracle - complex JSON support
-            return false;
-        }
-
-        return false;
+        // EXIF is stored as JSON text in the `memories.exif` column. It can be
+        // queried in SQL on MySQL/MariaDB (native JSON functions) and PostgreSQL
+        // (jsonb cast); the actual SQL is emitted dialect-aware via SQL::jsonExif*().
+        // SQLite/Oracle fall back to PHP post-filtering (see postProcessDaysWithFilters).
+        // Note: getDatabaseProvider() returns PLATFORM_MYSQL for MariaDB in the
+        // default (non-strict) mode, and PLATFORM_POSTGRES (not 'pgsql') for Postgres.
+        return \in_array($this->connection->getDatabaseProvider(), [
+            IDBConnection::PLATFORM_MYSQL,
+            IDBConnection::PLATFORM_POSTGRES,
+        ], true);
     }
 
     public function allowEmptyRoot(bool $value = true): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Memories\ClustersBackend;
 
 use OCA\Memories\Db\EmbeddedTagsQuery;
+use OCA\Memories\Db\SQL;
 use OCA\Memories\Db\TimelineQuery;
 use OCA\Memories\Db\TimelineRoot;
 use OCA\Memories\Db\TimelineWrite;
@@ -53,11 +54,15 @@ final class EmbeddedTagsBackend extends Backend
     #[\Override]
     public function transformDayQuery(IQueryBuilder &$query, bool $aggregate): void
     {
-        // Only a SQL-level optimization on MySQL/MariaDB. On every other DB
-        // this is a deliberate no-op: matching instead happens entirely in
-        // PHP, in TimelineQuery::getDay() (see the embeddedtagpath handling
+        // Only a SQL-level *pre-filtering* optimization (MySQL/MariaDB and
+        // PostgreSQL, per shouldFilterExifBySQL()) -- see applySQLPathMatch()
+        // for why it's coarse, not exact. On every other DB this is a
+        // deliberate no-op: matching instead happens entirely in PHP, in
+        // TimelineQueryDays::getDay() (see the embeddedtagpath handling
         // there), which is the only place both the days-list and the actual
-        // per-day photo fetch both go through.
+        // per-day photo fetch both go through -- and which also serves as the
+        // authoritative recheck for the coarse SQL pre-filter here, so an
+        // over-inclusive (never under-inclusive) SQL condition is safe.
         if (!$this->tq->shouldFilterExifBySQL()) {
             return;
         }
@@ -68,8 +73,7 @@ final class EmbeddedTagsBackend extends Backend
         // has no directly-associated photos (only child tags do), so it must match
         // nothing rather than being treated as "no filter".
         $path = trim((string) $this->request->getParam('embeddedtagpath'));
-        $recursive = null !== $this->request->getParam('recursive');
-        $this->applySQLPathMatch($query, $path, $recursive);
+        $this->applySQLPathMatch($query, $path);
     }
 
     #[\Override]
@@ -465,8 +469,15 @@ final class EmbeddedTagsBackend extends Backend
     }
 
     /**
-     * MySQL/MariaDB fast path: match photos via JSON_CONTAINS/JSON_SEARCH
-     * directly in SQL.
+     * SQL fast path (MySQL/MariaDB and PostgreSQL): use applySQLPathMatch()'s
+     * coarse pre-filter to narrow the candidate set at the DB level, then
+     * hand off to filterCandidatesByPath() for the authoritative PHP
+     * recheck -- same verification getPhotosPHP() does over the whole
+     * account, just over a much smaller pre-narrowed candidate set. Unlike
+     * TimelineQueryDays::getDay(), nothing downstream of this method
+     * re-verifies embedded tags, so this method must return exact results
+     * itself; there is deliberately no SQL-level LIMIT here (see
+     * filterCandidatesByPath()).
      *
      * @param bool          $hidden Whether to also include archived/hidden photos
      *                              (normal browsing excludes them; the tag-deletion
@@ -477,12 +488,19 @@ final class EmbeddedTagsBackend extends Backend
      */
     private function getPhotosSQL(string $name, ?int $limit, ?int $fileid, bool $hidden = false, ?TimelineRoot $root = null): array
     {
+        if ('' === $name) {
+            // Root has no directly-associated photos -- only child tags do.
+            return [];
+        }
+
         $query = $this->tq->getBuilder();
 
-        // SELECT all photos matching this tag path (always recursive: a tag's
-        // previews/cover/download represent its whole subtree, same as a folder's)
-        $query->select('m.fileid', 'f.etag')->from('memories', 'm');
-        $this->applySQLPathMatch($query, $name, true);
+        // SELECT candidate photos coarsely matching this tag path (always
+        // recursive: a tag's previews/cover/download represent its whole
+        // subtree, same as a folder's) -- exact-vs-recursive matching of the
+        // full path happens below in filterCandidatesByPath(), not in SQL.
+        $query->select('m.fileid', 'm.exif', 'f.etag')->from('memories', 'm');
+        $this->applySQLPathMatch($query, $name);
 
         // JOIN with the filecache table
         $query->innerJoin('m', 'filecache', 'f', $query->expr()->eq('m.fileid', 'f.fileid'));
@@ -490,23 +508,26 @@ final class EmbeddedTagsBackend extends Backend
         // WHERE these photos are in the user's requested folder recursively
         $query = $this->tq->filterFilecache($query, $root, true, false, $hidden);
 
-        if (null !== $limit) {
-            $query->setMaxResults($limit);
-        }
-
         // Filter by fileid if specified
         if (null !== $fileid) {
             $query->andWhere($query->expr()->eq('f.fileid', $query->createNamedParameter($fileid, \PDO::PARAM_INT)));
         }
 
-        return $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
+        // No SQL-level LIMIT: applySQLPathMatch()'s pre-filter is coarse and
+        // may include false positives that filterCandidatesByPath() below
+        // will drop, so limiting the SQL result here could return fewer than
+        // $limit true matches even when more exist among the candidates.
+        $rows = $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
+
+        return $this->filterCandidatesByPath($rows, $name, true, $limit);
     }
 
     /**
-     * Fallback for DBs without JSON_CONTAINS/JSON_SEARCH (Postgres, SQLite, ...):
-     * fetch candidate photos (scoped the same way as the SQL path) and match
-     * each one's embedded tags in PHP, same approach as
-     * TimelineQueryDays::postProcessDaysWithFilters() uses for the timeline.
+     * Fallback for DBs without SQL-level EXIF JSON support (SQLite, Oracle,
+     * ...; see TimelineQuery::shouldFilterExifBySQL()): fetch every candidate
+     * photo in scope (unfiltered -- there's no coarse SQL pre-filter to
+     * narrow the set on these DBs) and hand off to the same authoritative
+     * PHP recheck getPhotosSQL() uses over its smaller, pre-narrowed set.
      *
      * @param bool          $hidden Whether to also include archived/hidden photos
      *                              (normal browsing excludes them; the tag-deletion
@@ -533,19 +554,36 @@ final class EmbeddedTagsBackend extends Backend
 
         $rows = $this->tq->executeQueryWithCTEs($query)->fetchAll() ?: [];
 
+        return $this->filterCandidatesByPath($rows, $name, true, $limit);
+    }
+
+    /**
+     * Authoritative recheck: given a set of candidate rows (each with
+     * fileid/exif/etag), keep only those whose real parsed embedded tags
+     * (via Exif::extractEmbeddedTags()) match $path (via
+     * Exif::embeddedTagPathMatches()), up to $limit matches. Shared by
+     * getPhotosSQL() (candidates coarsely pre-filtered in SQL) and
+     * getPhotosPHP() (candidates are the whole unfiltered scope).
+     *
+     * @param array<array{fileid:int|string, exif:?string, etag:string}> $rows
+     *
+     * @return array<array{fileid:int, etag:string}>
+     */
+    private function filterCandidatesByPath(array $rows, string $path, bool $recursive, ?int $limit): array
+    {
         $matches = [];
         foreach ($rows as $row) {
             if (empty($row['exif'])) {
                 continue;
             }
 
-            $exif = json_decode((string) $row['exif'], true);
+            $exif = json_decode($row['exif'], true);
             if (!\is_array($exif)) {
                 continue;
             }
 
             foreach (Exif::extractEmbeddedTags($exif, true) as $tagPath) {
-                if (Exif::embeddedTagPathMatches($tagPath, $name, true)) {
+                if (Exif::embeddedTagPathMatches($tagPath, $path, $recursive)) {
                     $matches[] = ['fileid' => (int) $row['fileid'], 'etag' => $row['etag']];
 
                     break;
@@ -561,12 +599,29 @@ final class EmbeddedTagsBackend extends Backend
     }
 
     /**
-     * Apply a WHERE clause matching photos whose embedded tags are at
-     * exactly $path, or (if $recursive) anywhere under $path. Only called
-     * on the SQL fast path (MySQL/MariaDB); see getPhotosPHP() for the
-     * fallback used on every other database.
+     * Apply a coarse, superset-safe WHERE-clause pre-filter for photos whose
+     * embedded tags might be at or under $path. Only called on the SQL fast
+     * path (MySQL/MariaDB and PostgreSQL, per
+     * TimelineQuery::shouldFilterExifBySQL()); see getPhotosPHP() for the
+     * PHP-only fallback used on every other database.
+     *
+     * Deliberately searches only for $path's *last* segment as a raw
+     * substring, not the full '/'-joined path, and applies no exact-vs-
+     * recursive distinction here at all: Exif::extractEmbeddedTags() derives
+     * the flattened '/'-joined tag path from a raw stored value that may use
+     * a *different* separator (HierarchicalSubject uses '|', Keywords may
+     * join several tags with ', '), so the full flattened path is not
+     * guaranteed to appear verbatim in the stored EXIF text -- only a single,
+     * unsplit path component is (path components are taken verbatim via
+     * explode(), with no per-component transformation before being stored).
+     * Exact-vs-recursive matching of the *complete* path is enforced
+     * authoritatively afterward, against the real parsed tags: by
+     * filterCandidatesByPath() for the direct getPhotos() call path (see
+     * getPhotosSQL()), or by the existing embedded_tags/embeddedtag recheck
+     * in TimelineQueryDays::getDay() / postProcessDaysWithFilters() for the
+     * timeline transformDayQuery() call path.
      */
-    private function applySQLPathMatch(IQueryBuilder &$query, string $path, bool $recursive): void
+    private function applySQLPathMatch(IQueryBuilder &$query, string $path): void
     {
         if ('' === $path) {
             // Root has no directly-associated photos -- only child tags do.
@@ -575,22 +630,25 @@ final class EmbeddedTagsBackend extends Backend
             return;
         }
 
+        $leaf = $path;
+        if (false !== ($slashPos = strrpos($path, '/'))) {
+            $leaf = substr($path, $slashPos + 1);
+        }
+
+        // Per-field decoded-text search (SQL::jsonExifFieldContainsCI()), not
+        // a raw-blob substring search: PHP's json_encode() escapes '/' as
+        // '\/' by default, so searching the raw `m.exif` JSON text directly
+        // would miss a leaf that itself legitimately contains '/' (or any
+        // other JSON-escaped character), even though it's exactly what the
+        // decoded field value contains.
         $fields = ['Keywords', 'Subject', 'TagsList', 'HierarchicalSubject'];
         $or = $query->expr()->orX();
 
         foreach ($fields as $field) {
-            $or->add("JSON_CONTAINS(JSON_EXTRACT(m.exif, '$.{$field}'), JSON_QUOTE(:etpath))");
-
-            if ($recursive) {
-                $or->add("JSON_SEARCH(JSON_EXTRACT(m.exif, '$.{$field}'), 'one', :etprefix) IS NOT NULL");
-            }
+            $or->add(SQL::jsonExifFieldContainsCI($query, $field, ':etleaf'));
         }
 
         $query->andWhere($or);
-        $query->setParameter('etpath', $path, IQueryBuilder::PARAM_STR);
-
-        if ($recursive) {
-            $query->setParameter('etprefix', $path.'/%', IQueryBuilder::PARAM_STR);
-        }
+        $query->setParameter('etleaf', $leaf, IQueryBuilder::PARAM_STR);
     }
 }

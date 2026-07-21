@@ -22,10 +22,26 @@ trait TimelineQueryFilters
             return;
         }
 
-        $query->andWhere('JSON_EXTRACT(m.exif, \'$.Rating\') >= :minRating');
+        // Dialect-aware JSON extraction (MySQL JSON_EXTRACT / Postgres jsonb cast)
+        $ratingExpr = SQL::jsonExifNumeric($query, 'Rating');
+        $query->andWhere("{$ratingExpr} >= :minRating");
         $query->setParameter('minRating', $minRating, IQueryBuilder::PARAM_INT);
     }
 
+    /**
+     * WHERE-clause pre-filter for the flat, AND-of-tags embedded-tags filter.
+     *
+     * This is deliberately a coarse (superset-safe) substring pre-filter, not
+     * an exact tag match -- see SQL::jsonExifFieldContainsCI() for why an
+     * exact match on the stored EXIF value can produce false *negatives*
+     * against the app's real tag semantics (comma-joined/scalar Keywords
+     * values that Exif::extractEmbeddedTags() splits into several tags).
+     * Callers MUST still authoritatively re-verify every row this lets
+     * through against Exif::extractEmbeddedTags() before treating a match as
+     * final -- see TimelineQueryDays::getDay()'s unconditional embedded_tags
+     * recheck, and TimelineQueryDays::getDays()'s forced use of
+     * postProcessDaysWithFilters() whenever this filter is active.
+     */
     public function transformEmbeddedTagsFilter(IQueryBuilder &$query, bool $aggregate, array $embeddedTags): void
     {
         if (empty($embeddedTags)) {
@@ -44,11 +60,11 @@ trait TimelineQueryFilters
             $or = $query->expr()->orX();
 
             foreach ($fields as $field) {
-                // Check if the field contains this specific tag
-                $or->add("JSON_CONTAINS(JSON_EXTRACT(m.exif, '$.{$field}'), JSON_QUOTE(:{$tagParam}))");
+                $or->add(SQL::jsonExifFieldContainsCI($query, $field, ":{$tagParam}"));
             }
 
-            // Add AND condition for this tag
+            // AND condition across tags (each requested tag must be found
+            // in at least one field); OR across fields for a single tag.
             $query->andWhere($or);
             $query->setParameter($tagParam, $tag, IQueryBuilder::PARAM_STR);
         }
