@@ -185,6 +185,7 @@ class StaticConfig {
       image_props_modes: '{}',
       sort_scope: '{}',
       group_scope: '{}',
+      saved_filters: '[]',
 
       // metadata settings
       metadata_write_mode: 'file_only',

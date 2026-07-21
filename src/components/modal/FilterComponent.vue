@@ -86,6 +86,24 @@
         <FilterExpressionBuilder :model-value="filters.filterExpr" :disabled="disabled" @update:modelValue="onFilterExprChange" />
       </div>
 
+      <!-- Saved filters -->
+      <div class="filter-section">
+        <div class="filter-label-row">
+          <label class="filter-label">{{ t('memories', 'Saved filters') }}</label>
+          <NcButton type="tertiary-no-background" @click="saveCurrentFilter" :disabled="!hasActiveFilters">
+            {{ t('memories', 'Save current') }}
+          </NcButton>
+        </div>
+        <ul v-if="savedFilters.length > 0" class="saved-filters-list">
+          <li v-for="saved in savedFilters" :key="saved.id" class="saved-filter-item">
+            <button type="button" class="saved-filter-name" @click="applySavedFilter(saved)">{{ saved.name }}</button>
+            <NcButton type="tertiary-no-background" :aria-label="t('memories', 'Delete saved filter')" @click="deleteSavedFilter(saved)">
+              <template #icon><CloseIcon :size="14" /></template>
+            </NcButton>
+          </li>
+        </ul>
+      </div>
+
       <!-- Filter Actions -->
       <div class="filter-actions">
         <NcButton type="secondary" @click="clearAllFilters" :disabled="!hasActiveFilters">
@@ -112,6 +130,7 @@ import * as utils from '@services/utils';
 import FilterExpressionBuilder from './FilterExpressionBuilder.vue';
 import { defineComponent, type PropType } from 'vue';
 import { emptyFilters, hasActiveFilters } from '@services/filters';
+import savedFiltersService, { type SavedFilter } from '@services/saved-filters';
 
 function toDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -159,6 +178,14 @@ export default defineComponent({
     ratingOptions(): { value: number; label: string }[] {
       return [0, 1, 2, 3, 4, 5].map((n) => ({ value: n, label: 0 === n ? t('memories', 'Any') : '★'.repeat(n) }));
     },
+
+    savedFilters(): SavedFilter[] {
+      return savedFiltersService.list;
+    },
+  },
+
+  created() {
+    savedFiltersService.init();
   },
 
   watch: {
@@ -242,6 +269,35 @@ export default defineComponent({
     clearAllFilters() {
       this.filters = emptyFilters();
       this.emitFilterChange();
+    },
+
+    async saveCurrentFilter() {
+      const name = (await utils.prompt({
+        title: t('memories', 'Save filter'),
+        message: t('memories', 'Save the current filters under this name'),
+        name: t('memories', 'Name'),
+      }))?.trim();
+
+      if (!name) return;
+
+      savedFiltersService.save(name, { ...this.filters });
+    },
+
+    applySavedFilter(saved: SavedFilter) {
+      this.filters = { ...emptyFilters(), ...saved.filters };
+      this.emitFilterChange();
+    },
+
+    async deleteSavedFilter(saved: SavedFilter) {
+      const confirmed = await utils.confirmDestructive({
+        title: t('memories', 'Delete saved filter'),
+        message: t('memories', 'Are you sure you want to delete "{name}"?', { name: saved.name }),
+        confirm: t('memories', 'Delete'),
+      });
+
+      if (!confirmed) return;
+
+      savedFiltersService.remove(saved.id);
     },
 
     t,
@@ -338,6 +394,41 @@ export default defineComponent({
 
 .camera-row > * {
   flex: 1 1 100px;
+}
+
+.saved-filters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.saved-filter-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.saved-filter-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--border-radius);
+  background: transparent;
+  color: var(--color-main-text);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-background-hover);
+  }
 }
 
 .filter-actions {

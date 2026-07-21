@@ -48,6 +48,8 @@ declare module '@typings' {
     sort_scope: string;
     /** Raw JSON, see @services/list-scope -- per-view-type base + per-item overrides for Group by */
     group_scope: string;
+    /** Raw JSON, see @services/saved-filters -- list of named saved filter presets */
+    saved_filters: string;
 
     // metadata settings
     metadata_write_mode: MetadataWriteMode;

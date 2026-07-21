@@ -123,6 +123,7 @@ final class OtherController extends GenericApiController
                 'image_props_modes' => $getAppConfig('imagePropsModes', '{}'),
                 'sort_scope' => $getAppConfig('sortScope', '{}'),
                 'group_scope' => $getAppConfig('groupScope', '{}'),
+                'saved_filters' => $getAppConfig('savedFilters', '[]'),
 
                 // metadata settings
                 'metadata_write_mode' => $getAppConfig('metadataWriteMode', Exif::WRITE_MODE_FILE_ONLY),
