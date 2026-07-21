@@ -144,6 +144,7 @@ import * as utils from '@services/utils';
 import * as nativex from '@native';
 
 import { API, DaysFilterType } from '@services/API';
+import { emptyFilters, hasActiveFilters } from '@services/filters';
 import { sortScope, groupScope } from '@services/list-scope';
 import { listScopeTargetFor, type ListScopeTarget, type SortSetting, type GroupSetting } from '@services/sort-group-defs';
 
@@ -197,11 +198,7 @@ export default defineComponent({
     daysIsCache: false,
 
     /** Current filters */
-    filters: {
-      minRating: 0,
-      tags: [],
-      embeddedTags: [],
-    } as IFilters,
+    filters: emptyFilters() as IFilters,
 
     /** Size of outer container [w, h] */
     containerSize: [0, 0] as [number, number],
@@ -380,7 +377,7 @@ export default defineComponent({
 
     /** Whether any filters are applied */
     hasFilters(): boolean {
-      return this.filters.minRating > 0 || this.filters.tags.length > 0;
+      return hasActiveFilters(this.filters);
     },
 
     /** Show the empty content box and hide the scrollbar */
@@ -785,19 +782,55 @@ export default defineComponent({
       const query: { [key in DaysFilterType]?: string } = {};
       const set = (filter: DaysFilterType, value: string = '1') => (query[filter] = value);
 
-      // Rating
+      // Rating range
       if (this.filters.minRating > 0) {
         set(DaysFilterType.RATING, this.filters.minRating.toString());
       }
-
-      // Tags
-      if (this.filters.tags.length > 0) {
-        set(DaysFilterType.TAG, this.filters.tags.join(','));
+      if (this.filters.maxRating > 0) {
+        set(DaysFilterType.MAX_RATING, this.filters.maxRating.toString());
       }
 
-      // Embedded Tags
-      if (this.filters.embeddedTags.length > 0) {
-        set(DaysFilterType.EMBEDDED_TAGS, this.filters.embeddedTags.map((tag) => encodeURIComponent(tag)).join(','));
+      // Tag/embeddedTag/recognize/facerecognition/place boolean expression (see FilterExpression.php)
+      if (this.filters.filterExpr) {
+        set(DaysFilterType.FILTER_EXPR, encodeURIComponent(JSON.stringify(this.filters.filterExpr)));
+      }
+
+      // Filename / filepath
+      if (this.filters.filename) {
+        set(DaysFilterType.FILENAME, this.filters.filename);
+      }
+      if (this.filters.filepath) {
+        set(DaysFilterType.FILEPATH, this.filters.filepath);
+      }
+
+      // Date range (plain "YYYY-MM-DD", resolved to a dayId range server-side)
+      if (this.filters.dateStart) {
+        set(DaysFilterType.DATE_START, this.filters.dateStart);
+      }
+      if (this.filters.dateEnd) {
+        set(DaysFilterType.DATE_END, this.filters.dateEnd);
+      }
+
+      // File type
+      if (this.filters.fileType.length > 0) {
+        set(DaysFilterType.FILE_TYPE, this.filters.fileType.map((p) => encodeURIComponent(p)).join(','));
+      }
+
+      // Camera
+      if (this.filters.camMake) {
+        set(DaysFilterType.CAM_MAKE, this.filters.camMake);
+      }
+      if (this.filters.camModel) {
+        set(DaysFilterType.CAM_MODEL, this.filters.camModel);
+      }
+      if (this.filters.camLens) {
+        set(DaysFilterType.CAM_LENS, this.filters.camLens);
+      }
+
+      // Favorites filter (from the filter panel; distinct from routeIsFavorites below,
+      // which is the dedicated "/favorites" view -- both just set the same flag)
+      if (this.filters.favorite) {
+        set(DaysFilterType.FAVORITES);
       }
 
       // Favorites
@@ -1778,11 +1811,7 @@ export default defineComponent({
     },
 
     resetFilters() {
-      this.filters = {
-        minRating: 0,
-        tags: [],
-        embeddedTags: [],
-      };
+      this.filters = emptyFilters();
       this.refresh();
     },
   },

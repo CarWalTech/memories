@@ -1,70 +1,93 @@
 <template>
   <div class="filter-component">
     <form @submit.prevent>
-      <!-- Minimum Rating Filter -->
+      <!-- Rating range -->
       <div class="filter-section">
-        <label class="filter-label">
-          {{ t('memories', 'Minimum Rating') }}
-        </label>
-        <div class="rating-filter">
-          <RatingStars 
-            :rating="filters.minRating"
-            :size="20"
-            @update:rating="onRatingChange"
-          />
-          <NcButton 
-            v-if="filters.minRating > 0"
-            type="tertiary-no-background"
-            :aria-label="t('memories', 'Clear rating filter')"
-            @click="clearRating"
-          >
-            <template #icon>
-              <CloseIcon :size="16" />
-            </template>
+        <label class="filter-label">{{ t('memories', 'Rating') }}</label>
+        <div class="rating-row">
+          <span class="rating-caption">{{ t('memories', 'At least') }}</span>
+          <RatingStars :rating="filters.minRating" :size="18" @update:rating="onMinRatingChange" />
+          <NcButton v-if="filters.minRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear minimum rating')" @click="onMinRatingChange(0)">
+            <template #icon><CloseIcon :size="14" /></template>
+          </NcButton>
+        </div>
+        <div class="rating-row">
+          <span class="rating-caption">{{ t('memories', 'At most') }}</span>
+          <RatingStars :rating="filters.maxRating" :size="18" @update:rating="onMaxRatingChange" />
+          <NcButton v-if="filters.maxRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear maximum rating')" @click="onMaxRatingChange(0)">
+            <template #icon><CloseIcon :size="14" /></template>
           </NcButton>
         </div>
       </div>
 
-      <!-- Tags Filter -->
-      <div v-if="showCollaborativeTagsFilter" class="filter-section">
-        <label class="filter-label">
-          {{ t('memories', 'Filter by Tags') }}
-        </label>
-        <NcSelectTags
-          ref="selectTags"
-          v-model="filters.tags"
-          class="tags-filter"
-          :label-outside="false"
-          :disabled="disabled"
-          :limit="null"
-          :options-filter="tagFilter"
-          :get-option-label="tagLabel"
-          :placeholder="t('memories', 'Select tags...')"
-        />
+      <!-- Favorites -->
+      <div class="filter-section">
+        <NcCheckboxRadioSwitch type="switch" :checked="filters.favorite" @update:checked="onFavoriteChange">
+          {{ t('memories', 'Favorites only') }}
+        </NcCheckboxRadioSwitch>
       </div>
 
-      <!-- Embedded Tags Filter -->
+      <!-- Filename / filepath -->
       <div class="filter-section">
-        <label class="filter-label">
-          {{ t('memories', 'Filter by Embedded Tags') }}
-        </label>
-        <EmbeddedTagSelector
-          v-model="filters.embeddedTags"
-          class="embedded-tags-filter"
-          :disabled="disabled"
-          :placeholder="t('memories', 'Select embedded tags...')"
-          :show-full-path="true"
-          @update:value="onEmbeddedTagsChange"
-        />
+        <label class="filter-label">{{ t('memories', 'Filename') }}</label>
+        <NcTextField :value.sync="filters.filename" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'e.g. IMG_2024 or a regex')" />
+      </div>
+      <div class="filter-section">
+        <label class="filter-label">{{ t('memories', 'Folder path') }}</label>
+        <NcTextField :value.sync="filters.filepath" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'e.g. Vacation/2024')" />
+      </div>
+
+      <!-- Date range -->
+      <div class="filter-section">
+        <label class="filter-label">{{ t('memories', 'Date range') }}</label>
+        <div class="date-row">
+          <input type="date" class="date-input" v-model="filters.dateStart" @change="emitFilterChange" :max="filters.dateEnd || undefined" />
+          <span class="date-sep">–</span>
+          <input type="date" class="date-input" v-model="filters.dateEnd" @change="emitFilterChange" :min="filters.dateStart || undefined" />
+          <NcButton v-if="filters.dateStart || filters.dateEnd" type="tertiary-no-background" :aria-label="t('memories', 'Clear date range')" @click="clearDateRange">
+            <template #icon><CloseIcon :size="14" /></template>
+          </NcButton>
+        </div>
+        <div class="date-presets">
+          <NcButton type="tertiary" @click="applyDatePreset('last7')">{{ t('memories', 'Last 7 days') }}</NcButton>
+          <NcButton type="tertiary" @click="applyDatePreset('last30')">{{ t('memories', 'Last 30 days') }}</NcButton>
+          <NcButton type="tertiary" @click="applyDatePreset('thisMonth')">{{ t('memories', 'This month') }}</NcButton>
+          <NcButton type="tertiary" @click="applyDatePreset('thisYear')">{{ t('memories', 'This year') }}</NcButton>
+        </div>
+      </div>
+
+      <!-- File type -->
+      <div class="filter-section">
+        <label class="filter-label">{{ t('memories', 'File type') }}</label>
+        <div class="filetype-row">
+          <NcCheckboxRadioSwitch :checked="hasFileType('image/%')" @update:checked="toggleFileType('image/%', $event)">
+            {{ t('memories', 'Photos') }}
+          </NcCheckboxRadioSwitch>
+          <NcCheckboxRadioSwitch :checked="hasFileType('video/%')" @update:checked="toggleFileType('video/%', $event)">
+            {{ t('memories', 'Videos') }}
+          </NcCheckboxRadioSwitch>
+        </div>
+      </div>
+
+      <!-- Camera -->
+      <div class="filter-section">
+        <label class="filter-label">{{ t('memories', 'Camera') }}</label>
+        <div class="camera-row">
+          <NcTextField :value.sync="filters.camMake" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'Make')" />
+          <NcTextField :value.sync="filters.camModel" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'Model')" />
+          <NcTextField :value.sync="filters.camLens" @update:value="onScalarChange" :label-outside="true" :placeholder="t('memories', 'Lens')" />
+        </div>
+      </div>
+
+      <!-- Tag / embedded tag / people / places expression builder -->
+      <div class="filter-section">
+        <label class="filter-label">{{ t('memories', 'Tags & People') }}</label>
+        <FilterExpressionBuilder v-model="filters.filterExpr" :disabled="disabled" @update:modelValue="emitFilterChange" />
       </div>
 
       <!-- Filter Actions -->
       <div class="filter-actions">
-        <NcButton
-          type="secondary"
-          @click="clearAllFilters"
-          :disabled="!hasActiveFilters"
-        >
+        <NcButton type="secondary" @click="clearAllFilters" :disabled="!hasActiveFilters">
           {{ t('memories', 'Clear All') }}
         </NcButton>
       </div>
@@ -76,24 +99,32 @@
 import type { IFilters } from '@typings';
 
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
-import NcSelectTags from '@nextcloud/vue/dist/Components/NcSelectTags.js';
+import NcTextField from '@nextcloud/vue/dist/Components/NcTextField.js';
+import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js';
 import CloseIcon from 'vue-material-design-icons/Close.vue';
 import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 
 import RatingStars from '@components/common/RatingStars.vue';
+import FilterExpressionBuilder from './FilterExpressionBuilder.vue';
 import { defineComponent, type PropType } from 'vue';
-import EmbeddedTagSelector from '@components/common/EmbeddedTagSelector.vue';
+import { emptyFilters, hasActiveFilters } from '@services/filters';
+
+function toDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export default defineComponent({
   name: 'FilterComponent',
-  
+
   components: {
     NcButton,
-    NcSelectTags,
+    NcTextField,
+    NcCheckboxRadioSwitch,
     RatingStars,
     CloseIcon,
-    EmbeddedTagSelector,
+    FilterExpressionBuilder,
   },
 
   props: {
@@ -105,46 +136,26 @@ export default defineComponent({
     /** Initial filter values */
     initialFilters: {
       type: Object as PropType<IFilters>,
-      default: () => ({
-        minRating: 0,
-        tags: [],
-        embeddedTags: [],
-      } as IFilters),
-    },
-    /** Whether to show collaborative tags filter (false = only embedded tags supported) */
-    showCollaborativeTagsFilter: {
-      type: Boolean,
-      default: false,
+      default: emptyFilters,
     },
   },
 
   emits: ['filter-change'],
 
   data: () => ({
-    filters: {
-      minRating: 0,
-      tags: [],
-      embeddedTags: [],
-    } as IFilters,
+    filters: emptyFilters(),
   }),
 
   computed: {
-    hasActiveFilters() {
-      const hasRatingFilter = this.filters.minRating > 0;
-      const hasTagsFilter = this.showCollaborativeTagsFilter && this.filters.tags.length > 0;
-      const hasEmbeddedTagsFilter = this.filters.embeddedTags.length > 0;
-      return hasRatingFilter || hasTagsFilter || hasEmbeddedTagsFilter;
+    hasActiveFilters(): boolean {
+      return hasActiveFilters(this.filters);
     },
   },
 
   watch: {
     initialFilters: {
-      handler(newFilters) {
-        this.filters = {
-          minRating: newFilters.minRating || 0,
-          tags: newFilters.tags || [],
-          embeddedTags: newFilters.embeddedTags || [],
-        };
+      handler(newFilters: IFilters) {
+        this.filters = { ...emptyFilters(), ...newFilters };
       },
       deep: true,
       immediate: true,
@@ -157,46 +168,73 @@ export default defineComponent({
       this.$emit('filter-change', { ...this.filters });
     },
 
-    onRatingChange(rating: number) {
+    onScalarChange() {
+      this.emitFilterChange();
+    },
+
+    onMinRatingChange(rating: number) {
       this.filters.minRating = rating;
       this.emitFilterChange();
     },
 
-    onTagsChange(tags: string[]) {
-      this.filters.tags = tags;
+    onMaxRatingChange(rating: number) {
+      this.filters.maxRating = rating;
       this.emitFilterChange();
     },
 
-    onEmbeddedTagsChange(tags: string[]) {
-      this.filters.embeddedTags = tags;
+    onFavoriteChange(checked: boolean) {
+      this.filters.favorite = checked;
       this.emitFilterChange();
     },
 
-    clearRating() {
-      this.filters.minRating = 0;
+    hasFileType(pattern: string): boolean {
+      return this.filters.fileType.includes(pattern);
+    },
+
+    toggleFileType(pattern: string, checked: boolean) {
+      this.filters.fileType = checked ? [...this.filters.fileType, pattern] : this.filters.fileType.filter((p) => p !== pattern);
+      this.emitFilterChange();
+    },
+
+    clearDateRange() {
+      this.filters.dateStart = '';
+      this.filters.dateEnd = '';
+      this.emitFilterChange();
+    },
+
+    applyDatePreset(preset: 'last7' | 'last30' | 'thisMonth' | 'thisYear') {
+      const now = new Date();
+      let start: Date;
+      const end = now;
+
+      switch (preset) {
+        case 'last7':
+          start = new Date(now);
+          start.setDate(start.getDate() - 6);
+          break;
+        case 'last30':
+          start = new Date(now);
+          start.setDate(start.getDate() - 29);
+          break;
+        case 'thisMonth':
+          start = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'thisYear':
+          start = new Date(now.getFullYear(), 0, 1);
+          break;
+      }
+
+      this.filters.dateStart = toDateStr(start);
+      this.filters.dateEnd = toDateStr(end);
       this.emitFilterChange();
     },
 
     clearAllFilters() {
-      this.filters = {
-        minRating: 0,
-        tags: [],
-        embeddedTags: [],
-      };
+      this.filters = emptyFilters();
       this.emitFilterChange();
     },
 
-    tagFilter(element: any) {
-      return element.displayName !== '' && element.canAssign && element.userAssignable && element.userVisible;
-    },
-
-    tagLabel({ displayName }: { displayName: string }) {
-      return displayName;
-    },
-
-    t(app: string, text: string, vars: Record<string, string>) {
-      return t('memories', text, vars);
-    },
+    t,
   },
 });
 </script>
@@ -204,8 +242,10 @@ export default defineComponent({
 <style lang="scss" scoped>
 .filter-component {
   padding: 16px;
-  min-width: 300px;
-  max-width: 400px;
+  min-width: 320px;
+  max-width: 420px;
+  max-height: 70vh;
+  overflow-y: auto;
 
   form {
     display: flex;
@@ -226,22 +266,53 @@ export default defineComponent({
   color: var(--color-text-darker);
 }
 
-.rating-filter {
+.rating-row {
   display: flex;
   align-items: center;
   gap: 8px;
-}
 
-.tags-filter {
-  width: 100%;
-
-  :deep ul {
-    max-height: 150px;
+  .rating-caption {
+    font-size: 13px;
+    color: var(--color-text-maxcontrast);
+    min-width: 64px;
   }
 }
 
-.embedded-tags-filter {
-  width: 100%;
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .date-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-border-dark);
+    background: var(--color-main-background);
+    color: var(--color-main-text);
+  }
+
+  .date-sep {
+    color: var(--color-text-maxcontrast);
+  }
+}
+
+.date-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.filetype-row,
+.camera-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.camera-row > * {
+  flex: 1 1 100px;
 }
 
 .filter-actions {
@@ -252,4 +323,4 @@ export default defineComponent({
   padding-top: 16px;
   border-top: 1px solid var(--color-border);
 }
-</style> 
+</style>

@@ -189,9 +189,51 @@ declare module '@typings' {
   }
 
 
+  /**
+   * Field types for the filter expression tree -- see FilterExpression.php
+   * for the authoritative backend definition and leaf value formats:
+   *   - tag:             systemtag numeric ID, as a string
+   *   - embeddedTag:     flattened tag path, e.g. "Family/Vacation/Beach"
+   *   - recognize:       "<uid>/<id-or-name>" (cluster_id from getFaceList('recognize'))
+   *   - facerecognition: "<uid>/<id-or-name>" (cluster_id from getFaceList('facerecognition'))
+   *   - place:           OSM id, as a string
+   */
+  export type FilterField = 'tag' | 'embeddedTag' | 'recognize' | 'facerecognition' | 'place';
+
+  export type FilterLeaf = {
+    kind: 'leaf';
+    field: FilterField;
+    value: string;
+  };
+
+  export type FilterGroup = {
+    kind: 'group';
+    op: 'and' | 'or' | 'not';
+    /** Exactly 1 entry when op === 'not' */
+    children: FilterNode[];
+  };
+
+  export type FilterNode = FilterLeaf | FilterGroup;
+
   export type IFilters = {
+    /** 0 = unbounded */
     minRating: number;
-    tags: string[];
-    embeddedTags: string[];
+    /** 0 = unbounded */
+    maxRating: number;
+    favorite: boolean;
+    /** Filecache basename substring/regex */
+    filename: string;
+    /** Filecache path substring/regex */
+    filepath: string;
+    /** Plain "YYYY-MM-DD", or '' for unbounded */
+    dateStart: string;
+    dateEnd: string;
+    /** Mimetype patterns, e.g. ["image/%"] */
+    fileType: string[];
+    camMake: string;
+    camModel: string;
+    camLens: string;
+    /** Boolean expression tree over tag/embeddedTag/recognize/facerecognition/place, or null if empty */
+    filterExpr: FilterNode | null;
   }
 }

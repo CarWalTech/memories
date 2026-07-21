@@ -35,6 +35,19 @@ export const enum DaysFilterType {
   EMBEDDED_TAG_PATH = 'embeddedtagpath',
   MAP_BOUNDS = 'mapbounds',
   RATING = 'minRating',
+  MAX_RATING = 'maxRating',
+  /** See FilterExpression.php: URL-encoded JSON boolean tree over tag/embeddedTag/recognize/facerecognition/place */
+  FILTER_EXPR = 'filterExpr',
+  FILENAME = 'filename',
+  FILEPATH = 'filepath',
+  /** Plain "YYYY-MM-DD", resolved to a dayId range server-side */
+  DATE_START = 'dateStart',
+  DATE_END = 'dateEnd',
+  /** Comma-separated mimetype patterns, e.g. "image/%,video/%" */
+  FILE_TYPE = 'fileType',
+  CAM_MAKE = 'camMake',
+  CAM_MODEL = 'camModel',
+  CAM_LENS = 'camLens',
 
   FACE_RECT = 'facerect',
   RECURSIVE = 'recursive',

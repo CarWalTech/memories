@@ -16,6 +16,7 @@ import { translate as t } from '@services/l10n';
 import { bus } from '@services/utils';
 
 import type { IFilters } from '@typings';
+import { emptyFilters, hasActiveFilters } from '@services/filters';
 
 import FilterIcon from 'vue-material-design-icons/FilterMenu.vue';
 import FilterComponent from '@components/modal/FilterComponent.vue';
@@ -36,12 +37,7 @@ export default defineComponent({
     },
     initialFilters: {
       type: Object as PropType<IFilters>,
-      default: () =>
-        ({
-          minRating: 0,
-          tags: [],
-          embeddedTags: [],
-        }) as IFilters,
+      default: emptyFilters,
     },
   },
 
@@ -50,11 +46,7 @@ export default defineComponent({
   },
 
   data: () => ({
-    currentFilters: {
-      minRating: 0,
-      tags: [],
-      embeddedTags: [],
-    } as IFilters,
+    currentFilters: emptyFilters(),
   }),
 
   mounted() {
@@ -66,9 +58,8 @@ export default defineComponent({
   },
 
   computed: {
-    hasActiveFilters() {
-      const filters = this.currentFilters;
-      return filters.minRating > 0 || filters.tags.length > 0 || filters.embeddedTags.length > 0;
+    hasActiveFilters(): boolean {
+      return hasActiveFilters(this.currentFilters);
     },
   },
 
