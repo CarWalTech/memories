@@ -20,8 +20,18 @@ import type { FilterGroup, FilterNode } from '@typings';
  * FilterGroupEditor always works with a group (never a bare leaf or a
  * top-level NOT) so its own logic doesn't need special-casing for the root
  * -- this component is just the thin adapter between that and the `null |
- * FilterNode` shape IFilters actually stores, wrapping/unwrapping a trivial
- * single-child root as needed.
+ * FilterNode` shape IFilters actually stores, wrapping a bare
+ * leaf/NOT root in a synthetic group for editing.
+ *
+ * Deliberately does NOT unwrap a 1-child group back to a bare leaf on the
+ * way out: the op (and/or) the user picked would have nowhere to live on a
+ * bare leaf, and since the op-selector can appear while there's still only
+ * 1 *committed* child (a new condition's own row counts once its draft is
+ * showing, before it has a value yet), unwrapping here discarded the op the
+ * user had just picked, making the selector appear to snap back to AND. A
+ * 1-child and/or group is functionally identical to a bare leaf for the
+ * backend either way (see FilterExpression.php), so keeping it wrapped
+ * costs nothing beyond a marginally more verbose JSON payload.
  */
 export default defineComponent({
   name: 'FilterExpressionBuilder',
@@ -59,11 +69,7 @@ export default defineComponent({
 
   methods: {
     onRootUpdate(group: FilterGroup) {
-      if (1 === group.children.length) {
-        this.$emit('update:modelValue', group.children[0]);
-      } else {
-        this.$emit('update:modelValue', group);
-      }
+      this.$emit('update:modelValue', group);
     },
 
     onRootRemove() {

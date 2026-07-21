@@ -131,8 +131,8 @@ export default defineComponent({
   computed: {
     opOptions(): IOpOption[] {
       return [
-        { value: 'and', label: t('memories', 'AND — all conditions must match') },
-        { value: 'or', label: t('memories', 'OR — any condition may match') },
+        { value: 'and', label: t('memories', 'AND') },
+        { value: 'or', label: t('memories', 'OR') },
       ];
     },
 
@@ -251,10 +251,10 @@ export default defineComponent({
 .filter-group-editor {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 
   &.nested {
-    padding: 8px 0 8px 12px;
+    padding: 4px 0 4px 8px;
     border-left: 2px solid var(--color-border);
   }
 }
@@ -262,28 +262,29 @@ export default defineComponent({
 .group-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 
   .op-label {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--color-text-maxcontrast);
   }
 
   .op-select {
-    min-width: 220px;
+    min-width: 80px;
+    width: 80px;
   }
 }
 
 .group-children {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .nested-group-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 
   .not-toggle {
     align-self: flex-start;
@@ -292,7 +293,7 @@ export default defineComponent({
 
 .group-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-wrap: wrap;
 }
 </style>

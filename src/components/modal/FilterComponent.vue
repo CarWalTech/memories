@@ -247,40 +247,46 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .filter-component {
-  padding: 16px;
-  min-width: 320px;
-  max-width: 420px;
+  padding: 8px 12px;
+  min-width: 340px;
+  max-width: 480px;
   max-height: 70vh;
   overflow-y: auto;
+
+  // Shrinks the default height of every NcSelect/NcButton/NcTextField/
+  // NcCheckboxRadioSwitch inside the panel (same technique Searchbar.vue
+  // uses) -- this panel packs far more controls per row than these
+  // components' touch-friendly default size assumes.
+  --default-clickable-area: 34px;
 
   form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
   }
 }
 
 .filter-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .filter-label {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-text-darker);
 }
 
 .rating-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 
   .rating-caption {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--color-text-maxcontrast);
-    min-width: 64px;
+    min-width: 56px;
   }
 }
 
@@ -314,7 +320,7 @@ export default defineComponent({
 .camera-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
 }
 
 .camera-row > * {
@@ -325,8 +331,8 @@ export default defineComponent({
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  margin-top: 8px;
-  padding-top: 16px;
+  margin-top: 4px;
+  padding-top: 8px;
   border-top: 1px solid var(--color-border);
 }
 </style>

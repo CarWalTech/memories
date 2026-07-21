@@ -1,16 +1,28 @@
 <template>
   <div class="filter-condition-row">
-    <NcSelect
-      class="field-select"
-      :model-value="fieldOption"
-      @update:modelValue="onFieldChange"
-      :options="fieldOptions"
-      :clearable="false"
-      :disabled="disabled"
-      :append-to-body="false"
-      label="label"
-      track-by="value"
-    />
+    <div class="row-top">
+      <NcSelect
+        class="field-select"
+        :model-value="fieldOption"
+        @update:modelValue="onFieldChange"
+        :options="fieldOptions"
+        :clearable="false"
+        :disabled="disabled"
+        :append-to-body="false"
+        label="label"
+        track-by="value"
+      />
+
+      <NcCheckboxRadioSwitch class="not-toggle" type="switch" :checked="modelValue.negated" @update:checked="onNegatedChange" :disabled="disabled">
+        {{ t('memories', 'NOT') }}
+      </NcCheckboxRadioSwitch>
+
+      <NcButton type="tertiary-no-background" :aria-label="t('memories', 'Remove condition')" @click="$emit('remove')" :disabled="disabled">
+        <template #icon>
+          <CloseIcon :size="16" />
+        </template>
+      </NcButton>
+    </div>
 
     <ClusterValuePicker class="value-picker" :field="modelValue.field" :multiple="true" :model-value="modelValue.values" @update:modelValue="onValuesChange" :disabled="disabled" />
 
@@ -26,16 +38,6 @@
       label="label"
       track-by="value"
     />
-
-    <NcCheckboxRadioSwitch class="not-toggle" type="switch" :checked="modelValue.negated" @update:checked="onNegatedChange" :disabled="disabled">
-      {{ t('memories', 'NOT') }}
-    </NcCheckboxRadioSwitch>
-
-    <NcButton type="tertiary-no-background" :aria-label="t('memories', 'Remove condition')" @click="$emit('remove')" :disabled="disabled">
-      <template #icon>
-        <CloseIcon :size="16" />
-      </template>
-    </NcButton>
   </div>
 </template>
 
@@ -145,28 +147,31 @@ export default defineComponent({
 <style lang="scss" scoped>
 .filter-condition-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+
+  .row-top {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
 
   .field-select {
-    min-width: 140px;
-    flex: 1 1 140px;
-  }
-
-  .value-picker {
-    min-width: 160px;
-    flex: 2 1 160px;
-  }
-
-  .mode-select {
-    min-width: 130px;
-    flex: 1 1 130px;
+    min-width: 120px;
+    flex: 1 1 auto;
   }
 
   .not-toggle {
     flex: 0 0 auto;
+  }
+
+  .value-picker {
+    width: 100%;
+  }
+
+  .mode-select {
+    width: 100%;
   }
 }
 </style>
