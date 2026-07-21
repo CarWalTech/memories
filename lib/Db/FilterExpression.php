@@ -24,14 +24,20 @@ use OCP\IRequest;
  * Leaf value formats:
  *   - tag:             systemtag numeric ID (stable across renames), as a string
  *   - embeddedTag:      flattened tag path, e.g. "Family/Vacation/Beach" (see Exif::extractEmbeddedTags())
- *   - recognize:        "<uid>/<numeric cluster id>" (cluster id -1 is Recognize's "unclustered" bucket)
- *   - facerecognition:  "<uid>/<numeric person id>"
+ *   - recognize:        "<uid>/<id-or-name>" -- numeric cluster id (-1 is Recognize's
+ *                       "unclustered" bucket) if the frontend has one, else the cluster title
+ *   - facerecognition:  "<uid>/<id-or-name>" -- numeric person id if the frontend has
+ *                       one, else the person's name (its own API only exposes a numeric
+ *                       id for *unnamed* clusters; a named person's `cluster_id` field
+ *                       is the name itself, see FaceRecognitionBackend::getClustersInternal())
  *   - place:            OSM id, as a string
  *
- * Deliberately numeric-id-only for tag/recognize/facerecognition/place (never
- * a name/title): ids are stable and unambiguous, so these four are exact,
- * deterministic relational facts with no derived-text ambiguity, and are
- * therefore safe to compile to SQL and negate directly.
+ * tag/place are always a numeric id: both are exact, deterministic relational
+ * facts with no derived-text ambiguity, so they're safe to compile to SQL and
+ * negate directly. recognize/facerecognition accept *either* an id or a name
+ * for the same reason their own transformDayQuery() methods do (mirrored
+ * here): is_numeric() decides which column to match on, exactly like the
+ * single-cluster browsing code already does.
  *
  * embeddedTag is different: Exif::extractEmbeddedTags() does real text
  * processing (splitting comma-joined values, inferring hierarchical paths
@@ -342,7 +348,8 @@ final class FilterExpression
 
     private static function compilePersonLeaf(IQueryBuilder $query, string $value, string $backend): string
     {
-        [$uid, $clusterId] = self::splitPersonValue($value);
+        [$uid, $identifier] = self::splitPersonValue($value);
+        $isNumeric = is_numeric($identifier);
 
         $sub = $query->getConnection()->getQueryBuilder();
 
@@ -351,22 +358,49 @@ final class FilterExpression
                 throw Exceptions::NotEnabled('Recognize');
             }
 
-            $sub->select($sub->expr()->literal(1))
-                ->from('recognize_face_detections', 'fx_rfd')
-                ->where($sub->expr()->eq('fx_rfd.file_id', 'm.fileid'))
-                ->andWhere($sub->expr()->eq('fx_rfd.user_id', $query->createNamedParameter($uid, IQueryBuilder::PARAM_STR)))
-                ->andWhere($sub->expr()->eq('fx_rfd.cluster_id', $query->createNamedParameter($clusterId, IQueryBuilder::PARAM_INT)))
-            ;
+            if ($isNumeric && -1 === (int) $identifier) {
+                // Recognize's "unclustered faces" bucket: cluster_id -1 has no
+                // real recognize_face_clusters row (see RecognizeBackend::
+                // transformDayQuery()'s identical special case), so this must
+                // match directly on recognize_face_detections's own columns
+                // rather than joining a cluster row that doesn't exist.
+                $sub->select($sub->expr()->literal(1))
+                    ->from('recognize_face_detections', 'fx_rfd')
+                    ->where($sub->expr()->eq('fx_rfd.file_id', 'm.fileid'))
+                    ->andWhere($sub->expr()->eq('fx_rfd.user_id', $query->createNamedParameter($uid, IQueryBuilder::PARAM_STR)))
+                    ->andWhere($sub->expr()->eq('fx_rfd.cluster_id', $query->createNamedParameter(-1, IQueryBuilder::PARAM_INT)))
+                ;
+            } else {
+                $idField = $isNumeric ? 'fx_rfc.id' : 'fx_rfc.title';
+                $idParam = $isNumeric
+                    ? $query->createNamedParameter((int) $identifier, IQueryBuilder::PARAM_INT)
+                    : $query->createNamedParameter($identifier, IQueryBuilder::PARAM_STR);
+
+                $sub->select($sub->expr()->literal(1))
+                    ->from('recognize_face_detections', 'fx_rfd')
+                    ->innerJoin('fx_rfd', 'recognize_face_clusters', 'fx_rfc', $sub->expr()->eq('fx_rfd.cluster_id', 'fx_rfc.id'))
+                    ->where($sub->expr()->eq('fx_rfd.file_id', 'm.fileid'))
+                    ->andWhere($sub->expr()->eq('fx_rfc.user_id', $query->createNamedParameter($uid, IQueryBuilder::PARAM_STR)))
+                    ->andWhere($sub->expr()->eq($idField, $idParam))
+                ;
+            }
         } else {
             if (!Util::facerecognitionIsInstalled() || !Util::facerecognitionIsEnabled()) {
                 throw Exceptions::NotEnabled('Face Recognition');
             }
 
+            $idField = $isNumeric ? 'fx_frp.id' : 'fx_frp.name';
+            $idParam = $isNumeric
+                ? $query->createNamedParameter((int) $identifier, IQueryBuilder::PARAM_INT)
+                : $query->createNamedParameter($identifier, IQueryBuilder::PARAM_STR);
+
             $sub->select($sub->expr()->literal(1))
                 ->from('facerecog_faces', 'fx_frf')
                 ->innerJoin('fx_frf', 'facerecog_images', 'fx_fri', $sub->expr()->eq('fx_fri.id', 'fx_frf.image'))
+                ->innerJoin('fx_frf', 'facerecog_persons', 'fx_frp', $sub->expr()->eq('fx_frp.id', 'fx_frf.person'))
                 ->where($sub->expr()->eq('fx_fri.file', 'm.fileid'))
-                ->andWhere($sub->expr()->eq('fx_frf.person', $query->createNamedParameter($clusterId, IQueryBuilder::PARAM_INT)))
+                ->andWhere($sub->expr()->eq('fx_frp.user', $query->createNamedParameter($uid, IQueryBuilder::PARAM_STR)))
+                ->andWhere($sub->expr()->eq($idField, $idParam))
                 ->andWhere($sub->expr()->eq('fx_fri.model', $query->createNamedParameter(self::faceRecognitionModel(), IQueryBuilder::PARAM_INT)))
             ;
         }
@@ -391,16 +425,18 @@ final class FilterExpression
     }
 
     /**
-     * @return array{0: string, 1: int} [uid, numeric cluster/person id]
+     * @return array{0: string, 1: string} [uid, id-or-name] -- the second
+     *                                     element may or may not be numeric,
+     *                                     see class docblock
      */
     private static function splitPersonValue(string $value): array
     {
         $parts = explode('/', $value, 2);
-        if (2 !== \count($parts) || !is_numeric($parts[1])) {
-            throw new \InvalidArgumentException('Invalid person filter value, expected "<uid>/<numeric id>"');
+        if (2 !== \count($parts) || '' === $parts[0] || '' === $parts[1]) {
+            throw new \InvalidArgumentException('Invalid person filter value, expected "<uid>/<id-or-name>"');
         }
 
-        return [$parts[0], (int) $parts[1]];
+        return [$parts[0], $parts[1]];
     }
 
     private static function toInt(string $value): int
@@ -446,14 +482,21 @@ final class FilterExpression
     private static function fillRecognizeContexts(array &$contexts, array $fileids, IDBConnection $connection): void
     {
         $query = $connection->getQueryBuilder();
-        $query->select('fx_rfd.file_id', 'fx_rfd.user_id', 'fx_rfd.cluster_id')
+        $query->select('fx_rfd.file_id', 'fx_rfd.user_id', 'fx_rfd.cluster_id', 'fx_rfc.title')
             ->from('recognize_face_detections', 'fx_rfd')
+            // Left join: cluster_id -1 (unclustered) has no real cluster row,
+            // but the detection itself is still a valid context entry.
+            ->leftJoin('fx_rfd', 'recognize_face_clusters', 'fx_rfc', $query->expr()->eq('fx_rfd.cluster_id', 'fx_rfc.id'))
             ->where($query->expr()->in('fx_rfd.file_id', $query->createNamedParameter($fileids, IQueryBuilder::PARAM_INT_ARRAY)))
         ;
 
         foreach ($query->executeQuery()->fetchAll() as $row) {
             $fileid = (int) $row['file_id'];
+            // Both representations, since a leaf's value may carry either.
             $contexts[$fileid]['recognize'][] = "{$row['user_id']}/{$row['cluster_id']}";
+            if (!empty($row['title'])) {
+                $contexts[$fileid]['recognize'][] = "{$row['user_id']}/{$row['title']}";
+            }
         }
     }
 
@@ -466,7 +509,7 @@ final class FilterExpression
         $model = self::faceRecognitionModel();
 
         $query = $connection->getQueryBuilder();
-        $query->select('fx_fri.file', 'fx_frp.user', 'fx_frf.person')
+        $query->select('fx_fri.file', 'fx_frp.user', 'fx_frp.id', 'fx_frp.name')
             ->from('facerecog_faces', 'fx_frf')
             ->innerJoin('fx_frf', 'facerecog_images', 'fx_fri', $query->expr()->andX(
                 $query->expr()->eq('fx_fri.id', 'fx_frf.image'),
@@ -478,7 +521,13 @@ final class FilterExpression
 
         foreach ($query->executeQuery()->fetchAll() as $row) {
             $fileid = (int) $row['file'];
-            $contexts[$fileid]['facerecognition'][] = "{$row['user']}/{$row['person']}";
+            // Both representations, since a leaf's value may carry either
+            // (see class docblock: named persons' own API only exposes the
+            // name as their effective "id").
+            $contexts[$fileid]['facerecognition'][] = "{$row['user']}/{$row['id']}";
+            if (!empty($row['name'])) {
+                $contexts[$fileid]['facerecognition'][] = "{$row['user']}/{$row['name']}";
+            }
         }
     }
 
