@@ -59,7 +59,7 @@ import { defineComponent } from 'vue';
 import type { Component } from 'vue';
 
 import Searchbar from '@components/header/Searchbar.vue';
-import ClusterHList from '@components/ClusterHList.vue';
+import ClusterHList from './modal/ClusterHList.vue';
 
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 

@@ -81,9 +81,9 @@ import CloseIcon from 'vue-material-design-icons/Close.vue';
 import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 
-import RatingStars from './RatingStars.vue';
+import RatingStars from '@components/common/RatingStars.vue';
 import { defineComponent, type PropType } from 'vue';
-import EmbeddedTagSelector from './EmbeddedTagSelector.vue';
+import EmbeddedTagSelector from '@components/common/EmbeddedTagSelector.vue';
 
 export default defineComponent({
   name: 'FilterComponent',

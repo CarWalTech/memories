@@ -239,7 +239,7 @@ import { DateTime } from 'luxon';
 import UserConfig from '@mixins/UserConfig';
 import Cluster from '@components/frame/Cluster.vue';
 import AlbumsList from '@components/modal/AlbumsList.vue';
-import RatingStars from '@components/RatingStars.vue';
+import RatingStars from '@components/common/RatingStars.vue';
 
 import EditIcon from 'vue-material-design-icons/Pencil.vue';
 import CloseIcon from 'vue-material-design-icons/Close.vue';

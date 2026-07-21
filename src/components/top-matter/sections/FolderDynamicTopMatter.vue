@@ -15,7 +15,7 @@ import UserMixin from '@mixins/UserConfig';
 import axios from '@nextcloud/axios';
 import { getLanguage } from '@nextcloud/l10n';
 
-import FolderGrid from '../../FolderGrid.vue';
+import FolderGrid from '../modal/FolderGrid.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 
 import * as utils from '@services/utils';

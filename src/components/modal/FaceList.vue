@@ -34,7 +34,7 @@ import { showError } from '@nextcloud/dialogs';
 
 const NcTextField = () => import('@nextcloud/vue/dist/Components/NcTextField.js');
 
-import ClusterGrid from '@components/ClusterGrid.vue';
+import ClusterGrid from '@components/views/modal/ClusterGrid.vue';
 
 import * as dav from '@services/dav';
 import * as utils from '@services/utils';

@@ -9,7 +9,7 @@ import axios from '@nextcloud/axios';
 import { getLanguage } from '@nextcloud/l10n';
 
 import UserConfig from '@mixins/UserConfig';
-import EmbeddedTagGrid from '../../EmbeddedTagGrid.vue';
+import EmbeddedTagGrid from '../modal/EmbeddedTagGrid.vue';
 
 import * as utils from '@services/utils';
 import { API } from '@services/API';

@@ -23,7 +23,7 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-import Cluster from './frame/Cluster.vue';
+import Cluster from '@components/frame/Cluster.vue';
 
 import type { ICluster } from '@typings';
 

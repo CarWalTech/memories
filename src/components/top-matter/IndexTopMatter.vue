@@ -4,7 +4,7 @@
       <span class="name">{{ viewName }}</span>
       <div class="right-actions">
         <ViewOptionsAction />
-        <FilterDropdownButton />
+        <FilterDropdownAction />
         <RefreshOptionsAction />
       </div>
     </div>
@@ -16,7 +16,7 @@ import { defineComponent } from 'vue';
 
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
-import FilterDropdownButton from '@components/FilterDropdownButton.vue';
+import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 import * as strings from '@services/strings';
 
 export default defineComponent({
@@ -25,7 +25,7 @@ export default defineComponent({
   components: {
     ViewOptionsAction,
     RefreshOptionsAction,
-    FilterDropdownButton,
+    FilterDropdownAction,
   },
 
   computed: {

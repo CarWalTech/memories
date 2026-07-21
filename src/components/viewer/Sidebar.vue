@@ -45,7 +45,7 @@ import Vue, { defineComponent } from 'vue';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import { registerDavProperty } from '@nextcloud/files/dav';
 
-import Metadata from '@components/Metadata.vue';
+import Metadata from './Metadata.vue';
 
 import * as utils from '@services/utils';
 

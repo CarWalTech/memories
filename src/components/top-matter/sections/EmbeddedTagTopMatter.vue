@@ -3,7 +3,7 @@
     <div class="top-row">
       <div class="name">{{ t('memories', 'Embedded Tags') }}</div>
       <div class="right-actions">
-        <FilterDropdownButton />
+        <FilterDropdownAction />
 
         <NcActions :inline="2">
           <NcActionButton :aria-label="t('memories', 'New tag')" @click="createTag" close-after-click>
@@ -58,7 +58,7 @@ import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
-import FilterDropdownButton from '@components/FilterDropdownButton.vue';
+import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
 import * as dav from '@services/dav';
 
@@ -80,7 +80,7 @@ export default defineComponent({
     NcButton,
     ViewOptionsAction,
     RefreshOptionsAction,
-    FilterDropdownButton,
+    FilterDropdownAction,
     TagsIcon,
     TagPlusIcon,
     TagMinusIcon,

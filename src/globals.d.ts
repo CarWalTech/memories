@@ -126,7 +126,7 @@ declare module 'vue' {
   }
 
   export interface GlobalComponents {
-    XLoadingIcon: typeof import('@components/XLoadingIcon.vue').default;
+    XLoadingIcon: typeof import('@components/icons/XLoadingIcon.vue').default;
     XImg: typeof import('@components/frame/XImg.vue').default;
   }
 }

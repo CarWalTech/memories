@@ -3,10 +3,10 @@ import Vue from 'vue';
 
 import { generateUrl } from '@nextcloud/router';
 
-import Timeline from '@components/Timeline.vue';
-import Explore from '@components/Explore.vue';
-import SplitTimeline from '@components/SplitTimeline.vue';
-import ClusterView from '@components/ClusterView.vue';
+import Timeline from '@components/views/Timeline.vue';
+import Explore from '@components/views/Explore.vue';
+import SplitTimeline from '@components/views/SplitTimeline.vue';
+import ClusterView from '@components/views/ClusterView.vue';
 import NativeXSetup from '@native/Setup.vue';
 
 import { translate as t } from '@services/l10n';

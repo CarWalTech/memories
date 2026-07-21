@@ -32,7 +32,7 @@
             </NcActionCheckbox>
           </template>
         </ViewOptionsAction>
-        <FilterDropdownButton />
+        <FilterDropdownAction />
         <RefreshOptionsAction />
         <NcActions :inline="isMobile ? 0 : 2" v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
@@ -102,7 +102,7 @@ import AlbumCreateModal from '@components/modal/AlbumCreateModal.vue';
 import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
-import FilterDropdownButton from '@components/FilterDropdownButton.vue';
+import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
 import { downloadWithHandle } from '@services/dav';
 import { API } from '@services/API';
@@ -130,7 +130,7 @@ export default defineComponent({
     AlbumDeleteModal,
     ViewOptionsAction,
     RefreshOptionsAction,
-    FilterDropdownButton,
+    FilterDropdownAction,
 
     BackIcon,
     DownloadIcon,

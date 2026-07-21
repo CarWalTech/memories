@@ -611,7 +611,7 @@ import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
-import ZoomRowAction from '@components/ZoomRowAction.vue';
+import ZoomRowAction from './ZoomRowAction.vue';
 
 import ViewPrefs from '@mixins/ViewPrefs';
 import viewModeScope, { type ImageDisplayShape } from '@services/view-mode-scope';

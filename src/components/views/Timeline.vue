@@ -132,12 +132,12 @@ import Photo from '@components/frame/Photo.vue';
 import ScrollerManager from '@components/ScrollerManager.vue';
 import SelectionManager from '@components/SelectionManager.vue';
 import Viewer from '@components/viewer/Viewer.vue';
-import SwipeRefresh from './SwipeRefresh.vue';
+import SwipeRefresh from './modal/SwipeRefresh.vue';
 
-import EmptyContent from '@components/views/EmptyContent.vue';
+import EmptyContent from './EmptyContent.vue';
 import TopMatter from '@components/top-matter/TopMatter.vue';
 import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
-import TimelineTopOverlay from '@components/TimelineTopOverlay.vue';
+import TimelineTopOverlay from './modal/TimelineTopOverlay.vue';
 
 import * as dav from '@services/dav';
 import * as utils from '@services/utils';

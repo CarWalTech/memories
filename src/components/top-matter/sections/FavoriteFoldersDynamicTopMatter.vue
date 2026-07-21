@@ -9,7 +9,7 @@ import axios from '@nextcloud/axios';
 
 import UserMixin from '@mixins/UserConfig';
 
-import FolderGrid from '../../FolderGrid.vue';
+import FolderGrid from '../modal/FolderGrid.vue';
 
 import { API } from '@services/API';
 

@@ -11,7 +11,7 @@
 
       <div class="right-actions">
         <ViewOptionsAction />
-        <FilterDropdownButton />
+        <FilterDropdownAction />
         <RefreshOptionsAction />
       </div>
     </div>
@@ -25,7 +25,7 @@ import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
-import FilterDropdownButton from '@components/FilterDropdownButton.vue';
+import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
 import * as strings from '@services/strings';
 
@@ -38,7 +38,7 @@ export default defineComponent({
     NcActionButton,
     ViewOptionsAction,
     RefreshOptionsAction,
-    FilterDropdownButton,
+    FilterDropdownAction,
     BackIcon,
   },
 

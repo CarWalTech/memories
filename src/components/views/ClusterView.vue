@@ -22,9 +22,9 @@ import type { Route } from 'vue-router';
 
 import UserConfig from '@mixins/UserConfig';
 import TopMatter from '@components/top-matter/TopMatter.vue';
-import ClusterGrid from '@components/ClusterGrid.vue';
-import Timeline from '@components/Timeline.vue';
-import EmptyContent from '@components/views/EmptyContent.vue';
+import ClusterGrid from './modal/ClusterGrid.vue';
+import Timeline from './Timeline.vue';
+import EmptyContent from './EmptyContent.vue';
 import DynamicTopMatter from '@components/top-matter/DynamicTopMatter.vue';
 
 import * as dav from '@services/dav';

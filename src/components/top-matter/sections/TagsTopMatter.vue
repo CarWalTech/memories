@@ -16,8 +16,8 @@ import UserConfig from '@mixins/UserConfig';
 
 import CollabTagsTopMatter from './CollabTagsTopMatter.vue';
 import EmbeddedTagTopMatter from './EmbeddedTagTopMatter.vue';
-import EmbeddedTagBreadcrumbs from './EmbeddedTagBreadcrumbs.vue';
-import TagsTabBar from './TagsTabBar.vue';
+import EmbeddedTagBreadcrumbs from '../modal/EmbeddedTagBreadcrumbs.vue';
+import TagsTabBar from '../modal/TagsTabBar.vue';
 
 export default defineComponent({
   name: 'TagsTopMatter',

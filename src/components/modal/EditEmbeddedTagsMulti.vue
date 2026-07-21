@@ -63,7 +63,7 @@ import { defineComponent } from 'vue';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import InfoIcon from 'vue-material-design-icons/Information.vue';
 
-import EmbeddedTagSelector from '@components/EmbeddedTagSelector.vue';
+import EmbeddedTagSelector from '@components/common/EmbeddedTagSelector.vue';
 
 import * as utils from '@services/utils';
 import { translate as t } from '@services/l10n';

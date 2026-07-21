@@ -26,7 +26,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-import EmbeddedTagSelector from '@components/EmbeddedTagSelector.vue';
+import EmbeddedTagSelector from '@components/common/EmbeddedTagSelector.vue';
 import EditEmbeddedTagsMulti from './EditEmbeddedTagsMulti.vue';
 
 import * as utils from '@services/utils';

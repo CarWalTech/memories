@@ -18,10 +18,10 @@ import { bus } from '@services/utils';
 import type { IFilters } from '@typings';
 
 import FilterIcon from 'vue-material-design-icons/FilterMenu.vue';
-import FilterComponent from './FilterComponent.vue';
+import FilterComponent from '@components/modal/FilterComponent.vue';
 
 export default defineComponent({
-  name: 'FilterDropdownButton',
+  name: 'FilterDropdownAction',
 
   components: {
     FilterIcon,

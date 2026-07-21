@@ -182,7 +182,7 @@ import { defineComponent, type PropType } from 'vue';
 
 import * as utils from '@services/utils';
 
-import RatingTags from '@components/RatingTags.vue';
+import RatingTags from '@components/common/RatingTags.vue';
 import LivePhotoIcon from '@components/icons/LivePhoto.vue';
 import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';

@@ -99,13 +99,13 @@ import { generateUrl } from '@nextcloud/router';
 
 import UserConfig from '@mixins/UserConfig';
 
-import Timeline from '@components/Timeline.vue';
-import Settings from '@components/Settings.vue';
-import FirstStart from '@components/FirstStart.vue';
+import Timeline from '@components/views/Timeline.vue';
+import Settings from '@components/views/Settings.vue';
+import FirstStart from '@components/views/FirstStart.vue';
 import Viewer from '@components/viewer/Viewer.vue';
-import Sidebar from '@components/Sidebar.vue';
-import MobileNav from '@components/MobileNav.vue';
-import MobileHeader from '@components/MobileHeader.vue';
+import Sidebar from '@components/viewer/Sidebar.vue';
+import MobileNav from '@components/mobile/MobileNav.vue';
+import MobileHeader from '@components/mobile/MobileHeader.vue';
 
 import EditMetadataModal from '@components/modal/EditMetadataModal.vue';
 import AddToAlbumModal from '@components/modal/AddToAlbumModal.vue';

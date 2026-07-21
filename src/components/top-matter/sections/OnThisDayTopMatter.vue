@@ -51,7 +51,7 @@ interface IYear {
 }
 
 export default defineComponent({
-  name: 'OnThisDay',
+  name: 'OnThisDayTopMatter',
   components: {
     NcActions,
     NcActionButton,

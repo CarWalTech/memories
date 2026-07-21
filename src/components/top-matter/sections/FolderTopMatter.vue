@@ -53,7 +53,7 @@
               </template>
             </NcActionButton>
           </ViewOptionsAction>
-          <FilterDropdownButton v-if="!routeIsPublic" />
+          <FilterDropdownAction v-if="!routeIsPublic" />
           <RefreshFolderOptionsAction v-if="!routeIsPublic" />
 
           <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
@@ -113,7 +113,7 @@ import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import RefreshFolderOptionsAction from '@components/top-actions/RefreshFolderOptionsAction.vue';
-import FilterDropdownButton from '@components/FilterDropdownButton.vue';
+import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
@@ -144,7 +144,7 @@ export default defineComponent({
     PublicUploadHandler,
     ViewOptionsAction,
     RefreshFolderOptionsAction,
-    FilterDropdownButton,
+    FilterDropdownAction,
     HomeIcon,
     ShareIcon,
     TimelineIcon,

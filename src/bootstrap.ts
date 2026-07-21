@@ -4,7 +4,7 @@ import { generateFilePath } from '@nextcloud/router';
 import { getRequestToken } from '@nextcloud/auth';
 
 // Global components
-import XLoadingIcon from '@components/XLoadingIcon.vue';
+import XLoadingIcon from '@components/icons/XLoadingIcon.vue';
 
 // Locals
 import { constants, initstate } from '@services/utils';

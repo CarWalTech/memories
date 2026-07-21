@@ -15,12 +15,12 @@ import FolderDynamicTopMatter from './sections/FolderDynamicTopMatter.vue';
 import FavoriteFoldersDynamicTopMatter from './sections/FavoriteFoldersDynamicTopMatter.vue';
 import PlacesDynamicTopMatterVue from './sections/PlacesDynamicTopMatter.vue';
 import EmbeddedTagDynamicTopMatter from './sections/EmbeddedTagDynamicTopMatter.vue';
-import OnThisDay from '../OnThisDay.vue';
+import OnThisDayTopMatter from './sections/OnThisDayTopMatter.vue';
 import type SelectionManager from '@components/SelectionManager.vue';
 import * as strings from '@services/strings';
 
 // Auto-hide top header on public shares if redundant
-import '../PublicShareHeader';
+import './modal/PublicShareHeader';
 
 export default defineComponent({
   name: 'DynamicTopMatter',
@@ -62,7 +62,7 @@ export default defineComponent({
       } else if (this.routeIsAlbums) {
         return AlbumDynamicTopMatter;
       } else if (this.routeIsBase && this.config.enable_top_memories) {
-        return OnThisDay;
+        return OnThisDayTopMatter;
       }
 
       return null;
