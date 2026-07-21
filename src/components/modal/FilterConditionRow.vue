@@ -24,10 +24,10 @@
       </NcButton>
     </div>
 
-    <ClusterValuePicker class="value-picker" :field="modelValue.field" :multiple="true" :model-value="modelValue.values" @update:modelValue="onValuesChange" :disabled="disabled" />
+    <ClusterValuePicker class="value-picker" :field="effectiveField" :multiple="true" :model-value="effectiveValues" @update:modelValue="onValuesChange" :disabled="disabled" />
 
     <NcSelect
-      v-if="modelValue.values.length > 1"
+      v-if="effectiveValues.length > 1"
       class="mode-select"
       :model-value="modeOption"
       @update:modelValue="onModeChange"
@@ -83,7 +83,28 @@ export default defineComponent({
 
   emits: ['update:modelValue', 'remove'],
 
+  data: () => ({
+    // Set while the user has picked a new field but not yet chosen a value
+    // for it. A FilterNode can't represent "field X, 0 values" (the backend
+    // rejects empty leaf values), so switching field must not immediately
+    // emit an update -- the previous fix for the AND/OR-reverts-to-AND bug
+    // showed that an emitted 0-value row gets treated as "remove this
+    // condition" by the parent, which silently deleted the row being edited.
+    // Instead, the field switch is held here (and reflected in the UI via
+    // effectiveField/effectiveValues) until a real value is chosen, at which
+    // point both change atomically in one emit.
+    pendingField: null as FilterField | null,
+  }),
+
   computed: {
+    effectiveField(): FilterField {
+      return this.pendingField ?? this.modelValue.field;
+    },
+
+    effectiveValues(): string[] {
+      return this.pendingField ? [] : this.modelValue.values;
+    },
+
     fieldOptions(): IFieldOption[] {
       const all: IFieldOption[] = [
         { value: 'tag', label: t('memories', 'Collaborative Tag') },
@@ -111,7 +132,7 @@ export default defineComponent({
     },
 
     fieldOption(): IFieldOption | null {
-      return this.fieldOptions.find((o) => o.value === this.modelValue.field) ?? null;
+      return this.fieldOptions.find((o) => o.value === this.effectiveField) ?? null;
     },
 
     modeOption(): IModeOption {
@@ -121,13 +142,21 @@ export default defineComponent({
 
   methods: {
     onFieldChange(option: IFieldOption | null) {
-      if (!option) return;
-      // Changing field invalidates previously selected values (they belong to a different picker)
-      this.$emit('update:modelValue', { ...this.modelValue, field: option.value, values: [] });
+      if (!option || option.value === this.modelValue.field) return;
+      // Don't emit yet -- see pendingField's comment. The value picker below
+      // re-renders immediately (effectiveField changed), but the tree isn't
+      // touched until onValuesChange() below actually has something to commit.
+      this.pendingField = option.value;
     },
 
     onValuesChange(values: string[]) {
-      this.$emit('update:modelValue', { ...this.modelValue, values });
+      if (this.pendingField && 0 === values.length) {
+        return; // still nothing picked for the new field -- keep waiting
+      }
+
+      const field = this.pendingField ?? this.modelValue.field;
+      this.pendingField = null;
+      this.$emit('update:modelValue', { ...this.modelValue, field, values });
     },
 
     onModeChange(option: IModeOption | null) {

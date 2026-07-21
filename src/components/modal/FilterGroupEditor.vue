@@ -54,6 +54,7 @@
           :model-value="newGroupDraft"
           :depth="depth + 1"
           :disabled="disabled"
+          removable
           @update:modelValue="onDraftGroupChange"
           @remove="onDraftGroupRemove"
         />

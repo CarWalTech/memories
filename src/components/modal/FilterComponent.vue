@@ -1,25 +1,6 @@
 <template>
   <div class="filter-component">
     <form @submit.prevent>
-      <!-- Rating range -->
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Rating') }}</label>
-        <div class="rating-row">
-          <span class="rating-caption">{{ t('memories', 'At least') }}</span>
-          <RatingStars :rating="filters.minRating" :size="18" @update:rating="onMinRatingChange" />
-          <NcButton v-if="filters.minRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear minimum rating')" @click="onMinRatingChange(0)">
-            <template #icon><CloseIcon :size="14" /></template>
-          </NcButton>
-        </div>
-        <div class="rating-row">
-          <span class="rating-caption">{{ t('memories', 'At most') }}</span>
-          <RatingStars :rating="filters.maxRating" :size="18" @update:rating="onMaxRatingChange" />
-          <NcButton v-if="filters.maxRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear maximum rating')" @click="onMaxRatingChange(0)">
-            <template #icon><CloseIcon :size="14" /></template>
-          </NcButton>
-        </div>
-      </div>
-
       <!-- Favorites -->
       <div class="filter-section">
         <NcCheckboxRadioSwitch type="switch" :checked="filters.favorite" @update:checked="onFavoriteChange">
@@ -79,9 +60,33 @@
         </div>
       </div>
 
+      <!-- Rating range -->
+      <div class="filter-section">
+        <label class="filter-label">{{ t('memories', 'Rating') }}</label>
+        <div class="rating-row">
+          <span class="rating-caption">{{ t('memories', 'At least') }}</span>
+          <RatingStars :rating="filters.minRating" :size="18" @update:rating="onMinRatingChange" />
+          <NcButton v-if="filters.minRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear minimum rating')" @click="onMinRatingChange(0)">
+            <template #icon><CloseIcon :size="14" /></template>
+          </NcButton>
+        </div>
+        <div class="rating-row">
+          <span class="rating-caption">{{ t('memories', 'At most') }}</span>
+          <RatingStars :rating="filters.maxRating" :size="18" @update:rating="onMaxRatingChange" />
+          <NcButton v-if="filters.maxRating > 0" type="tertiary-no-background" :aria-label="t('memories', 'Clear maximum rating')" @click="onMaxRatingChange(0)">
+            <template #icon><CloseIcon :size="14" /></template>
+          </NcButton>
+        </div>
+      </div>
+
       <!-- Tag / embedded tag / people / places expression builder -->
       <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Tags & People') }}</label>
+        <div class="filter-label-row">
+          <label class="filter-label">{{ t('memories', 'Tags & People') }}</label>
+          <NcButton v-if="filters.filterExpr" type="tertiary-no-background" @click="clearFilterExpr" :disabled="disabled">
+            {{ t('memories', 'Clear') }}
+          </NcButton>
+        </div>
         <FilterExpressionBuilder :model-value="filters.filterExpr" :disabled="disabled" @update:modelValue="onFilterExprChange" />
       </div>
 
@@ -175,6 +180,11 @@ export default defineComponent({
 
     onFilterExprChange(value: IFilters['filterExpr']) {
       this.filters.filterExpr = value;
+      this.emitFilterChange();
+    },
+
+    clearFilterExpr() {
+      this.filters.filterExpr = null;
       this.emitFilterChange();
     },
 
@@ -276,6 +286,12 @@ export default defineComponent({
   font-weight: 600;
   font-size: 13px;
   color: var(--color-text-darker);
+}
+
+.filter-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .rating-row {
