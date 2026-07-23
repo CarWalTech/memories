@@ -8,7 +8,7 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { fetchImage, sticky } from './XImgCache';
+import { fetchImage, cancelImage, sticky } from './XImgCache';
 
 const BLANK_IMG = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
@@ -38,6 +38,8 @@ export default defineComponent({
     dataSrc: BLANK_IMG,
     _blobLocked: false,
     _state: 0,
+    /** URL currently being fetched (unresolved), so it can be cancelled on unmount */
+    _pendingSrc: null as string | null,
   }),
 
   watch: {
@@ -52,6 +54,13 @@ export default defineComponent({
 
   beforeDestroy() {
     this._state = -1;
+
+    // Cancel any in-flight fetch for this tile so it stops competing with
+    // still-visible tiles (best-effort; only drops it if still queued)
+    if (this._pendingSrc) {
+      cancelImage(this._pendingSrc);
+      this._pendingSrc = null;
+    }
 
     // Free up the blob if it was locked
     this.freeBlob();
@@ -79,10 +88,20 @@ export default defineComponent({
         return;
       }
 
+      // Priority = distance of this tile from the viewport center (lower is
+      // fetched first), so visible thumbnails load before off-screen buffered
+      // ones. Computed at enqueue time; staleness within the worker's 20ms
+      // batch window is negligible.
+      const rect = (this.$el as HTMLElement)?.getBoundingClientRect?.();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const priority = rect ? Math.abs((rect.top + rect.bottom) / 2 - vh / 2) : 0;
+
       // Fetch image with worker
+      const state = (this._state = Math.random());
       try {
-        const state = (this._state = Math.random());
-        const blobSrc = await fetchImage(this.src);
+        this._pendingSrc = this.src;
+        const blobSrc = await fetchImage(this.src, priority);
+        this._pendingSrc = null;
         if (state !== this._state) return; // aborted
         this.dataSrc = blobSrc;
 
@@ -90,6 +109,8 @@ export default defineComponent({
         // since photoswipe uses the thumb url for the animated zoom-in
         this.lockBlob();
       } catch (error) {
+        this._pendingSrc = null;
+        if (state !== this._state) return; // aborted/cancelled -- not a real error
         this.dataSrc = BLANK_IMG;
         this.$emit('error', error);
         console.error('Failed to load XImg', error);

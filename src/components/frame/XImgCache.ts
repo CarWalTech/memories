@@ -47,6 +47,12 @@ onDOMLoaded(() => {
   }, BLOB_CACHE_GC);
 });
 
+/** Best-effort cancel of a still-queued preview fetch (e.g. tile scrolled away) */
+export function cancelImage(url: string) {
+  if (!worker) return;
+  worker.cancel(url);
+}
+
 /** Change stickiness for a BLOB url */
 export async function sticky(url: string, delta: number) {
   if (!BLOB_STICKY.has(url)) BLOB_STICKY.set(url, 0);
@@ -58,7 +64,7 @@ export async function sticky(url: string, delta: number) {
   }
 }
 
-export async function fetchImage(url: string) {
+export async function fetchImage(url: string, priority: number = 0) {
   // Start worker
   startWorker();
 
@@ -66,8 +72,8 @@ export async function fetchImage(url: string) {
   let entry = BLOB_CACHE.get(url);
   if (entry) return entry[1];
 
-  // Fetch image
-  const blobUrl = await worker.fetchImageSrc(url);
+  // Fetch image (lower priority value = fetched first; see XImgWorker)
+  const blobUrl = await worker.fetchImageSrc(url, priority);
 
   // Check memcache entry again and revoke if it was added in the meantime
   if ((entry = BLOB_CACHE.get(url))) {

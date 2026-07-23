@@ -14,6 +14,8 @@ interface FetchPreviewObject {
   url: URL;
   fileid: number;
   reqid: number;
+  /** Lower = higher priority (distance from viewport center); visible tiles fetch first */
+  priority: number;
   done?: boolean;
 }
 let fetchPreviewQueue: FetchPreviewObject[] = [];
@@ -55,6 +57,11 @@ async function flushPreviewQueue() {
   // Copy queue and clear
   const fetchPreviewQueueCopy = fetchPreviewQueue;
   fetchPreviewQueue = [];
+
+  // Order the batch so the most visible tiles (lowest priority value) are
+  // requested first -- the backend streams the multipreview back in this order,
+  // so on-screen thumbnails resolve before off-screen buffered ones.
+  fetchPreviewQueueCopy.sort((a, b) => a.priority - b.priority);
 
   // Respond to URL
   const resolve = async (url: string, res: Response, blob?: Blob) => {
@@ -207,7 +214,7 @@ async function flushPreviewQueue() {
 }
 
 /** Accepts a URL and returns a promise with a blob */
-async function fetchImage(url: string): Promise<Blob> {
+async function fetchImage(url: string, priority: number = 0): Promise<Blob> {
   // Check if in cache
   const cache = await imageCache?.match(url);
   if (cache) return await cache.blob();
@@ -228,6 +235,12 @@ async function fetchImage(url: string): Promise<Blob> {
     if (pendingUrls.has(url)) {
       // Already in queue, just add callback
       pendingUrls.get(url)?.push({ resolve, reject });
+
+      // Keep the highest-priority (lowest value) requester's priority, so a
+      // tile that just scrolled into view isn't stuck behind its earlier,
+      // off-screen enqueue.
+      const existing = fetchPreviewQueue.find((p) => p.origUrl === url);
+      if (existing) existing.priority = Math.min(existing.priority, priority);
     } else {
       // Add to queue
       fetchPreviewQueue.push({
@@ -235,6 +248,7 @@ async function fetchImage(url: string): Promise<Blob> {
         url: urlObj,
         fileid,
         reqid: Math.round(Math.random() * 1e8),
+        priority,
       });
 
       // Add to pending
@@ -313,9 +327,30 @@ function configure(_config: typeof config) {
 }
 
 /** Get BLOB url for image */
-async function fetchImageSrc(url: string) {
-  return URL.createObjectURL(await fetchImage(url));
+async function fetchImageSrc(url: string, priority: number = 0) {
+  return URL.createObjectURL(await fetchImage(url, priority));
+}
+
+/**
+ * Best-effort cancellation of a queued preview request.
+ *
+ * Only cancels when the request is still queued (not yet flushed into a
+ * multipreview) AND this is its sole requester -- otherwise another live
+ * consumer still needs the blob, so we let it complete. Cancelled callbacks
+ * are rejected; the XImg that requested them ignores this because it has
+ * already been destroyed (see XImg._state).
+ */
+function cancel(url: string) {
+  const idx = fetchPreviewQueue.findIndex((p) => p.origUrl === url);
+  if (idx === -1) return; // already flushed / in flight -- let it finish
+
+  const callbacks = pendingUrls.get(url);
+  if (!callbacks || callbacks.length !== 1) return; // shared -- keep it
+
+  fetchPreviewQueue.splice(idx, 1);
+  pendingUrls.delete(url);
+  callbacks[0]?.reject?.(new Error('aborted'));
 }
 
 // Exports to main thread
-export default exportWorker({ fetchImageSrc, configure });
+export default exportWorker({ fetchImageSrc, configure, cancel });
