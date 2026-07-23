@@ -795,6 +795,13 @@ export default defineComponent({
         set(DaysFilterType.FILTER_EXPR, encodeURIComponent(JSON.stringify(this.filters.filterExpr)));
       }
 
+      // Collaborative Tags Image Property -- only ask the backend for the extra
+      // per-photo tag names (a real JOIN, unlike embedded tags) when the overlay
+      // is actually on and collaborative tags are enabled for this user
+      if (this.effectiveImageProps.show_collab_tags_in_gallery && this.config.systemtags_enabled) {
+        set(DaysFilterType.COLLAB_TAGS);
+      }
+
       // Filename / filepath
       if (this.filters.filename) {
         set(DaysFilterType.FILENAME, this.filters.filename);
@@ -1621,7 +1628,9 @@ export default defineComponent({
         if (this.effectiveShape === 'list') {
           const photo = data[dataIdx];
           const exif = photo.imageInfo?.exif || photo.exif;
-          const hasTags = this.effectiveImageProps.metadata_in_gallery && utils.getTagsFromExif(exif).length > 0;
+          const hasTags =
+            (this.effectiveImageProps.metadata_in_gallery && utils.getTagsFromExif(exif).length > 0) ||
+            (this.effectiveImageProps.show_collab_tags_in_gallery && (photo.systemtags?.length ?? 0) > 0);
           jH = listRowHeight(this.config.grid_zoom, hasTags);
         }
         const delta = jH - row.size;

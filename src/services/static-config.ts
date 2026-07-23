@@ -153,6 +153,8 @@ class StaticConfig {
 
       // enabled apps
       systemtags_enabled: false,
+      embeddedtags_enabled: true,
+      systemtags_available: false,
       albums_enabled: false,
       recognize_installed: false,
       recognize_enabled: false,
@@ -167,6 +169,7 @@ class StaticConfig {
       stack_raw_files: true,
       dedup_identical: false,
       show_owner_name_timeline: false,
+      tag_mode: 'both',
 
       // viewer settings
       high_res_cond_default: 'zoom',
@@ -181,6 +184,7 @@ class StaticConfig {
       show_datetime_in_gallery: false,
       show_extension_in_gallery: false,
       show_dimensions_in_gallery: false,
+      show_collab_tags_in_gallery: false,
       view_mode_scope: '{}',
       image_props_modes: '{}',
       sort_scope: '{}',

@@ -42,6 +42,19 @@
         </NcCheckboxRadioSwitch>
       </NcAppSettingsSection>
 
+      <NcAppSettingsSection id="tags-settings" :name="names.tags">
+        <div class="select-group">
+          <div class="title">{{ t('memories', 'Which tagging systems to use') }}</div>
+          <NcSelect
+            v-model="tagMode"
+            :options="tagModeOptions"
+            :reduce="reduceMetadataMode"
+            :clearable="false"
+            label="label"
+          />
+        </div>
+      </NcAppSettingsSection>
+
       <NcAppSettingsSection id="mobile-nav-settings" :name="names.mobileNav">
         <p class="settings-hint">
           {{
@@ -268,6 +281,7 @@ import draggable from 'vuedraggable';
 import UserConfig from '@mixins/UserConfig';
 import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
+import staticConfig from '@services/static-config';
 import * as nativex from '@native';
 import { availableNavState, withRequiredNavItem, REQUIRED_NAV_ITEM, type AvailableNavItem } from '@services/nav-items';
 import { generateUrl } from '@nextcloud/router';
@@ -315,6 +329,7 @@ export default defineComponent({
     names: {
       header: t('memories', 'Memories Settings'),
       general: t('memories', 'General'),
+      tags: t('memories', 'Tags'),
       mobileNav: t('memories', 'Mobile Navigation'),
       viewer: t('memories', 'Photo Viewer'),
       metadata: t('memories', 'Metadata'),
@@ -375,6 +390,26 @@ export default defineComponent({
 
     highResCond(): IConfig['high_res_cond_default'] {
       return this.config.high_res_cond || this.config.high_res_cond_default || 'zoom';
+    },
+
+    tagModeOptions(): { value: IConfig['tag_mode']; label: string }[] {
+      const options = [
+        { value: 'embedded' as const, label: this.t('memories', 'Embedded tags only') },
+        { value: 'collab' as const, label: this.t('memories', 'Collaborative tags only') },
+        { value: 'both' as const, label: this.t('memories', 'Both (default)') },
+      ];
+
+      // Collaborative tags require the systemtags app to be installed
+      return this.config.systemtags_available ? options : options.filter((o) => o.value === 'embedded');
+    },
+
+    tagMode: {
+      get(): IConfig['tag_mode'] {
+        return this.config.tag_mode;
+      },
+      set(val: IConfig['tag_mode']) {
+        this.updateTagMode(val);
+      },
     },
 
     metadataWriteModeOptions(): { value: IConfig['metadata_write_mode']; label: string }[] {
@@ -535,6 +570,27 @@ export default defineComponent({
 
     async updateBlurThumbnails() {
       await this.updateSetting('blur_thumbnails');
+    },
+
+    // Tags settings
+    async updateTagMode(val: IConfig['tag_mode']) {
+      this.config.tag_mode = val;
+      await this.updateSetting('tag_mode', 'tagMode');
+
+      // Derived flags are computed client-side and not persisted directly,
+      // so push them through the same local-storage + event-bus mechanism
+      // updateSetting() uses, to update all mixin consumers live.
+      const collab = this.config.systemtags_available && (val === 'collab' || val === 'both');
+      const embedded = val === 'embedded' || val === 'both';
+
+      for (const [setting, value] of [
+        ['systemtags_enabled', collab],
+        ['embeddedtags_enabled', embedded],
+      ] as const) {
+        this.config[setting] = value;
+        staticConfig.setLs(setting, value);
+        utils.bus.emit('memories:user-config-changed', { setting, value });
+      }
     },
 
     // Mobile navigation settings

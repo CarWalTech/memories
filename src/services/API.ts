@@ -61,6 +61,8 @@ export const enum DaysFilterType {
   SORT_REVERSE = 'sortReverse',
   HIDDEN = 'hidden',
   NO_PRELOAD = 'nopreload',
+  /** Ask the backend to attach each photo's visible collaborative tag names (Image Property overlay) */
+  COLLAB_TAGS = 'collabTags',
 }
 
 export class API {

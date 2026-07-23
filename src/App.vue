@@ -411,6 +411,7 @@ export default defineComponent({
           shortTitle: t('memories', 'Tags'),
           // Both tag routes are presented as one view with an internal tab bar
           activeNames: ['tags', 'embeddedtags'],
+          if: this.config.systemtags_enabled || this.config.embeddedtags_enabled,
         },
       ];
 

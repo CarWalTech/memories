@@ -26,7 +26,7 @@
         <div class="tag-padding" v-if="sections.length === 1"></div>
       </div>
 
-      <div v-if="sections.includes(6)">
+      <div v-if="config.embeddedtags_enabled && sections.includes(6)">
         <div class="title-text">
           {{ t('memories', 'Embedded Tags') }}
         </div>

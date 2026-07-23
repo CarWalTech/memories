@@ -17,6 +17,7 @@ export type ImagePropsBundle = Pick<
   | 'show_datetime_in_gallery'
   | 'show_extension_in_gallery'
   | 'show_dimensions_in_gallery'
+  | 'show_collab_tags_in_gallery'
 >;
 
 const PROP_KEYS: (keyof ImagePropsBundle)[] = [
@@ -27,6 +28,7 @@ const PROP_KEYS: (keyof ImagePropsBundle)[] = [
   'show_datetime_in_gallery',
   'show_extension_in_gallery',
   'show_dimensions_in_gallery',
+  'show_collab_tags_in_gallery',
 ];
 
 /** The Dynamic-mode profile is just today's global config -- only Square/List get their own stored overrides. */

@@ -73,6 +73,9 @@ declare module '@typings' {
     /** Reference to exif object */
     exif?: IExif;
 
+    /** Visible collaborative (systemtag) names, if requested via the collabTags day-query flag */
+    systemtags?: string[];
+
     /** Face detection ID */
     faceid?: number;
     /** Face dimensions */

@@ -347,10 +347,20 @@ export default defineComponent({
       return utils.getRatingFromExif(exif);
     },
 
-    /** Get current photo embedded tags */
+    /** Get current photo tags to display -- embedded and/or collaborative, whichever Image Properties enable */
     currentTags(): string[][] {
-      const exif = this.data.imageInfo?.exif || this.data.exif;
-      return utils.getTagsFromExif(exif);
+      const tags: string[][] = [];
+
+      if (this.imageProps.metadata_in_gallery) {
+        const exif = this.data.imageInfo?.exif || this.data.exif;
+        tags.push(...utils.getTagsFromExif(exif));
+      }
+
+      if (this.imageProps.show_collab_tags_in_gallery) {
+        tags.push(...(this.data.systemtags ?? []).map((name) => [name]));
+      }
+
+      return tags;
     },
 
     /** Whether to show the rating stars -- a compact corner badge in grid mode, folded into the meta text in list mode */
@@ -358,9 +368,9 @@ export default defineComponent({
       return this.imageProps.enable_exif_photo_rating_in_gallery && this.currentRating > 0;
     },
 
-    /** Whether to show embedded tags (the only thing RatingTags renders now -- rating lives elsewhere) */
+    /** Whether to show tags (the only thing RatingTags renders now -- rating lives elsewhere) */
     showTags(): boolean {
-      return this.imageProps.metadata_in_gallery && this.currentTags.length > 0;
+      return this.currentTags.length > 0;
     },
 
     /** Compact star-glyph text for the rating, e.g. "★★★★☆" -- used inline in the list row's meta text */

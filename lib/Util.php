@@ -89,6 +89,39 @@ final class Util
     }
 
     /**
+     * Get the user's configured tag mode: 'embedded' | 'collab' | 'both'.
+     */
+    public static function tagMode(): string
+    {
+        if (!self::isLoggedIn()) {
+            return 'both';
+        }
+
+        $mode = \OC::$server->get(\OCP\Config\IUserConfig::class)
+            ->getValueString(self::getUID(), Application::APPNAME, 'tagMode', 'both')
+        ;
+
+        return \in_array($mode, ['embedded', 'collab', 'both'], true) ? $mode : 'both';
+    }
+
+    /**
+     * Check if collaborative (systemtags) tags are enabled for this user,
+     * accounting for both app availability and the user's tag mode.
+     */
+    public static function collabTagsIsEnabled(): bool
+    {
+        return self::tagsIsEnabled() && \in_array(self::tagMode(), ['collab', 'both'], true);
+    }
+
+    /**
+     * Check if embedded (EXIF/XMP) tags are enabled for this user's tag mode.
+     */
+    public static function embeddedTagsIsEnabled(): bool
+    {
+        return \in_array(self::tagMode(), ['embedded', 'both'], true);
+    }
+
+    /**
      * Check if recognize is enabled for this user.
      */
     public static function recognizeIsEnabled(): bool

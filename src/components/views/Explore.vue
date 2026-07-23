@@ -149,6 +149,7 @@ export default defineComponent({
         name: t('memories', 'Tags'),
         icon: TagIcon,
         link: config.getSync('systemtags_enabled') ? '/tags' : '/embeddedtags',
+        if: () => config.getSync('systemtags_enabled') || config.getSync('embeddedtags_enabled'),
       },
       {
         name: t('memories', 'Settings'),
@@ -187,7 +188,9 @@ export default defineComponent({
       this.load(this.getTags);
     }
 
-    this.load(this.getEmbeddedTags);
+    if (this.config.embeddedtags_enabled) {
+      this.load(this.getEmbeddedTags);
+    }
 
     // Remove categories that should not be shown
     this.categories = this.categories.filter((c) => !c.if || c.if());

@@ -51,7 +51,7 @@ final class TagsBackend extends Backend
     #[\Override]
     public function isEnabled(): bool
     {
-        return Util::tagsIsEnabled();
+        return Util::collabTagsIsEnabled();
     }
 
     #[\Override]

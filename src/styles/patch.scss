@@ -34,6 +34,17 @@ li.list-item__wrapper {
   }
 }
 
+// Move toast notifications (@nextcloud/dialogs uses toastify-js, which
+// hardcodes gravity: top / position: right with no option to override)
+// from top-right to bottom-center.
+.toastify.dialogs {
+  top: auto !important;
+  right: auto !important;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 div.oc-dialog[role='dialog'] {
   // Make OC dialogs larger to a minimum width
   min-width: min(400px, 90vw);

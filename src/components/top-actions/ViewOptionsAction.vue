@@ -209,6 +209,14 @@
       >
         {{ t('memories', 'Image Dimensions') }}
       </NcActionCheckbox>
+
+      <NcActionCheckbox
+        v-if="config.systemtags_enabled"
+        :checked="effectiveImageProps.show_collab_tags_in_gallery"
+        @update:checked="toggleImageProp('show_collab_tags_in_gallery', $event)"
+      >
+        {{ t('memories', 'Collaborative Tags') }}
+      </NcActionCheckbox>
     </template>
 
     <!-- Sort by panel -->
@@ -651,6 +659,7 @@ const REMOTE_NAMES: Record<keyof ImagePropsBundle, string> = {
   show_datetime_in_gallery: 'showDatetimeInGallery',
   show_extension_in_gallery: 'showExtensionInGallery',
   show_dimensions_in_gallery: 'showDimensionsInGallery',
+  show_collab_tags_in_gallery: 'showCollabTagsInGallery',
 };
 
 const SHAPE_LABELS: Record<ImageDisplayShape, string> = {

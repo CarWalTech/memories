@@ -116,10 +116,11 @@ export default defineComponent({
 
       return all.filter(({ value }) => {
         if ('tag' === value) return config.getSync('systemtags_enabled');
+        if ('embeddedTag' === value) return config.getSync('embeddedtags_enabled');
         if ('recognize' === value) return config.getSync('recognize_enabled');
         if ('facerecognition' === value) return config.getSync('facerecognition_enabled');
         if ('place' === value) return config.getSync('places_gis') > 0;
-        return true; // embeddedTag always available
+        return true;
       });
     },
 

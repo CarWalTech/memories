@@ -72,6 +72,7 @@ final class DaysController extends GenericApiController
                 $this->isSortReverse(),
                 $this->getMinRating(),
                 $this->getEmbeddedTags(),
+                $this->getCollabTags(),
                 $this->getTransformations(),
             );
 
@@ -232,6 +233,7 @@ final class DaysController extends GenericApiController
             $this->isSortReverse(),
             $this->getMinRating(),
             $this->getEmbeddedTags(),
+            $this->getCollabTags(),
             $this->getTransformations(),
         );
 
@@ -324,6 +326,11 @@ final class DaysController extends GenericApiController
         }
 
         return [];
+    }
+
+    private function getCollabTags(): bool
+    {
+        return null !== $this->request->getParam('collabTags');
     }
 
     /**

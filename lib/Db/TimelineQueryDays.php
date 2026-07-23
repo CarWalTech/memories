@@ -97,6 +97,7 @@ trait TimelineQueryDays
      * @param string $sortKey         Sort column: 'created' | 'updated' | 'name'
      * @param bool   $reverse         If the photo order within each bucket should be reversed (ascending)
      * @param int    $minRating       The minimum rating to include
+     * @param bool   $collabTags      Whether to attach each photo's visible collaborative tag names
      * @param array  $queryTransforms The query transformations to apply
      *
      * @return array An array of day responses
@@ -111,6 +112,7 @@ trait TimelineQueryDays
         bool $reverse,
         int $minRating = 0,
         array $embeddedTags = [],
+        bool $collabTags = false,
         array $queryTransforms = [],
     ): array {
         // Check if we have any dayIds
@@ -194,6 +196,14 @@ trait TimelineQueryDays
         // Post process the day in-place
         foreach ($day as &$photo) {
             $this->postProcessDayPhoto($photo, $groupMode);
+        }
+
+        // Attach each photo's visible collaborative (systemtag) names, if
+        // requested. Unlike embedded tags (already free in each row's exif
+        // blob via postProcessDayPhoto()), this is a genuine extra JOIN, so
+        // it's opt-in to avoid paying for it on every grid load.
+        if ($collabTags && !empty($day) && Util::collabTagsIsEnabled()) {
+            $this->fillCollabTagNames($day);
         }
 
         // Reverse order if needed
@@ -414,6 +424,7 @@ trait TimelineQueryDays
             false,
             0, // minRating - don't apply in SQL, do in PHP
             [], // embeddedTags - don't apply in SQL, do in PHP
+            false, // collabTags - not needed for the filter recheck
             [], // transforms
         );
 
@@ -679,6 +690,38 @@ trait TimelineQueryDays
             if ('' === ($row['shared_by'] ?? null)) {
                 unset($row['shared_by']);
             }
+        }
+    }
+
+    /**
+     * Attach each photo's visible collaborative (systemtag) names as
+     * `$photo['systemtags']`, batched in one query for the whole day.
+     *
+     * @param array $day byref
+     */
+    private function fillCollabTagNames(array &$day): void
+    {
+        $fileids = array_map(static fn ($photo) => (string) $photo['fileid'], $day);
+
+        $query = $this->connection->getQueryBuilder();
+        $query->select('stom.objectid', 'st.name')
+            ->from('systemtag_object_mapping', 'stom')
+            ->innerJoin('stom', 'systemtag', 'st', $query->expr()->eq('stom.systemtagid', 'st.id'))
+            ->where($query->expr()->eq('stom.objecttype', $query->expr()->literal('files')))
+            ->andWhere($query->expr()->eq('st.visibility', $query->expr()->literal(1, IQueryBuilder::PARAM_INT)))
+            ->andWhere($query->expr()->in('stom.objectid', $query->createNamedParameter(
+                $fileids,
+                IQueryBuilder::PARAM_STR_ARRAY,
+            )))
+        ;
+
+        $namesByFileid = [];
+        foreach ($query->executeQuery()->fetchAll() as $row) {
+            $namesByFileid[(int) $row['objectid']][] = $row['name'];
+        }
+
+        foreach ($day as &$photo) {
+            $photo['systemtags'] = $namesByFileid[(int) $photo['fileid']] ?? [];
         }
     }
 

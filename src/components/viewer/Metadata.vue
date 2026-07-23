@@ -136,7 +136,10 @@
       </div>
     </div>
 
-    <div v-if="embeddedTags.length > 0 || canEdit" class="top-field top-field--embedded-tags">
+    <div
+      v-if="config.embeddedtags_enabled && (embeddedTags.length > 0 || canEdit)"
+      class="top-field top-field--embedded-tags"
+    >
       <div class="icon">
         <TagIcon :size="24" />
       </div>

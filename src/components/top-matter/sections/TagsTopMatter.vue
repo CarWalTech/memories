@@ -3,7 +3,7 @@
     <CollabTagsTopMatter v-if="routeIsTags" />
     <EmbeddedTagTopMatter v-else />
 
-    <TagsTabBar v-if="config.systemtags_enabled" />
+    <TagsTabBar v-if="config.systemtags_enabled && config.embeddedtags_enabled" />
 
     <EmbeddedTagBreadcrumbs v-if="routeIsEmbeddedTags" />
   </div>

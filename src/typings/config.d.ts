@@ -2,6 +2,7 @@ declare module '@typings' {
   type HighResCond = 'always' | 'zoom' | 'never';
   type MetadataReadMode = 'sidecar_only' | 'prefer_sidecar' | 'prefer_file' | 'file_only';
   type MetadataWriteMode = 'sidecar_only' | 'file_only' | 'file_and_sidecar';
+  type TagMode = 'embedded' | 'collab' | 'both';
 
   export type IConfig = {
     // general stuff
@@ -12,6 +13,8 @@ declare module '@typings' {
 
     // enabled apps
     systemtags_enabled: boolean;
+    embeddedtags_enabled: boolean;
+    systemtags_available: boolean;
     albums_enabled: boolean;
     recognize_installed: boolean;
     recognize_enabled: boolean;
@@ -26,6 +29,7 @@ declare module '@typings' {
     stack_raw_files: boolean;
     dedup_identical: boolean;
     show_owner_name_timeline: boolean;
+    tag_mode: TagMode;
 
     // viewer settings
     high_res_cond_default: HighResCond;
@@ -40,6 +44,7 @@ declare module '@typings' {
     show_datetime_in_gallery: boolean;
     show_extension_in_gallery: boolean;
     show_dimensions_in_gallery: boolean;
+    show_collab_tags_in_gallery: boolean;
     /** Raw JSON, see @services/view-mode-scope -- per-view-type base + per-item overrides for image_display_shape */
     view_mode_scope: string;
     /** Raw JSON, see @services/image-props -- per-mode (square/list) Image Properties overrides */

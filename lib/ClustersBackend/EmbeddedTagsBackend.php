@@ -48,7 +48,7 @@ final class EmbeddedTagsBackend extends Backend
     #[\Override]
     public function isEnabled(): bool
     {
-        return true;
+        return Util::embeddedTagsIsEnabled();
     }
 
     #[\Override]

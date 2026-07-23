@@ -90,7 +90,9 @@ final class OtherController extends GenericApiController
                 'places_gis' => SystemConfig::get('memories.gis_type'),
 
                 // enabled apps
-                'systemtags_enabled' => Util::tagsIsEnabled(),
+                'systemtags_enabled' => Util::collabTagsIsEnabled(),
+                'embeddedtags_enabled' => Util::embeddedTagsIsEnabled(),
+                'systemtags_available' => Util::tagsIsEnabled(),
                 'albums_enabled' => Util::albumsIsEnabled(),
                 'recognize_installed' => Util::recognizeIsInstalled(),
                 'recognize_enabled' => Util::recognizeIsEnabled(),
@@ -105,6 +107,7 @@ final class OtherController extends GenericApiController
                 'stack_raw_files' => 'true' === $getAppConfig('stackRawFiles', 'true'),
                 'dedup_identical' => 'true' === $getAppConfig('dedupIdentical', 'false'),
                 'show_owner_name_timeline' => 'true' === $getAppConfig('showOwnerNameTimeline', 'false'),
+                'tag_mode' => $getAppConfig('tagMode', 'both'),
 
                 // viewer settings
                 'high_res_cond_default' => SystemConfig::get('memories.viewer.high_res_cond_default'),
@@ -119,6 +122,7 @@ final class OtherController extends GenericApiController
                 'show_datetime_in_gallery' => 'true' === $getAppConfig('showDatetimeInGallery', 'false'),
                 'show_extension_in_gallery' => 'true' === $getAppConfig('showExtensionInGallery', 'false'),
                 'show_dimensions_in_gallery' => 'true' === $getAppConfig('showDimensionsInGallery', 'false'),
+                'show_collab_tags_in_gallery' => 'true' === $getAppConfig('showCollabTagsInGallery', 'false'),
                 'view_mode_scope' => $getAppConfig('viewModeScope', '{}'),
                 'image_props_modes' => $getAppConfig('imagePropsModes', '{}'),
                 'sort_scope' => $getAppConfig('sortScope', '{}'),
