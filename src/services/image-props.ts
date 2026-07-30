@@ -31,15 +31,16 @@ const PROP_KEYS: (keyof ImagePropsBundle)[] = [
   'show_collab_tags_in_gallery',
 ];
 
-/** The Dynamic-mode profile is just today's global config -- only Square/List get their own stored overrides. */
-type OverridableMode = 'square' | 'list';
+/** The Dynamic-mode profile is just today's global config -- only Square/Grid/List get their own stored overrides. */
+type OverridableMode = 'square' | 'grid' | 'list';
 
 interface ImagePropsModesData {
   square: Partial<ImagePropsBundle>;
+  grid: Partial<ImagePropsBundle>;
   list: Partial<ImagePropsBundle>;
 }
 
-const emptyData = (): ImagePropsModesData => ({ square: {}, list: {} });
+const emptyData = (): ImagePropsModesData => ({ square: {}, grid: {}, list: {} });
 
 function pick(config: IConfig): ImagePropsBundle {
   const result = {} as ImagePropsBundle;
@@ -61,6 +62,7 @@ class ImagePropsStore {
     try {
       const parsed = JSON.parse(raw || '{}');
       this.data.square = parsed.square ?? {};
+      this.data.grid = parsed.grid ?? {};
       this.data.list = parsed.list ?? {};
     } catch {
       // ignore malformed blob, start fresh

@@ -9,7 +9,7 @@ import staticConfig from '@services/static-config';
 import { ROUTE_NAMES, ALL_ROUTE_IDS, type RouteId } from '../route-ids';
 
 export type { RouteId };
-export type ImageDisplayShape = 'dynamic' | 'square' | 'list';
+export type ImageDisplayShape = 'dynamic' | 'square' | 'grid' | 'list';
 
 const DEFAULT_SHAPE: ImageDisplayShape = 'dynamic';
 

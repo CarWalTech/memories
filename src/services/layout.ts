@@ -22,6 +22,15 @@ export function getLayout(
     /** List view: stretch each cell to the full row width instead of a square */
     listMode?: boolean;
     /**
+     * Grid view: force every cell to a plain `rowHeight x rowHeight` square.
+     * Unlike plain `squareMode` (which also serves mobile-dynamic and list and
+     * randomly promotes some tiles to 2x2/2x3/breakout blocks for a mosaic
+     * look), this disables all promotions so the result is a strictly uniform
+     * grid. It also opts out of last-row stretching so the final row keeps the
+     * same cell size as the rest instead of being scaled up.
+     */
+    uniformGrid?: boolean;
+    /**
      * Stretch an incomplete last row to fill the full row width instead of
      * leaving it short -- used for Group by: None, where there's no header
      * to explain why a row looks visually "cut off" at a bucket boundary.
@@ -117,6 +126,8 @@ export function getLayout(
     const needFill = (n: number) => opts.numCols - col - 2 + (n / 2 - 1) * (opts.numCols - 2);
 
     let canUse4 =
+      // Uniform grid never promotes tiles
+      !opts.uniformGrid &&
       // We have enough space
       row + 1 < matrix.length &&
       col + 1 < opts.numCols &&
@@ -125,6 +136,8 @@ export function getLayout(
       (numLeft === needFill(4) || numLeft >= needFill(4) + opts.numCols);
 
     let canUse6 =
+      // Uniform grid never promotes tiles
+      !opts.uniformGrid &&
       // Image is portrait
       input[photoId].height > input[photoId].width &&
       // We have enough space
@@ -135,6 +148,8 @@ export function getLayout(
       (numLeft === needFill(6) || numLeft >= needFill(6) + 2 * opts.numCols);
 
     let canBreakout =
+      // Uniform grid never promotes tiles
+      !opts.uniformGrid &&
       // First column only
       col === 0 &&
       // Image is landscape
@@ -238,7 +253,9 @@ export function getLayout(
     photoId++;
   }
 
-  if (opts.stretchLastRow) {
+  // Uniform grid keeps every cell the same size, so never stretch the last row
+  // (a short final row is expected, like Google/Apple Photos).
+  if (opts.stretchLastRow && !opts.uniformGrid) {
     stretchLastRow(absMatrix, opts.rowWidth);
   }
 

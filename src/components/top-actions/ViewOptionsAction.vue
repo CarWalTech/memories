@@ -139,6 +139,18 @@
 
       <NcActionButton
         type="radio"
+        :aria-label="t('memories', 'Grid')"
+        value="grid"
+        :model-value="effectiveShape"
+        @update:modelValue="changeImageDisplayShape('grid')"
+        close-after-click
+      >
+        <template #icon><ViewGridIcon :size="20" /></template>
+        {{ t('memories', 'Grid') }}
+      </NcActionButton>
+
+      <NcActionButton
+        type="radio"
         :aria-label="t('memories', 'List')"
         value="list"
         :model-value="effectiveShape"
@@ -648,6 +660,7 @@ import GroupMonthIcon from 'vue-material-design-icons/CalendarMonthOutline.vue';
 import GroupYearIcon from 'vue-material-design-icons/CalendarBlankOutline.vue';
 import ViewDynamicIcon from 'vue-material-design-icons/ViewComfyOutline.vue';
 import ViewSquareIcon from 'vue-material-design-icons/CropSquare.vue';
+import ViewGridIcon from 'vue-material-design-icons/ViewGridOutline.vue';
 import ViewListIcon from 'vue-material-design-icons/ViewListOutline.vue';
 
 /** camelCase server-side config keys for the Dynamic-mode (global config) properties. */
@@ -665,6 +678,7 @@ const REMOTE_NAMES: Record<keyof ImagePropsBundle, string> = {
 const SHAPE_LABELS: Record<ImageDisplayShape, string> = {
   dynamic: 'Dynamic',
   square: 'Square',
+  grid: 'Grid',
   list: 'List',
 };
 
@@ -698,6 +712,7 @@ const GROUP_KEY_ICONS: Record<Exclude<GroupKey, 'none'>, unknown> = {
 const SHAPE_ICONS: Record<ImageDisplayShape, unknown> = {
   dynamic: ViewDynamicIcon,
   square: ViewSquareIcon,
+  grid: ViewGridIcon,
   list: ViewListIcon,
 };
 
@@ -720,6 +735,7 @@ export default defineComponent({
     ArrowLeftIcon,
     ViewDynamicIcon,
     ViewSquareIcon,
+    ViewGridIcon,
     ViewListIcon,
   },
 

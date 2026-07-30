@@ -646,7 +646,7 @@ export default defineComponent({
       } else {
         // Desktop
         const rowHeight = this.desktopRowHeight();
-        if (this.effectiveShape === 'square') {
+        if (this.effectiveShape === 'square' || this.effectiveShape === 'grid') {
           this.numCols = Math.max(3, Math.floor(this.rowWidth / rowHeight));
           this.rowHeight = Math.floor(this.rowWidth / this.numCols);
         } else {
@@ -1590,13 +1590,16 @@ export default defineComponent({
           rowWidth: this.rowWidth,
           rowHeight: this.rowHeight,
           squareMode: squareMode,
+          uniformGrid: this.effectiveShape === 'grid',
           numCols: this.numCols,
           allowBreakout: this.allowBreakout(),
           listMode: this.effectiveShape === 'list',
           seed: dayId,
           // Group by: None -- fill each bucket's last row instead of leaving
           // it short, since there's no header to explain a "cut off" row.
-          stretchLastRow: !this.isGrouped,
+          // Grid opts out: it keeps every cell the same size, so a short final
+          // row is expected there rather than something to stretch away.
+          stretchLastRow: !this.isGrouped && this.effectiveShape !== 'grid',
         },
       );
 
