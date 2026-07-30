@@ -782,17 +782,87 @@ export default defineComponent({
       const query: { [key in DaysFilterType]?: string } = {};
       const set = (filter: DaysFilterType, value: string = '1') => (query[filter] = value);
 
-      // Rating range
-      if (this.filters.minRating > 0) {
-        set(DaysFilterType.RATING, this.filters.minRating.toString());
-      }
-      if (this.filters.maxRating > 0) {
-        set(DaysFilterType.MAX_RATING, this.filters.maxRating.toString());
-      }
-
-      // Tag/embeddedTag/recognize/facerecognition/place boolean expression (see FilterExpression.php)
+      // Advanced tab's boolean expression (see FilterExpression.php) is
+      // always sent when present, and SUPERSEDES every Basic-tab flat filter
+      // below -- so every one of those is skipped entirely in that case, to
+      // stay symmetric with the same gate in
+      // DaysController::getTransformations() and the PHP verify pass in
+      // TimelineQueryDays (postProcessDaysWithFilters()/getDay()).
       if (this.filters.filterExpr) {
         set(DaysFilterType.FILTER_EXPR, encodeURIComponent(JSON.stringify(this.filters.filterExpr)));
+      } else {
+        // Rating range
+        if (this.filters.minRating > 0) {
+          set(DaysFilterType.RATING, this.filters.minRating.toString());
+        }
+        if (this.filters.maxRating > 0) {
+          set(DaysFilterType.MAX_RATING, this.filters.maxRating.toString());
+        }
+
+        // Filename / filepath
+        if (this.filters.filename) {
+          set(DaysFilterType.FILENAME, this.filters.filename);
+          if (this.filters.filenameRegex) {
+            set(DaysFilterType.FILENAME_REGEX);
+          }
+        }
+        if (this.filters.filepath) {
+          set(DaysFilterType.FILEPATH, this.filters.filepath);
+          if (this.filters.filepathRegex) {
+            set(DaysFilterType.FILEPATH_REGEX);
+          }
+        }
+
+        // Date range (plain "YYYY-MM-DD", resolved to a dayId range server-side)
+        if (this.filters.dateStart) {
+          set(DaysFilterType.DATE_START, this.filters.dateStart);
+        }
+        if (this.filters.dateEnd) {
+          set(DaysFilterType.DATE_END, this.filters.dateEnd);
+        }
+
+        // File type
+        if (this.filters.fileType.length > 0) {
+          set(DaysFilterType.FILE_TYPE, this.filters.fileType.map((p) => encodeURIComponent(p)).join(','));
+        }
+
+        // File extension
+        if (this.filters.extensions.length > 0) {
+          set(DaysFilterType.EXTENSION, this.filters.extensions.map((e) => encodeURIComponent(e)).join(','));
+        }
+
+        // Camera
+        if (this.filters.camMake) {
+          set(DaysFilterType.CAM_MAKE, this.filters.camMake);
+        }
+        if (this.filters.camModel) {
+          set(DaysFilterType.CAM_MODEL, this.filters.camModel);
+        }
+        if (this.filters.camLens) {
+          set(DaysFilterType.CAM_LENS, this.filters.camLens);
+        }
+
+        // Simple all-or-nothing (AND) tag pickers
+        if (this.filters.tags.length > 0) {
+          set(DaysFilterType.COLLAB_TAG_IDS, this.filters.tags.map((t) => encodeURIComponent(t)).join(','));
+        }
+        if (this.filters.embeddedTags.length > 0) {
+          set(DaysFilterType.EMBEDDED_TAGS, this.filters.embeddedTags.map((t) => encodeURIComponent(t)).join(','));
+        }
+
+        // Untagged toggles
+        if (this.filters.untaggedCollab) {
+          set(DaysFilterType.UNTAGGED_COLLAB);
+        }
+        if (this.filters.untaggedEmbedded) {
+          set(DaysFilterType.UNTAGGED_EMBEDDED);
+        }
+
+        // Favorites filter (from the filter panel; distinct from routeIsFavorites below,
+        // which is the dedicated "/favorites" view -- both just set the same flag)
+        if (this.filters.favorite) {
+          set(DaysFilterType.FAVORITES);
+        }
       }
 
       // Collaborative Tags Image Property -- only ask the backend for the extra
@@ -800,44 +870,6 @@ export default defineComponent({
       // is actually on and collaborative tags are enabled for this user
       if (this.effectiveImageProps.show_collab_tags_in_gallery && this.config.systemtags_enabled) {
         set(DaysFilterType.COLLAB_TAGS);
-      }
-
-      // Filename / filepath
-      if (this.filters.filename) {
-        set(DaysFilterType.FILENAME, this.filters.filename);
-      }
-      if (this.filters.filepath) {
-        set(DaysFilterType.FILEPATH, this.filters.filepath);
-      }
-
-      // Date range (plain "YYYY-MM-DD", resolved to a dayId range server-side)
-      if (this.filters.dateStart) {
-        set(DaysFilterType.DATE_START, this.filters.dateStart);
-      }
-      if (this.filters.dateEnd) {
-        set(DaysFilterType.DATE_END, this.filters.dateEnd);
-      }
-
-      // File type
-      if (this.filters.fileType.length > 0) {
-        set(DaysFilterType.FILE_TYPE, this.filters.fileType.map((p) => encodeURIComponent(p)).join(','));
-      }
-
-      // Camera
-      if (this.filters.camMake) {
-        set(DaysFilterType.CAM_MAKE, this.filters.camMake);
-      }
-      if (this.filters.camModel) {
-        set(DaysFilterType.CAM_MODEL, this.filters.camModel);
-      }
-      if (this.filters.camLens) {
-        set(DaysFilterType.CAM_LENS, this.filters.camLens);
-      }
-
-      // Favorites filter (from the filter panel; distinct from routeIsFavorites below,
-      // which is the dedicated "/favorites" view -- both just set the same flag)
-      if (this.filters.favorite) {
-        set(DaysFilterType.FAVORITES);
       }
 
       // Favorites

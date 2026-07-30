@@ -119,60 +119,91 @@ final class DaysController extends GenericApiController
             $transforms[] = [$this->tq, 'transformMapBoundsFilter', $bounds];
         }
 
-        // Rating range filter - only if SQL filtering is enabled
-        $minRating = $this->getMinRating();
-        $maxRating = $this->getMaxRating();
-        if ($this->tq->shouldFilterExifBySQL() && ($minRating > 0 || $maxRating > 0)) {
-            $transforms[] = [$this->tq, 'transformRatingRangeFilter', $minRating, $maxRating];
-        }
+        // Tag/embeddedTag/recognize/facerecognition/place/... boolean
+        // expression filter (see FilterExpression). When active, this is the
+        // SOLE source of Basic-tab-equivalent filtering -- every flat filter
+        // below is gated on !$filterExprActive so the Advanced tab's
+        // expression fully supersedes the Basic tab's controls, exactly
+        // mirroring the same gate the frontend applies in Timeline.vue's
+        // getQuery() and the PHP verify pass applies in
+        // TimelineQueryDays::postProcessDaysWithFilters()/getDay() -- all
+        // three must stay in lockstep or the SQL and PHP-verify passes will
+        // disagree about which rows match.
+        $filterExpr = FilterExpression::fromRequest($this->request);
+        $filterExprActive = null !== $filterExpr;
 
-        // Embedded tags filter - only if SQL filtering is enabled
-        if ($this->tq->shouldFilterExifBySQL() && ($embeddedTags = $this->getEmbeddedTags())) {
-            if (!empty($embeddedTags)) {
+        if (!$filterExprActive) {
+            // Rating range filter - only if SQL filtering is enabled
+            $minRating = $this->getMinRating();
+            $maxRating = $this->getMaxRating();
+            if ($this->tq->shouldFilterExifBySQL() && ($minRating > 0 || $maxRating > 0)) {
+                $transforms[] = [$this->tq, 'transformRatingRangeFilter', $minRating, $maxRating];
+            }
+
+            // Embedded tags filter - only if SQL filtering is enabled
+            if ($this->tq->shouldFilterExifBySQL() && !empty($embeddedTags = $this->getEmbeddedTags())) {
                 $transforms[] = [$this->tq, 'transformEmbeddedTagsFilter', $embeddedTags];
+            }
+
+            // Basic tab's simple all-or-nothing collaborative tag picker
+            if (!empty($tagIds = $this->getCollabTagIds())) {
+                $transforms[] = [$this->tq, 'transformCollabTagsFilter', $tagIds];
+            }
+
+            // Untagged toggles
+            if ($this->isUntaggedCollab()) {
+                $transforms[] = [$this->tq, 'transformUntaggedCollabFilter'];
+            }
+            // untaggedEmbedded is PHP-verified only (embedded tags are
+            // uncertain in SQL) -- see the two-pass verify in TimelineQueryDays.
+
+            // Filename / filepath filters - plain filecache lookups, no EXIF/dialect dependency
+            if ('' !== ($filename = trim((string) $this->request->getParam('filename', '')))) {
+                $transforms[] = [$this->tq, 'transformFilenameFilter', $filename, $this->isFilenameRegex()];
+            }
+            if ('' !== ($filepath = trim((string) $this->request->getParam('filepath', '')))) {
+                $transforms[] = [$this->tq, 'transformFilepathFilter', $filepath, $this->isFilepathRegex()];
+            }
+
+            // Date range filter (dayId range resolved from plain YYYY-MM-DD dates)
+            [$dateStartDayId, $dateEndDayId] = $this->getDateRangeFilter();
+            if (null !== $dateStartDayId || null !== $dateEndDayId) {
+                $transforms[] = [$this->tq, 'transformDateRangeFilter', $dateStartDayId, $dateEndDayId];
+            }
+
+            // File type filter (mimetype patterns, e.g. "image/%" or a specific format)
+            if (!empty($mimePatterns = $this->getFileTypePatterns())) {
+                $transforms[] = [$this->tq, 'transformFileTypeFilter', $mimePatterns];
+            }
+
+            // File extension filter
+            if (!empty($extensions = $this->getExtensions())) {
+                $transforms[] = [$this->tq, 'transformExtensionFilter', $extensions];
+            }
+
+            // Camera make/model/lens filter - only if SQL filtering is enabled
+            $camMake = trim((string) $this->request->getParam('camMake', ''));
+            $camModel = trim((string) $this->request->getParam('camModel', ''));
+            $camLens = trim((string) $this->request->getParam('camLens', ''));
+            if ($this->tq->shouldFilterExifBySQL() && ('' !== $camMake || '' !== $camModel || '' !== $camLens)) {
+                $transforms[] = [
+                    $this->tq, 'transformCameraFilter',
+                    '' !== $camMake ? $camMake : null,
+                    '' !== $camModel ? $camModel : null,
+                    '' !== $camLens ? $camLens : null,
+                ];
             }
         }
 
-        // Filename / filepath filters - plain filecache lookups, no EXIF/dialect dependency
-        if ('' !== ($filename = trim((string) $this->request->getParam('filename', '')))) {
-            $transforms[] = [$this->tq, 'transformFilenameFilter', $filename];
-        }
-        if ('' !== ($filepath = trim((string) $this->request->getParam('filepath', '')))) {
-            $transforms[] = [$this->tq, 'transformFilepathFilter', $filepath];
-        }
-
-        // Date range filter (dayId range resolved from plain YYYY-MM-DD dates)
-        [$dateStartDayId, $dateEndDayId] = $this->getDateRangeFilter();
-        if (null !== $dateStartDayId || null !== $dateEndDayId) {
-            $transforms[] = [$this->tq, 'transformDateRangeFilter', $dateStartDayId, $dateEndDayId];
-        }
-
-        // File type filter (mimetype patterns, e.g. "image/%" or a specific format)
-        if (!empty($mimePatterns = $this->getFileTypePatterns())) {
-            $transforms[] = [$this->tq, 'transformFileTypeFilter', $mimePatterns];
-        }
-
-        // Camera make/model/lens filter - only if SQL filtering is enabled
-        $camMake = trim((string) $this->request->getParam('camMake', ''));
-        $camModel = trim((string) $this->request->getParam('camModel', ''));
-        $camLens = trim((string) $this->request->getParam('camLens', ''));
-        if ($this->tq->shouldFilterExifBySQL() && ('' !== $camMake || '' !== $camModel || '' !== $camLens)) {
-            $transforms[] = [
-                $this->tq, 'transformCameraFilter',
-                '' !== $camMake ? $camMake : null,
-                '' !== $camModel ? $camModel : null,
-                '' !== $camLens ? $camLens : null,
-            ];
-        }
-
-        // Tag/embeddedTag/recognize/facerecognition/place boolean expression
-        // filter. Unlike the two filters above, this is NOT gated on
-        // shouldFilterExifBySQL(): tag/recognize/facerecognition/place leaves
-        // are plain relational joins with no EXIF/dialect dependency at all,
-        // and embeddedTag leaves never attempt real SQL matching in the first
+        // Advanced tab's boolean expression filter. Unlike the flat filters
+        // above, this is NOT gated on shouldFilterExifBySQL(): relational
+        // leaves (tag/place/recognize/facerecognition/date/fileType/
+        // extension/favorite/filename/filepath) have no EXIF/dialect
+        // dependency, and every EXIF-derived leaf (rating/camMake/camModel/
+        // camLens/embeddedTag) never attempts real SQL matching in the first
         // place (they always compile to a safe TRUE/FALSE placeholder, see
         // FilterExpression) -- so this works identically on every database.
-        if ($filterExpr = FilterExpression::fromRequest($this->request)) {
+        if ($filterExprActive) {
             $transforms[] = [$this->tq, 'transformFilterExprFilter', $filterExpr];
         }
 
@@ -334,6 +365,63 @@ final class DaysController extends GenericApiController
     }
 
     /**
+     * The Basic tab's simple all-or-nothing (AND) collaborative tag picker
+     * -- systemtag numeric ids, as strings. Deliberately a distinct param
+     * name from `tags` (used by TagsBackend::transformDayQuery() for the
+     * single-cluster `/tags/:name` browsing route, which expects one tag
+     * *name*, not a comma-list of ids) to avoid the two colliding on a
+     * request that somehow carries both. Also not to be confused with
+     * getCollabTags() above (the unrelated Image Property overlay flag).
+     *
+     * @return string[]
+     */
+    private function getCollabTagIds(): array
+    {
+        $param = (string) $this->request->getParam('collabTagIds', '');
+        if ('' === $param) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', urldecode($param)))));
+    }
+
+    private function isUntaggedCollab(): bool
+    {
+        return null !== $this->request->getParam('untaggedCollab');
+    }
+
+    private function isFilenameRegex(): bool
+    {
+        return null !== $this->request->getParam('filenameRegex');
+    }
+
+    private function isFilepathRegex(): bool
+    {
+        return null !== $this->request->getParam('filepathRegex');
+    }
+
+    /**
+     * The `extension` request param resolved into a list of normalized
+     * (lowercase, dot-stripped) file extensions.
+     *
+     * @return string[]
+     */
+    private function getExtensions(): array
+    {
+        $param = (string) $this->request->getParam('extension', '');
+        if ('' === $param) {
+            return [];
+        }
+
+        $extensions = array_map(
+            static fn (string $ext): string => strtolower(ltrim(trim($ext), '.')),
+            explode(',', urldecode($param)),
+        );
+
+        return array_values(array_filter($extensions));
+    }
+
+    /**
      * Resolve the `dateStart`/`dateEnd` request params (plain "YYYY-MM-DD"
      * dates, e.g. an HTML date input's native value -- deliberately not
      * dayIds or timestamps, so the frontend never has to know about the
@@ -349,27 +437,9 @@ final class DaysController extends GenericApiController
     private function getDateRangeFilter(): array
     {
         return [
-            $this->dateStringToDayId((string) $this->request->getParam('dateStart', '')),
-            $this->dateStringToDayId((string) $this->request->getParam('dateEnd', '')),
+            Util::dateStringToDayId((string) $this->request->getParam('dateStart', '')),
+            Util::dateStringToDayId((string) $this->request->getParam('dateEnd', '')),
         ];
-    }
-
-    private function dateStringToDayId(string $date): ?int
-    {
-        $date = trim($date);
-        if ('' === $date) {
-            return null;
-        }
-
-        // The "!" prefix resets every field the format doesn't specify
-        // (H:i:s and beyond) to the Unix epoch's defaults, i.e. midnight --
-        // so this is always exactly midnight on the given date, in UTC.
-        $dt = \DateTime::createFromFormat('!Y-m-d', $date, new \DateTimeZone('UTC'));
-        if (false === $dt) {
-            return null;
-        }
-
-        return intdiv($dt->getTimestamp(), 86400);
     }
 
     /**

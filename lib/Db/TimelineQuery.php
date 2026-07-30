@@ -24,7 +24,7 @@ final class TimelineQuery
         'm.w', 'm.h', 'm.liveid',
         'm.isvideo', 'm.video_duration',
         'm.exif',
-        'f.etag', 'f.name AS basename',
+        'f.etag', 'f.name AS basename', 'f.path',
         'f.size', 'm.epoch', // auid
         'f.mtime',
         'mimetypes.mimetype',

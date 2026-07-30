@@ -7,13 +7,20 @@ export function emptyFilters(): IFilters {
     maxRating: 0,
     favorite: false,
     filename: '',
+    filenameRegex: false,
     filepath: '',
+    filepathRegex: false,
     dateStart: '',
     dateEnd: '',
     fileType: [],
+    extensions: [],
     camMake: '',
     camModel: '',
     camLens: '',
+    tags: [],
+    embeddedTags: [],
+    untaggedCollab: false,
+    untaggedEmbedded: false,
     filterExpr: null,
   };
 }
@@ -29,9 +36,14 @@ export function hasActiveFilters(f: IFilters): boolean {
     '' !== f.dateStart ||
     '' !== f.dateEnd ||
     f.fileType.length > 0 ||
+    f.extensions.length > 0 ||
     '' !== f.camMake ||
     '' !== f.camModel ||
     '' !== f.camLens ||
+    f.tags.length > 0 ||
+    f.embeddedTags.length > 0 ||
+    f.untaggedCollab ||
+    f.untaggedEmbedded ||
     null !== f.filterExpr
   );
 }

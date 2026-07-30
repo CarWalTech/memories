@@ -39,15 +39,32 @@ export const enum DaysFilterType {
   /** See FilterExpression.php: URL-encoded JSON boolean tree over tag/embeddedTag/recognize/facerecognition/place */
   FILTER_EXPR = 'filterExpr',
   FILENAME = 'filename',
+  /** Whether `filename` is a regex (true) or literal substring (default) */
+  FILENAME_REGEX = 'filenameRegex',
   FILEPATH = 'filepath',
+  /** Whether `filepath` is a regex (true) or literal substring (default) */
+  FILEPATH_REGEX = 'filepathRegex',
   /** Plain "YYYY-MM-DD", resolved to a dayId range server-side */
   DATE_START = 'dateStart',
   DATE_END = 'dateEnd',
   /** Comma-separated mimetype patterns, e.g. "image/%,video/%" */
   FILE_TYPE = 'fileType',
+  /** Comma-separated lowercase file extensions without the dot, e.g. "jpg,cr2" */
+  EXTENSION = 'extension',
   CAM_MAKE = 'camMake',
   CAM_MODEL = 'camModel',
   CAM_LENS = 'camLens',
+  /**
+   * Basic tab's simple all-or-nothing (AND) collaborative tag picker --
+   * comma-separated systemtag numeric ids. Deliberately distinct from TAG
+   * ('tags', below), which is the single-cluster `/tags/:name` browsing
+   * route's tag *name* param -- see DaysController::getCollabTagIds().
+   */
+  COLLAB_TAG_IDS = 'collabTagIds',
+  /** Basic tab: photo has no collaborative tags at all */
+  UNTAGGED_COLLAB = 'untaggedCollab',
+  /** Basic tab: photo has no embedded tags at all */
+  UNTAGGED_EMBEDDED = 'untaggedEmbedded',
 
   FACE_RECT = 'facerect',
   RECURSIVE = 'recursive',

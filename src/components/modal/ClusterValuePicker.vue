@@ -9,6 +9,9 @@
     :disabled="disabled"
     :keep-open="true"
     :append-to-body="false"
+    :taggable="taggable"
+    :create-option="createOption"
+    @option:created="onOptionCreated"
     label="label"
     track-by="value"
   />
@@ -39,6 +42,9 @@ type IOption = { value: string; label: string };
  *                              already what EmbeddedTagsBackend::getClusterId() returns)
  *   recognize / facerecognition -> "<user_id>/<cluster_id>"    (id or name; either
  *                              is accepted server-side, see FilterExpression.php)
+ *   fileType               -> mimetype pattern, e.g. "image/%" (fixed vocabulary, no dav call)
+ *   extension              -> lowercase extension without the dot, e.g. "jpg"
+ *                              (free text, no fixed vocabulary -- taggable)
  */
 export default defineComponent({
   name: 'ClusterValuePicker',
@@ -74,7 +80,12 @@ export default defineComponent({
 
   computed: {
     placeholder(): string {
-      return t('memories', 'Select a value…');
+      return 'extension' === this.field ? t('memories', 'Type an extension…') : t('memories', 'Select a value…');
+    },
+
+    /** No fixed vocabulary exists for extensions -- let the user type arbitrary values. */
+    taggable(): boolean {
+      return 'extension' === this.field;
     },
 
     /** Bridge between NcSelect's option objects and the plain value string(s) this component exposes */
@@ -88,10 +99,14 @@ export default defineComponent({
         return byValue.get(this.modelValue as string) ?? { value: this.modelValue as string, label: this.modelValue as string };
       },
       set(val: IOption | IOption[] | null) {
+        const normalize = (o: IOption): IOption =>
+          'extension' === this.field ? { value: o.value.replace(/^\.+/, '').toLowerCase(), label: o.label } : o;
+
         if (this.multiple) {
-          this.$emit('update:modelValue', ((val as IOption[]) ?? []).map((o) => o.value));
+          this.$emit('update:modelValue', ((val as IOption[]) ?? []).map((o) => normalize(o).value));
         } else {
-          this.$emit('update:modelValue', (val as IOption | null)?.value ?? null);
+          const o = val as IOption | null;
+          this.$emit('update:modelValue', o ? normalize(o).value : null);
         }
       },
     },
@@ -134,11 +149,44 @@ export default defineComponent({
             this.options = places.map((c) => ({ value: String(c.cluster_id), label: c.display_name ?? c.name }));
             break;
           }
+          case 'fileType': {
+            // Fixed vocabulary, no dav call -- mirrors the Basic tab's Photos/Videos toggles.
+            this.options = [
+              { value: 'image/%', label: t('memories', 'Photos') },
+              { value: 'video/%', label: t('memories', 'Videos') },
+            ];
+            break;
+          }
+          case 'extension': {
+            // No fixed vocabulary -- purely taggable, nothing to preload.
+            this.options = [];
+            break;
+          }
         }
       } catch (e) {
         console.error('Failed to load filter options for field', this.field, e);
       } finally {
         this.loading = false;
+      }
+    },
+
+    /**
+     * vue-select's default createOption() only returns a proper {label,value}
+     * object if an option of that shape already exists in the list -- for a
+     * taggable field that starts empty (extension has no fixed vocabulary),
+     * it falls back to returning the raw typed string instead, which then
+     * breaks the `selected` setter's `o.value` access above. Always return
+     * the correct shape ourselves instead of relying on that fallback.
+     */
+    createOption(text: string): IOption {
+      const value = 'extension' === this.field ? text.trim().replace(/^\.+/, '').toLowerCase() : text.trim();
+      return { value, label: text };
+    },
+
+    /** Keep a newly-typed tag in `options` so it stays selectable/visible if the dropdown reopens. */
+    onOptionCreated(option: IOption) {
+      if (!this.options.some((o) => o.value === option.value)) {
+        this.options = [...this.options, option];
       }
     },
   },

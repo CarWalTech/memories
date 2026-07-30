@@ -1,90 +1,156 @@
 <template>
   <div class="filter-component">
+    <!-- Basic / Advanced tabs -->
+    <div class="filter-tabs">
+      <button type="button" class="tab" :class="{ active: 'basic' === activeTab }" @click="activeTab = 'basic'">
+        {{ t('memories', 'Basic') }}
+      </button>
+      <button type="button" class="tab" :class="{ active: 'advanced' === activeTab }" @click="activeTab = 'advanced'">
+        {{ t('memories', 'Advanced') }}
+      </button>
+    </div>
+
     <form @submit.prevent>
-      <!-- Filename / filepath -->
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Filename') }}</label>
-        <NcTextField :value="filters.filename" @update:value="onFieldInput('filename', $event)" :label-outside="true" :placeholder="t('memories', 'e.g. IMG_2024 or a regex')" />
-      </div>
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Folder path') }}</label>
-        <NcTextField :value="filters.filepath" @update:value="onFieldInput('filepath', $event)" :label-outside="true" :placeholder="t('memories', 'e.g. Vacation/2024')" />
-      </div>
-
-      <!-- Date range -->
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Date range') }}</label>
-        <div class="date-row">
-          <input type="date" class="date-input" v-model="filters.dateStart" @change="emitFilterChange" :max="filters.dateEnd || undefined" />
-          <span class="date-sep">–</span>
-          <input type="date" class="date-input" v-model="filters.dateEnd" @change="emitFilterChange" :min="filters.dateStart || undefined" />
-          <NcButton v-if="filters.dateStart || filters.dateEnd" type="tertiary-no-background" :aria-label="t('memories', 'Clear date range')" @click="clearDateRange">
-            <template #icon><CloseIcon :size="14" /></template>
-          </NcButton>
-          <NcActions :aria-label="t('memories', 'Date presets')" :container="false">
-            <template #icon><DotsHorizontalIcon :size="20" /></template>
-            <NcActionButton @click="applyDatePreset('last7')">{{ t('memories', 'Last 7 days') }}</NcActionButton>
-            <NcActionButton @click="applyDatePreset('last30')">{{ t('memories', 'Last 30 days') }}</NcActionButton>
-            <NcActionButton @click="applyDatePreset('thisMonth')">{{ t('memories', 'This month') }}</NcActionButton>
-            <NcActionButton @click="applyDatePreset('thisYear')">{{ t('memories', 'This year') }}</NcActionButton>
-          </NcActions>
-        </div>
-      </div>
-
-      <!-- File type -->
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'File type') }}</label>
-        <div class="filetype-row">
-          <NcCheckboxRadioSwitch :checked="hasFileType('image/%')" @update:checked="toggleFileType('image/%', $event)">
-            {{ t('memories', 'Photos') }}
-          </NcCheckboxRadioSwitch>
-          <NcCheckboxRadioSwitch :checked="hasFileType('video/%')" @update:checked="toggleFileType('video/%', $event)">
-            {{ t('memories', 'Videos') }}
-          </NcCheckboxRadioSwitch>
-        </div>
-      </div>
-
-      <!-- Camera -->
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Camera') }}</label>
-        <div class="camera-row">
-          <NcTextField :value="filters.camMake" @update:value="onFieldInput('camMake', $event)" :label-outside="true" :placeholder="t('memories', 'Make')" />
-          <NcTextField :value="filters.camModel" @update:value="onFieldInput('camModel', $event)" :label-outside="true" :placeholder="t('memories', 'Model')" />
-          <NcTextField :value="filters.camLens" @update:value="onFieldInput('camLens', $event)" :label-outside="true" :placeholder="t('memories', 'Lens')" />
-        </div>
-      </div>
-
-      <!-- Rating range -->
-      <div class="filter-section">
-        <label class="filter-label">{{ t('memories', 'Rating') }}</label>
-        <div class="rating-row">
-          <select class="rating-select" v-model.number="filters.minRating" @change="emitFilterChange">
-            <option v-for="opt in ratingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
-          <span class="rating-sep">{{ t('memories', 'to') }}</span>
-          <select class="rating-select" v-model.number="filters.maxRating" @change="emitFilterChange">
-            <option v-for="opt in ratingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Favorites -->
-      <div class="filter-section">
-        <NcCheckboxRadioSwitch type="switch" :checked="filters.favorite" @update:checked="onFavoriteChange">
-          {{ t('memories', 'Favorites only') }}
-        </NcCheckboxRadioSwitch>
-      </div>
-
-      <!-- Tag / embedded tag / people / places expression builder -->
-      <div class="filter-section">
-        <div class="filter-label-row">
-          <label class="filter-label">{{ t('memories', 'Tags & People') }}</label>
-          <NcButton v-if="filters.filterExpr" type="tertiary-no-background" @click="clearFilterExpr" :disabled="disabled">
+      <template v-if="'basic' === activeTab">
+        <!-- Shown whenever an Advanced expression is active: it supersedes every control below -->
+        <div v-if="filters.filterExpr" class="advanced-override-banner">
+          <span>{{ t('memories', 'An Advanced filter is active and overrides these controls.') }}</span>
+          <NcButton type="tertiary-no-background" @click="clearFilterExpr" :disabled="disabled">
             {{ t('memories', 'Clear') }}
           </NcButton>
         </div>
-        <FilterExpressionBuilder :model-value="filters.filterExpr" :disabled="disabled" @update:modelValue="onFilterExprChange" />
-      </div>
+
+        <!-- Filename / filepath -->
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Filename') }}</label>
+          <div class="text-with-toggle-row">
+            <NcTextField
+              :value="filters.filename"
+              @update:value="onFieldInput('filename', $event)"
+              :label-outside="true"
+              :placeholder="t('memories', 'e.g. IMG_2024')"
+            />
+            <NcCheckboxRadioSwitch type="switch" :checked="filters.filenameRegex" @update:checked="onRegexToggleChange('filenameRegex', $event)">
+              {{ t('memories', 'Regex') }}
+            </NcCheckboxRadioSwitch>
+          </div>
+        </div>
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Folder path') }}</label>
+          <div class="text-with-toggle-row">
+            <NcTextField
+              :value="filters.filepath"
+              @update:value="onFieldInput('filepath', $event)"
+              :label-outside="true"
+              :placeholder="t('memories', 'e.g. Vacation/2024')"
+            />
+            <NcCheckboxRadioSwitch type="switch" :checked="filters.filepathRegex" @update:checked="onRegexToggleChange('filepathRegex', $event)">
+              {{ t('memories', 'Regex') }}
+            </NcCheckboxRadioSwitch>
+          </div>
+        </div>
+
+        <!-- Date range -->
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Date range') }}</label>
+          <div class="date-row">
+            <input type="date" class="date-input" v-model="filters.dateStart" @change="emitFilterChange" :max="filters.dateEnd || undefined" />
+            <span class="date-sep">–</span>
+            <input type="date" class="date-input" v-model="filters.dateEnd" @change="emitFilterChange" :min="filters.dateStart || undefined" />
+            <NcButton v-if="filters.dateStart || filters.dateEnd" type="tertiary-no-background" :aria-label="t('memories', 'Clear date range')" @click="clearDateRange">
+              <template #icon><CloseIcon :size="14" /></template>
+            </NcButton>
+            <NcActions :aria-label="t('memories', 'Date presets')" :container="false">
+              <template #icon><DotsHorizontalIcon :size="20" /></template>
+              <NcActionButton @click="applyDatePreset('last7')">{{ t('memories', 'Last 7 days') }}</NcActionButton>
+              <NcActionButton @click="applyDatePreset('last30')">{{ t('memories', 'Last 30 days') }}</NcActionButton>
+              <NcActionButton @click="applyDatePreset('thisMonth')">{{ t('memories', 'This month') }}</NcActionButton>
+              <NcActionButton @click="applyDatePreset('thisYear')">{{ t('memories', 'This year') }}</NcActionButton>
+            </NcActions>
+          </div>
+        </div>
+
+        <!-- File type -->
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'File type') }}</label>
+          <div class="filetype-row">
+            <NcCheckboxRadioSwitch :checked="hasFileType('image/%')" @update:checked="toggleFileType('image/%', $event)">
+              {{ t('memories', 'Photos') }}
+            </NcCheckboxRadioSwitch>
+            <NcCheckboxRadioSwitch :checked="hasFileType('video/%')" @update:checked="toggleFileType('video/%', $event)">
+              {{ t('memories', 'Videos') }}
+            </NcCheckboxRadioSwitch>
+            <NcCheckboxRadioSwitch :checked="filters.favorite" @update:checked="onFavoriteChange">
+              {{ t('memories', 'Favorites only') }}
+            </NcCheckboxRadioSwitch>
+          </div>
+        </div>
+
+        <!-- File extension -->
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'File extension') }}</label>
+          <ClusterValuePicker field="extension" :multiple="true" :model-value="filters.extensions" @update:modelValue="onExtensionsChange" :disabled="disabled" />
+        </div>
+
+        <!-- Camera -->
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Camera') }}</label>
+          <div class="camera-row">
+            <NcTextField :value="filters.camMake" @update:value="onFieldInput('camMake', $event)" :label-outside="true" :placeholder="t('memories', 'Make')" />
+            <NcTextField :value="filters.camModel" @update:value="onFieldInput('camModel', $event)" :label-outside="true" :placeholder="t('memories', 'Model')" />
+            <NcTextField :value="filters.camLens" @update:value="onFieldInput('camLens', $event)" :label-outside="true" :placeholder="t('memories', 'Lens')" />
+          </div>
+        </div>
+
+        <!-- Rating range -->
+        <div class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Rating') }}</label>
+          <div class="rating-row">
+            <select class="rating-select" v-model.number="filters.minRating" @change="emitFilterChange">
+              <option v-for="opt in ratingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+            <span class="rating-sep">{{ t('memories', 'to') }}</span>
+            <select class="rating-select" v-model.number="filters.maxRating" @change="emitFilterChange">
+              <option v-for="opt in ratingOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Simple all-or-nothing tag pickers + untagged toggles -->
+        <div v-if="systemtagsEnabled" class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Collaborative tags') }}</label>
+          <ClusterValuePicker field="tag" :multiple="true" :model-value="filters.tags" @update:modelValue="onTagsChange" :disabled="disabled || filters.untaggedCollab" />
+          <NcCheckboxRadioSwitch type="switch" :checked="filters.untaggedCollab" @update:checked="onUntaggedCollabChange">
+            {{ t('memories', 'No collaborative tags') }}
+          </NcCheckboxRadioSwitch>
+        </div>
+        <div v-if="embeddedTagsEnabled" class="filter-section">
+          <label class="filter-label">{{ t('memories', 'Embedded tags') }}</label>
+          <ClusterValuePicker
+            field="embeddedTag"
+            :multiple="true"
+            :model-value="filters.embeddedTags"
+            @update:modelValue="onEmbeddedTagsChange"
+            :disabled="disabled || filters.untaggedEmbedded"
+          />
+          <NcCheckboxRadioSwitch type="switch" :checked="filters.untaggedEmbedded" @update:checked="onUntaggedEmbeddedChange">
+            {{ t('memories', 'No embedded tags') }}
+          </NcCheckboxRadioSwitch>
+        </div>
+      </template>
+
+      <template v-else>
+        <!-- Advanced boolean expression builder over every filterable field -->
+        <div class="filter-section">
+          <div class="filter-label-row">
+            <label class="filter-label">{{ t('memories', 'Advanced filter') }}</label>
+            <NcButton v-if="filters.filterExpr" type="tertiary-no-background" @click="clearFilterExpr" :disabled="disabled">
+              {{ t('memories', 'Clear') }}
+            </NcButton>
+          </div>
+          <FilterExpressionBuilder :model-value="filters.filterExpr" :disabled="disabled" @update:modelValue="onFilterExprChange" />
+        </div>
+      </template>
 
       <!-- Saved filters -->
       <div class="filter-section">
@@ -128,14 +194,18 @@ import { translate as t } from '@services/l10n';
 import * as utils from '@services/utils';
 
 import FilterExpressionBuilder from './FilterExpressionBuilder.vue';
+import ClusterValuePicker from './ClusterValuePicker.vue';
 import { defineComponent, type PropType } from 'vue';
 import { emptyFilters, hasActiveFilters } from '@services/filters';
 import savedFiltersService, { type SavedFilter } from '@services/saved-filters';
+import config from '@services/static-config';
 
 function toDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+type ITextField = 'filename' | 'filepath' | 'camMake' | 'camModel' | 'camLens';
 
 export default defineComponent({
   name: 'FilterComponent',
@@ -149,6 +219,7 @@ export default defineComponent({
     CloseIcon,
     DotsHorizontalIcon,
     FilterExpressionBuilder,
+    ClusterValuePicker,
   },
 
   props: {
@@ -168,6 +239,7 @@ export default defineComponent({
 
   data: () => ({
     filters: emptyFilters(),
+    activeTab: 'basic' as 'basic' | 'advanced',
   }),
 
   computed: {
@@ -181,6 +253,14 @@ export default defineComponent({
 
     savedFilters(): SavedFilter[] {
       return savedFiltersService.list;
+    },
+
+    systemtagsEnabled(): boolean {
+      return config.getSync('systemtags_enabled');
+    },
+
+    embeddedTagsEnabled(): boolean {
+      return config.getSync('embeddedtags_enabled');
     },
   },
 
@@ -204,8 +284,13 @@ export default defineComponent({
       this.$emit('filter-change', { ...this.filters });
     },
 
-    onFieldInput(field: 'filename' | 'filepath' | 'camMake' | 'camModel' | 'camLens', value: string) {
+    onFieldInput(field: ITextField, value: string) {
       this.filters[field] = value;
+      this.emitFilterChange();
+    },
+
+    onRegexToggleChange(field: 'filenameRegex' | 'filepathRegex', checked: boolean) {
+      this.filters[field] = checked;
       this.emitFilterChange();
     },
 
@@ -230,6 +315,44 @@ export default defineComponent({
 
     toggleFileType(pattern: string, checked: boolean) {
       this.filters.fileType = checked ? [...this.filters.fileType, pattern] : this.filters.fileType.filter((p) => p !== pattern);
+      this.emitFilterChange();
+    },
+
+    onExtensionsChange(values: string[]) {
+      // ClusterValuePicker already normalizes each value (strip dot, lowercase) for field="extension"
+      this.filters.extensions = values;
+      this.emitFilterChange();
+    },
+
+    onTagsChange(values: string[]) {
+      this.filters.tags = values;
+      if (values.length > 0) {
+        this.filters.untaggedCollab = false;
+      }
+      this.emitFilterChange();
+    },
+
+    onEmbeddedTagsChange(values: string[]) {
+      this.filters.embeddedTags = values;
+      if (values.length > 0) {
+        this.filters.untaggedEmbedded = false;
+      }
+      this.emitFilterChange();
+    },
+
+    onUntaggedCollabChange(checked: boolean) {
+      this.filters.untaggedCollab = checked;
+      if (checked) {
+        this.filters.tags = [];
+      }
+      this.emitFilterChange();
+    },
+
+    onUntaggedEmbeddedChange(checked: boolean) {
+      this.filters.untaggedEmbedded = checked;
+      if (checked) {
+        this.filters.embeddedTags = [];
+      }
       this.emitFilterChange();
     },
 
@@ -326,6 +449,49 @@ export default defineComponent({
   }
 }
 
+// Mirrors TagsTabBar.vue's .tags-tab-bar/.tab styling for visual consistency
+// with the app's other tabbed view (Collaborative/Embedded tags).
+.filter-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--color-border);
+
+  .tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 8px 12px;
+    font-size: 0.95em;
+    font-weight: 500;
+    color: var(--color-text-maxcontrast);
+    cursor: pointer;
+    border-radius: 0;
+
+    &:hover {
+      color: var(--color-main-text);
+    }
+
+    &.active {
+      color: var(--color-main-text);
+      border-bottom-color: var(--color-primary-element);
+    }
+  }
+}
+
+.advanced-override-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--border-radius);
+  background: var(--color-warning, var(--color-background-hover));
+  color: var(--color-main-text);
+  font-size: 12px;
+}
+
 .filter-section {
   display: flex;
   flex-direction: column;
@@ -342,6 +508,17 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.text-with-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  > *:first-child {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .rating-row {

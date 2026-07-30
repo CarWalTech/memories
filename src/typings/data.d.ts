@@ -200,12 +200,44 @@ declare module '@typings' {
    *   - recognize:       "<uid>/<id-or-name>" (cluster_id from getFaceList('recognize'))
    *   - facerecognition: "<uid>/<id-or-name>" (cluster_id from getFaceList('facerecognition'))
    *   - place:           OSM id, as a string
+   *   - extension:       lowercase file extension without the dot, e.g. "jpg"
+   *   - fileType:        mimetype pattern, e.g. "image/%" or an exact mimetype
+   *   - rating:          0-5, paired with op gte|lte
+   *   - date:            "YYYY-MM-DD", paired with op gte|lte (resolved to a dayid server-side)
+   *   - favorite:        'true' | 'false', no op
+   *   - filename/filepath/camMake/camModel/camLens: free text, paired with a string op
    */
-  export type FilterField = 'tag' | 'embeddedTag' | 'recognize' | 'facerecognition' | 'place';
+  export type FilterField =
+    | 'tag'
+    | 'embeddedTag'
+    | 'recognize'
+    | 'facerecognition'
+    | 'place'
+    | 'extension'
+    | 'fileType'
+    | 'rating'
+    | 'date'
+    | 'favorite'
+    | 'filename'
+    | 'filepath'
+    | 'camMake'
+    | 'camModel'
+    | 'camLens';
+
+  /**
+   * Leaf operator, meaning depends on the field (see FilterField docs above):
+   *   - gte/lte:       rating, date (a range is AND(gte, lte))
+   *   - contains/notContains/startsWith/endsWith/equals: filename, filepath, camMake, camModel, camLens
+   *   - regex:         filename, filepath only
+   * Absent for set-membership fields (tag/embeddedTag/recognize/facerecognition/place/extension/
+   * fileType) and for favorite.
+   */
+  export type FilterOp = 'gte' | 'lte' | 'contains' | 'notContains' | 'startsWith' | 'endsWith' | 'equals' | 'regex';
 
   export type FilterLeaf = {
     kind: 'leaf';
     field: FilterField;
+    op?: FilterOp;
     value: string;
   };
 
@@ -226,17 +258,36 @@ declare module '@typings' {
     favorite: boolean;
     /** Filecache basename substring/regex */
     filename: string;
+    /** Whether `filename` is a regex (true) or literal substring (false, default) */
+    filenameRegex: boolean;
     /** Filecache path substring/regex */
     filepath: string;
+    /** Whether `filepath` is a regex (true) or literal substring (false, default) */
+    filepathRegex: boolean;
     /** Plain "YYYY-MM-DD", or '' for unbounded */
     dateStart: string;
     dateEnd: string;
     /** Mimetype patterns, e.g. ["image/%"] */
     fileType: string[];
+    /** Lowercase file extensions without the dot, e.g. ["jpg", "cr2"] */
+    extensions: string[];
     camMake: string;
     camModel: string;
     camLens: string;
-    /** Boolean expression tree over tag/embeddedTag/recognize/facerecognition/place, or null if empty */
+    /** Basic tab: simple all-or-nothing (AND) collaborative tag ids */
+    tags: string[];
+    /** Basic tab: simple all-or-nothing (AND) embedded tag paths */
+    embeddedTags: string[];
+    /** Basic tab: photo has no collaborative tags at all */
+    untaggedCollab: boolean;
+    /** Basic tab: photo has no embedded tags at all */
+    untaggedEmbedded: boolean;
+    /**
+     * Advanced tab: boolean expression tree over every filterable field. When
+     * non-null, this SUPERSEDES every other field above -- see Timeline.vue
+     * getQuery() and DaysController::getTransformations() for the symmetric
+     * gating that enforces this on both the SQL and PHP-verify passes.
+     */
     filterExpr: FilterNode | null;
   }
 }

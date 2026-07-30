@@ -513,6 +513,37 @@ final class Util
     }
 
     /**
+     * Resolve a plain "YYYY-MM-DD" date (e.g. an HTML date input's native
+     * value, or a `date` filter expression leaf's value -- deliberately not
+     * a dayId or timestamp, so callers never have to know about the
+     * dayid=floor(localUnixTime/86400) convention or replicate it) into a
+     * dayId, using the exact same "treat the date as if it were already UTC"
+     * convention TimelineWrite uses when computing dayid for a photo (see
+     * its "assume everything happens in Greenwich" comment). Shared by
+     * DaysController::getDateRangeFilter() and FilterExpression's `date`
+     * leaf (both compiling and evaluating) -- this must match exactly in
+     * every caller, or date-range filtering would be silently off by a day
+     * for some users.
+     */
+    public static function dateStringToDayId(string $date): ?int
+    {
+        $date = trim($date);
+        if ('' === $date) {
+            return null;
+        }
+
+        // The "!" prefix resets every field the format doesn't specify
+        // (H:i:s and beyond) to the Unix epoch's defaults, i.e. midnight --
+        // so this is always exactly midnight on the given date, in UTC.
+        $dt = \DateTime::createFromFormat('!Y-m-d', $date, new \DateTimeZone('UTC'));
+        if (false === $dt) {
+            return null;
+        }
+
+        return intdiv($dt->getTimestamp(), 86400);
+    }
+
+    /**
      * Explode a string into fixed number of components.
      *
      * @param non-empty-string $delimiter Delimiter

@@ -246,24 +246,38 @@ final class SQL
 
     /**
      * Build a SQL boolean expression testing whether $column matches
-     * $pattern: a regex (MySQL/MariaDB `REGEXP`, PostgreSQL `~`) if $pattern
-     * looks like one, otherwise a case-insensitive substring LIKE. On DBs
-     * without a supported regex operator (SQLite, Oracle), a
-     * regex-shaped pattern silently falls back to a literal LIKE match
-     * instead of being treated as a real regex -- coarser, but never errors
-     * and never excludes the plain-substring case within it.
+     * $pattern: a regex (MySQL/MariaDB `REGEXP`, PostgreSQL `~`) if $regex
+     * says so (or, when $regex is null, if $pattern looks like one),
+     * otherwise a case-insensitive substring LIKE. On DBs without a
+     * supported regex operator (SQLite, Oracle), a regex-shaped pattern
+     * silently falls back to a literal LIKE match instead of being treated
+     * as a real regex -- coarser, but never errors and never excludes the
+     * plain-substring case within it.
+     *
+     * $regex lets a caller that already knows the user's intent (an explicit
+     * regex toggle, rather than metacharacter sniffing) force the choice
+     * instead of relying on the auto-detect heuristic -- see
+     * TimelineQueryFilters::transformFilenameFilter()/transformFilepathFilter().
+     * Pass null (the default) to keep the original auto-detect behavior.
+     *
+     * Callers that need to know *in advance* whether a regex leaf can be
+     * compiled exactly on this dialect (rather than falling back) should
+     * check regexSupported() themselves -- see FilterExpression's
+     * uncertain-leaf widening for filename/filepath regex leaves on
+     * dialects without a native regex operator.
      *
      * Shared by every free-text pattern filter in this app (embedded tags
      * dictionary search, filename/filepath filters) so the regex-detection
      * heuristic and per-dialect operator choice live in exactly one place.
      */
-    public static function patternMatchColumn(IQueryBuilder $query, string $column, string $pattern): string
+    public static function patternMatchColumn(IQueryBuilder $query, string $column, string $pattern, ?bool $regex = null): string
     {
-        if (self::isRegexPattern($pattern)) {
-            $provider = $query->getConnection()->getDatabaseProvider();
+        $isRegex = $regex ?? self::isRegexPattern($pattern);
+
+        if ($isRegex) {
             $param = $query->createNamedParameter($pattern);
 
-            $regexExpr = match ($provider) {
+            $regexExpr = match ($query->getConnection()->getDatabaseProvider()) {
                 IDBConnection::PLATFORM_MYSQL => "{$column} REGEXP {$param}",
                 IDBConnection::PLATFORM_POSTGRES => "{$column} ~ {$param}",
                 default => null,
@@ -275,6 +289,17 @@ final class SQL
         }
 
         return self::likePatternColumn($query, $column, $pattern);
+    }
+
+    /**
+     * Whether this connection's dialect has a native regex operator (MySQL/
+     * MariaDB `REGEXP`, PostgreSQL `~`) -- i.e. whether patternMatchColumn()
+     * with $regex=true compiles to a real regex match rather than silently
+     * degrading to a literal LIKE.
+     */
+    public static function regexSupported(IQueryBuilder $query): bool
+    {
+        return \in_array($query->getConnection()->getDatabaseProvider(), [IDBConnection::PLATFORM_MYSQL, IDBConnection::PLATFORM_POSTGRES], true);
     }
 
     /**
@@ -294,6 +319,42 @@ final class SQL
         return IDBConnection::PLATFORM_POSTGRES === $query->getConnection()->getDatabaseProvider()
             ? "{$column} ILIKE {$param}"
             : "LOWER({$column}) LIKE LOWER({$param})";
+    }
+
+    /**
+     * Build a LIKE/ILIKE SQL expression for $column against $value using a
+     * string-op filter operator (contains/notContains/startsWith/endsWith/
+     * equals -- see FilterField's text fields in data.d.ts). Dialect-aware
+     * (ILIKE on Postgres, LOWER()+LIKE elsewhere) and escapes LIKE wildcards
+     * in $value so a user-entered `%`/`_` is matched literally, same as
+     * likePatternColumn() above. Shared by the Advanced filename/filepath
+     * leaf compiler (FilterExpression) and any flat filter using the same
+     * op vocabulary, so the escaping and per-dialect operator choice live in
+     * exactly one place.
+     *
+     * notContains is a plain SQL negation of the contains LIKE, which is
+     * still exact/dialect-independent (no NULL semantics are in play here --
+     * this always runs inside a correlated EXISTS over a NOT NULL filecache
+     * column), so the caller may treat it the same as the other ops.
+     */
+    public static function textOpColumn(IQueryBuilder $query, string $column, string $op, string $value): string
+    {
+        $escaped = str_replace(['%', '_'], ['\%', '\_'], $value);
+
+        $pattern = match ($op) {
+            'contains', 'notContains' => "%{$escaped}%",
+            'startsWith' => "{$escaped}%",
+            'endsWith' => "%{$escaped}",
+            'equals' => $escaped,
+            default => throw new \InvalidArgumentException("Unsupported text op for SQL LIKE: {$op}"),
+        };
+
+        $param = $query->createNamedParameter($pattern);
+        $likeExpr = IDBConnection::PLATFORM_POSTGRES === $query->getConnection()->getDatabaseProvider()
+            ? "{$column} ILIKE {$param}"
+            : "LOWER({$column}) LIKE LOWER({$param})";
+
+        return 'notContains' === $op ? "NOT ({$likeExpr})" : $likeExpr;
     }
 
     /**

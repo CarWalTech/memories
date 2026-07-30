@@ -71,7 +71,7 @@ trait TimelineQueryDays
         // FilterExpression). Rating alone needs no recheck: SQL matches it
         // exactly (unambiguous numeric comparison), so it's safe to trust
         // postProcessDays() (no re-verification) in that case.
-        if (!$this->shouldFilterExifBySQL() || $this->hasEmbeddedTagFilterActive() || $this->hasFilterExprActive()) {
+        if (!$this->shouldFilterExifBySQL() || $this->hasEmbeddedTagFilterActive() || $this->hasFilterExprActive() || $this->hasUntaggedEmbeddedFilterActive()) {
             $rows = $this->postProcessDaysWithFilters($rows, $groupMode);
         } else {
             // Post process the days normally
@@ -193,8 +193,14 @@ trait TimelineQueryDays
         // FETCH all photos in this day
         $day = $this->executeQueryWithCTEs($query)->fetchAll();
 
-        // Post process the day in-place
+        // Post process the day in-place. Capture each photo's true per-day
+        // dayid *before* postProcessDayPhoto() converts it to its bucket id
+        // (for week/month/year groupMode) -- the Advanced tab's `date` filter
+        // field needs the real dayid to compare against, not a bucket id; see
+        // the filterExpr recheck below.
+        $rawDayIds = [];
         foreach ($day as &$photo) {
+            $rawDayIds[(int) $photo['fileid']] = (int) $photo['dayid'];
             $this->postProcessDayPhoto($photo, $groupMode);
         }
 
@@ -211,8 +217,14 @@ trait TimelineQueryDays
             $day = array_reverse($day);
         }
 
-        // Filter by embedded tags (if not already filtered in SQL)
-        if ($embeddedTags && \count($embeddedTags) > 0) {
+        // Filter by embedded tags (if not already filtered in SQL). Gated on
+        // !hasFilterExprActive() so the Advanced tab's expression supersedes
+        // this Basic-tab flat filter, even though the controller currently
+        // always passes $embeddedTags through regardless of filterExpr --
+        // this keeps the two-pass verify symmetric with the SQL-side gate in
+        // DaysController::getTransformations() without depending on the
+        // caller never passing a stale value.
+        if (!$this->hasFilterExprActive() && $embeddedTags && \count($embeddedTags) > 0) {
             $day = array_filter($day, static fn ($photo) => \count(array_intersect($embeddedTags, $photo['embedded_tags'] ?? [])) > 0);
         }
 
@@ -260,9 +272,11 @@ trait TimelineQueryDays
                 $this->connection,
             );
 
-            $day = array_filter($day, static function ($photo) use ($filterExpr, $contexts) {
-                $context = $contexts[(int) $photo['fileid']] ?? [];
-                $context['embeddedTag'] = $photo['embedded_tags'] ?? [];
+            $day = array_filter($day, function ($photo) use ($filterExpr, $contexts, $rawDayIds) {
+                $context = array_merge($contexts[(int) $photo['fileid']] ?? [], $this->filterExprPhotoContext($photo));
+                // Override with the true (pre-bucket-conversion) dayid -- see
+                // the $rawDayIds capture above.
+                $context['date'] = $rawDayIds[(int) $photo['fileid']] ?? $context['date'];
 
                 return FilterExpression::evaluate($filterExpr, $context);
             });
@@ -385,25 +399,46 @@ trait TimelineQueryDays
             return $rows;
         }
 
-        // Get filter parameters from request
-        $minRating = (int) $this->request->getParam('minRating') ?: 0;
-        $maxRating = (int) $this->request->getParam('maxRating') ?: 0;
-        $embeddedTags = $this->getEmbeddedTagsFromRequest();
-        $embeddedTagActive = null !== $this->request->getParam('embeddedtag');
-        $embeddedTagPath = trim((string) $this->request->getParam('embeddedtagpath'));
-        $embeddedTagRecursive = null !== $this->request->getParam('recursive');
+        // Get filter parameters from request. embeddedtagpath (folder-style
+        // browsing) is route/nav, not a Basic-tab filter, so it's read
+        // unconditionally; every other flat filter here is gated on
+        // !$filterExprActive so the Advanced tab's expression fully
+        // supersedes the Basic tab, symmetric with the SQL-side gate in
+        // DaysController::getTransformations() and the analogous gate on
+        // getDay()'s own embeddedTags recheck above.
         $filterExpr = FilterExpression::fromRequest($this->request);
+        $filterExprActive = null !== $filterExpr;
+
+        $minRating = 0;
+        $maxRating = 0;
+        $embeddedTags = [];
+        $untaggedEmbedded = false;
         // Camera filters (only relevant here -- the SQL path, gated on
         // shouldFilterExifBySQL(), is never wired up when this whole
         // PHP-fallback function is in use in the first place, since
         // shouldFilterExifBySQL() is false whenever this path runs. Filename/
-        // filepath/date-range/file-type filters need no PHP fallback: they
-        // have no EXIF/dialect dependency, so they're always applied exactly
-        // by SQL in the outer getDays() query that produced $rows already,
-        // regardless of which post-processing path runs afterward.)
-        $camMake = trim((string) $this->request->getParam('camMake', ''));
-        $camModel = trim((string) $this->request->getParam('camModel', ''));
-        $camLens = trim((string) $this->request->getParam('camLens', ''));
+        // filepath/date-range/file-type/extension filters need no PHP
+        // fallback: they have no EXIF/dialect dependency, so they're always
+        // applied exactly by SQL in the outer getDays() query that produced
+        // $rows already, regardless of which post-processing path runs
+        // afterward.)
+        $camMake = '';
+        $camModel = '';
+        $camLens = '';
+
+        if (!$filterExprActive) {
+            $minRating = (int) $this->request->getParam('minRating') ?: 0;
+            $maxRating = (int) $this->request->getParam('maxRating') ?: 0;
+            $embeddedTags = $this->getEmbeddedTagsFromRequest();
+            $untaggedEmbedded = null !== $this->request->getParam('untaggedEmbedded');
+            $camMake = trim((string) $this->request->getParam('camMake', ''));
+            $camModel = trim((string) $this->request->getParam('camModel', ''));
+            $camLens = trim((string) $this->request->getParam('camLens', ''));
+        }
+
+        $embeddedTagActive = null !== $this->request->getParam('embeddedtag');
+        $embeddedTagPath = trim((string) $this->request->getParam('embeddedtagpath'));
+        $embeddedTagRecursive = null !== $this->request->getParam('recursive');
 
         // Get day IDs for filtering
         $dayIds = array_map(static fn ($row) => (int) $row['dayid'], $rows);
@@ -486,6 +521,10 @@ trait TimelineQueryDays
                 );
             }
 
+            if ($untaggedEmbedded) {
+                $dayPhotos = array_filter($dayPhotos, static fn ($photo) => empty($photo['embedded_tags'] ?? []));
+            }
+
             if ($embeddedTagActive) {
                 $dayPhotos = array_filter($dayPhotos, static function ($photo) use ($embeddedTagPath, $embeddedTagRecursive) {
                     // Root has no directly-associated photos -- only child tags do.
@@ -504,9 +543,8 @@ trait TimelineQueryDays
             }
 
             if ($filterExpr) {
-                $dayPhotos = array_filter($dayPhotos, static function ($photo) use ($filterExpr, $filterExprContexts) {
-                    $context = $filterExprContexts[(int) $photo['fileid']] ?? [];
-                    $context['embeddedTag'] = $photo['embedded_tags'] ?? [];
+                $dayPhotos = array_filter($dayPhotos, function ($photo) use ($filterExpr, $filterExprContexts) {
+                    $context = array_merge($filterExprContexts[(int) $photo['fileid']] ?? [], $this->filterExprPhotoContext($photo));
 
                     return FilterExpression::evaluate($filterExpr, $context);
                 });
@@ -581,6 +619,41 @@ trait TimelineQueryDays
     private function hasFilterExprActive(): bool
     {
         return null !== FilterExpression::fromRequest($this->request);
+    }
+
+    /**
+     * Whether the Basic tab's "no embedded tags" toggle is active. Like
+     * hasFilterExprActive()'s callers, this is PHP-only (embedded tags are
+     * uncertain in SQL, see FilterExpression's class docblock), and
+     * supersede-gated: it never counts as active while an Advanced filter
+     * expression is present, since the flat toggle stops applying then.
+     */
+    private function hasUntaggedEmbeddedFilterActive(): bool
+    {
+        return !$this->hasFilterExprActive() && null !== $this->request->getParam('untaggedEmbedded');
+    }
+
+    /**
+     * Build the FilterExpression context entries that come directly from a
+     * photo row already fetched by getDay() (postProcessDayPhoto()'s exif/
+     * basename/path/mimetype/dayid/isfavorite fields) rather than a separate
+     * buildContexts() database query -- see FilterExpression::buildContexts()'s
+     * docblock for why these fields don't need their own query.
+     */
+    private function filterExprPhotoContext(array $photo): array
+    {
+        return [
+            'embeddedTag' => $photo['embedded_tags'] ?? [],
+            'rating' => $photo['rating'] ?? null,
+            'camMake' => $photo['exif']['Make'] ?? null,
+            'camModel' => $photo['exif']['Model'] ?? null,
+            'camLens' => $photo['exif']['LensModel'] ?? null,
+            'date' => $photo['dayid'] ?? null,
+            'favorite' => !empty($photo['isfavorite']),
+            'filename' => $photo['basename'] ?? '',
+            'filepath' => $photo['path'] ?? '',
+            'fileType' => $photo['mimetype'] ?? '',
+        ];
     }
 
     /**

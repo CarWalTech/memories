@@ -41,13 +41,16 @@ trait TimelineQueryFilters
 
     /**
      * Filter to photos whose filename (basename) matches $pattern -- see
-     * SQL::patternMatchColumn() for LIKE/regex semantics. Uses a correlated
-     * EXISTS on filecache rather than a direct `f.name` reference because the
-     * aggregate days-list query (TimelineQueryDays::getDays()) does not join
-     * filecache as `f` (only the per-day query does), so this must work
-     * without relying on any particular join being present.
+     * SQL::patternMatchColumn() for LIKE/regex semantics. $regex is the
+     * Basic tab's explicit regex toggle (default off = literal substring),
+     * not the metacharacter-sniffing auto-detect -- see FilterComponent.vue's
+     * filenameRegex switch. Uses a correlated EXISTS on filecache rather than
+     * a direct `f.name` reference because the aggregate days-list query
+     * (TimelineQueryDays::getDays()) does not join filecache as `f` (only the
+     * per-day query does), so this must work without relying on any
+     * particular join being present.
      */
-    public function transformFilenameFilter(IQueryBuilder &$query, bool $aggregate, string $pattern): void
+    public function transformFilenameFilter(IQueryBuilder &$query, bool $aggregate, string $pattern, bool $regex = false): void
     {
         $pattern = trim($pattern);
         if ('' === $pattern) {
@@ -58,7 +61,7 @@ trait TimelineQueryFilters
         $sub->select($sub->expr()->literal(1))
             ->from('filecache', 'fnf_f')
             ->where($sub->expr()->eq('fnf_f.fileid', 'm.fileid'))
-            ->andWhere(SQL::patternMatchColumn($query, 'fnf_f.name', $pattern))
+            ->andWhere(SQL::patternMatchColumn($query, 'fnf_f.name', $pattern, $regex))
         ;
 
         $query->andWhere("EXISTS ({$sub->getSQL()})");
@@ -69,9 +72,10 @@ trait TimelineQueryFilters
      * `filecache.path` is storage-relative, not necessarily the exact
      * human-visible Nextcloud path -- acceptable for a substring/regex
      * search, but callers should present this as "matches folder path"
-     * rather than promising an exact path match.
+     * rather than promising an exact path match. See transformFilenameFilter()
+     * for $regex's semantics.
      */
-    public function transformFilepathFilter(IQueryBuilder &$query, bool $aggregate, string $pattern): void
+    public function transformFilepathFilter(IQueryBuilder &$query, bool $aggregate, string $pattern, bool $regex = false): void
     {
         $pattern = trim($pattern);
         if ('' === $pattern) {
@@ -82,10 +86,81 @@ trait TimelineQueryFilters
         $sub->select($sub->expr()->literal(1))
             ->from('filecache', 'fpf_f')
             ->where($sub->expr()->eq('fpf_f.fileid', 'm.fileid'))
-            ->andWhere(SQL::patternMatchColumn($query, 'fpf_f.path', $pattern))
+            ->andWhere(SQL::patternMatchColumn($query, 'fpf_f.path', $pattern, $regex))
         ;
 
         $query->andWhere("EXISTS ({$sub->getSQL()})");
+    }
+
+    /**
+     * Filter to photos whose filename ends with any of the given (lowercase,
+     * dot-stripped) extensions, case-insensitively. Correlated EXISTS for the
+     * same reason as transformFilenameFilter() above.
+     *
+     * @param string[] $extensions
+     */
+    public function transformExtensionFilter(IQueryBuilder &$query, bool $aggregate, array $extensions): void
+    {
+        if (empty($extensions)) {
+            return;
+        }
+
+        $sub = $query->getConnection()->getQueryBuilder();
+        $sub->select($sub->expr()->literal(1))
+            ->from('filecache', 'fxf_f')
+            ->where($sub->expr()->eq('fxf_f.fileid', 'm.fileid'))
+        ;
+
+        $or = $sub->expr()->orX();
+        foreach ($extensions as $ext) {
+            $or->add(SQL::textOpColumn($query, 'fxf_f.name', 'endsWith', '.'.$ext));
+        }
+        $sub->andWhere($or);
+
+        $query->andWhere("EXISTS ({$sub->getSQL()})");
+    }
+
+    /**
+     * Filter to photos with no collaborative (system) tags at all. Exact in
+     * SQL -- systemtag_object_mapping membership has no derived-text
+     * ambiguity (unlike embedded tags, see transformUntaggedEmbeddedFilter()
+     * below and FilterExpression's class docblock).
+     */
+    public function transformUntaggedCollabFilter(IQueryBuilder &$query, bool $aggregate): void
+    {
+        $sub = $query->getConnection()->getQueryBuilder();
+        $sub->select($sub->expr()->literal(1))
+            ->from('systemtag_object_mapping', 'ucf_stom')
+            ->where($sub->expr()->eq('ucf_stom.objecttype', $sub->expr()->literal('files')))
+            ->andWhere($sub->expr()->eq('ucf_stom.objectid', 'm.objectid'))
+        ;
+
+        $query->andWhere("NOT EXISTS ({$sub->getSQL()})");
+    }
+
+    /**
+     * WHERE-clause pre-filter for the Basic tab's simple all-or-nothing
+     * (AND) collaborative tag picker -- a flat "must have every one of these
+     * collaborative tags" condition. Unlike transformEmbeddedTagsFilter()
+     * below, this is exact (not a superset): `tag` membership is a plain
+     * relational fact with no derived-text ambiguity, same as
+     * FilterExpression::compileTagLeaf().
+     *
+     * @param string[] $tagIds systemtag numeric ids, as strings
+     */
+    public function transformCollabTagsFilter(IQueryBuilder &$query, bool $aggregate, array $tagIds): void
+    {
+        foreach ($tagIds as $index => $tagId) {
+            $sub = $query->getConnection()->getQueryBuilder();
+            $sub->select($sub->expr()->literal(1))
+                ->from('systemtag_object_mapping', "ctf_stom_{$index}")
+                ->where($sub->expr()->eq("ctf_stom_{$index}.objecttype", $sub->expr()->literal('files')))
+                ->andWhere($sub->expr()->eq("ctf_stom_{$index}.objectid", 'm.objectid'))
+                ->andWhere($sub->expr()->eq("ctf_stom_{$index}.systemtagid", $query->createNamedParameter((int) $tagId, IQueryBuilder::PARAM_INT)))
+            ;
+
+            $query->andWhere("EXISTS ({$sub->getSQL()})");
+        }
     }
 
     /**
