@@ -26,7 +26,7 @@ const emptyData = <T,>(): ScopeData<T> => ({ view: {}, item: {} });
  * blob), but parameterized so it can back both Sort by (`sortScope`) and
  * Group by (`groupScope`) as two independent instances/config keys.
  */
-class ListScope<T extends { key: string; dir: SortDir }> {
+export class ListScope<T extends { key: string; dir: SortDir }> {
   private data = Vue.observable<ScopeData<T>>(emptyData<T>());
   private initialized = false;
 

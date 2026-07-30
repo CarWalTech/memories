@@ -14,6 +14,8 @@
     </div>
 
     <div class="right-actions">
+      <ViewModeAction />
+      <SortByAction />
       <ViewOptionsAction />
 
       <NcActions :inline="0">
@@ -74,6 +76,8 @@ import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
 
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import FaceEditModal from '@components/modal/FaceEditModal.vue';
 import FaceDeleteModal from '@components/modal/FaceDeleteModal.vue';
 import FaceMergeModal from '@components/modal/FaceMergeModal.vue';
@@ -93,6 +97,8 @@ export default defineComponent({
     NcActionButton,
     NcActionCheckbox,
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     FaceEditModal,
     FaceDeleteModal,
     FaceMergeModal,

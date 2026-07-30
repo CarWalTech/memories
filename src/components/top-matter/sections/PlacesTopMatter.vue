@@ -10,6 +10,8 @@
     <div class="name">{{ name || viewname }}</div>
 
     <div class="right-actions">
+      <ViewModeAction />
+      <SortByAction />
       <ViewOptionsAction />
 
       <NcActions :inline="0">
@@ -36,6 +38,8 @@ import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import * as strings from '@services/strings';
 
 import BackIcon from 'vue-material-design-icons/ArrowLeft.vue';
@@ -47,6 +51,8 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     BackIcon,
     UnassignedIcon,
   },

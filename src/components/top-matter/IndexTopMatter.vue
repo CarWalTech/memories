@@ -3,6 +3,8 @@
     <div class="top-row">
       <span class="name">{{ viewName }}</span>
       <div class="right-actions">
+        <ViewModeAction />
+        <SortByAction />
         <ViewOptionsAction />
         <FilterDropdownAction />
         <RefreshOptionsAction />
@@ -15,6 +17,8 @@
 import { defineComponent } from 'vue';
 
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 import * as strings from '@services/strings';
@@ -24,6 +28,8 @@ export default defineComponent({
 
   components: {
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     RefreshOptionsAction,
     FilterDropdownAction,
   },

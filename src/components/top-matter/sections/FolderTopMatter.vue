@@ -30,6 +30,9 @@
             </NcActionButton>
           </NcActions>
 
+          <ViewModeAction />
+          <SortByAction />
+
           <ViewOptionsAction>
             <NcActionSeparator />
 
@@ -112,6 +115,8 @@ import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import RefreshFolderOptionsAction from '@components/top-actions/RefreshFolderOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
@@ -143,6 +148,8 @@ export default defineComponent({
     NcButton,
     PublicUploadHandler,
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     RefreshFolderOptionsAction,
     FilterDropdownAction,
     HomeIcon,

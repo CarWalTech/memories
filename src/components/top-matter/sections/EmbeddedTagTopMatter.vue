@@ -17,6 +17,9 @@
           </NcActionButton>
         </NcActions>
 
+        <ViewModeAction />
+        <SortByAction />
+
         <ViewOptionsAction>
           <NcActionSeparator />
 
@@ -57,6 +60,8 @@ import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
@@ -79,6 +84,8 @@ export default defineComponent({
     NcActionSeparator,
     NcButton,
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     RefreshOptionsAction,
     FilterDropdownAction,
     TagsIcon,

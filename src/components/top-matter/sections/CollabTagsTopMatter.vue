@@ -10,6 +10,8 @@
       <span class="name">{{ name || viewname }}</span>
 
       <div class="right-actions">
+        <ViewModeAction />
+        <SortByAction />
         <ViewOptionsAction />
         <FilterDropdownAction />
         <RefreshOptionsAction />
@@ -24,6 +26,8 @@ import { defineComponent } from 'vue';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
@@ -37,6 +41,8 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     RefreshOptionsAction,
     FilterDropdownAction,
     BackIcon,

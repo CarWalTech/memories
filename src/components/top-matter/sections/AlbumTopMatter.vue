@@ -21,6 +21,8 @@
             <template #icon> <PlusIcon :size="20" /> </template>
           </NcActionButton>
         </NcActions>
+        <ViewModeAction />
+        <SortByAction />
         <ViewOptionsAction>
           <template v-if="isAlbumList">
             <NcActionSeparator />
@@ -101,6 +103,8 @@ import axios from '@nextcloud/axios';
 import AlbumCreateModal from '@components/modal/AlbumCreateModal.vue';
 import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
+import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
+import SortByAction from '@components/top-actions/SortByAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
@@ -129,6 +133,8 @@ export default defineComponent({
     AlbumCreateModal,
     AlbumDeleteModal,
     ViewOptionsAction,
+    ViewModeAction,
+    SortByAction,
     RefreshOptionsAction,
     FilterDropdownAction,
 
