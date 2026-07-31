@@ -124,7 +124,6 @@
         :value="opt.key"
         :model-value="tilesSortSetting.key"
         @update:modelValue="changeTilesSortKey(opt.key)"
-        close-after-click
       >
         <template #icon><component :is="sortKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
@@ -138,7 +137,6 @@
         value="asc"
         :model-value="tilesSortSetting.dir"
         @update:modelValue="changeTilesSortDir('asc')"
-        close-after-click
       >
         <template #icon><SortAscIcon :size="20" /></template>
         {{ t('memories', 'Ascending') }}
@@ -150,7 +148,6 @@
         value="desc"
         :model-value="tilesSortSetting.dir"
         @update:modelValue="changeTilesSortDir('desc')"
-        close-after-click
       >
         <template #icon><SortDescIcon :size="20" /></template>
         {{ t('memories', 'Descending') }}
@@ -182,7 +179,6 @@
         value="none"
         :model-value="tilesGroupSetting.key"
         @update:modelValue="changeTilesGroupKey('none')"
-        close-after-click
       >
         <template #icon><NoGroupIcon :size="20" /></template>
         {{ t('memories', 'None') }}
@@ -196,7 +192,6 @@
         :value="opt.key"
         :model-value="tilesGroupSetting.key"
         @update:modelValue="changeTilesGroupKey(opt.key)"
-        close-after-click
       >
         <template #icon><component :is="groupKeyIcon(opt.key)" :size="20" /></template>
         {{ opt.label }}
@@ -211,7 +206,6 @@
           value="asc"
           :model-value="tilesGroupSetting.dir"
           @update:modelValue="changeTilesGroupDir('asc')"
-          close-after-click
         >
           <template #icon><SortAscIcon :size="20" /></template>
           {{ t('memories', 'Ascending') }}
@@ -223,7 +217,6 @@
           value="desc"
           :model-value="tilesGroupSetting.dir"
           @update:modelValue="changeTilesGroupDir('desc')"
-          close-after-click
         >
           <template #icon><SortDescIcon :size="20" /></template>
           {{ t('memories', 'Descending') }}
@@ -287,7 +280,7 @@ const REMOTE_NAMES: Record<keyof ImagePropsBundle, string> = {
 };
 
 const SHAPE_LABELS: Record<ImageDisplayShape, string> = {
-  dynamic: 'Dynamic',
+  dynamic: 'Mosaic',
   square: 'Square',
   grid: 'Grid',
   list: 'List',

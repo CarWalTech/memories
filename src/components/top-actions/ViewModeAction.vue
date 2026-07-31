@@ -16,33 +16,21 @@
 
     <NcActionButton
       type="radio"
-      :aria-label="t('memories', 'Dynamic')"
+      :aria-label="t('memories', 'Mosaic')"
       value="dynamic"
-      :model-value="effectiveShape"
-      @update:modelValue="changeImageDisplayShape('dynamic')"
+      :model-value="selectedShapeGroup"
+      @update:modelValue="changeImageDisplayShape(mosaicActive ? effectiveShape : 'dynamic')"
       close-after-click
     >
-      <template #icon><ViewDynamicIcon :size="20" /></template>
-      {{ t('memories', 'Dynamic') }}
-    </NcActionButton>
-
-    <NcActionButton
-      type="radio"
-      :aria-label="t('memories', 'Square')"
-      value="square"
-      :model-value="effectiveShape"
-      @update:modelValue="changeImageDisplayShape('square')"
-      close-after-click
-    >
-      <template #icon><ViewSquareIcon :size="20" /></template>
-      {{ t('memories', 'Square') }}
+      <template #icon><component :is="shapeIcon(mosaicActive ? effectiveShape : 'dynamic')" :size="20" /></template>
+      {{ t('memories', 'Mosaic') }}
     </NcActionButton>
 
     <NcActionButton
       type="radio"
       :aria-label="t('memories', 'Grid')"
       value="grid"
-      :model-value="effectiveShape"
+      :model-value="selectedShapeGroup"
       @update:modelValue="changeImageDisplayShape('grid')"
       close-after-click
     >
@@ -54,13 +42,24 @@
       type="radio"
       :aria-label="t('memories', 'List')"
       value="list"
-      :model-value="effectiveShape"
+      :model-value="selectedShapeGroup"
       @update:modelValue="changeImageDisplayShape('list')"
       close-after-click
     >
       <template #icon><ViewListIcon :size="20" /></template>
       {{ t('memories', 'List') }}
     </NcActionButton>
+
+    <NcActionSeparator v-if="mosaicActive" />
+
+    <!-- Square is a property of the mosaic layout (crop the tiles), not a layout of its own -->
+    <NcActionCheckbox
+      v-if="mosaicActive"
+      :checked="effectiveShape === 'square'"
+      @update:checked="changeImageDisplayShape($event ? 'square' : 'dynamic')"
+    >
+      {{ t('memories', 'Square') }}
+    </NcActionCheckbox>
   </NcActions>
 </template>
 
@@ -75,13 +74,13 @@ import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.
 import ViewPrefs from '@mixins/ViewPrefs';
 import viewModeScope, { type ImageDisplayShape } from '@services/view-mode-scope';
 
-import ViewDynamicIcon from 'vue-material-design-icons/ViewComfyOutline.vue';
-import ViewSquareIcon from 'vue-material-design-icons/CropSquare.vue';
+import ViewDynamicIcon from 'vue-material-design-icons/ViewCompact.vue';
+import ViewSquareIcon from 'vue-material-design-icons/ViewDashboard.vue';
 import ViewGridIcon from 'vue-material-design-icons/ViewGridOutline.vue';
 import ViewListIcon from 'vue-material-design-icons/ViewListOutline.vue';
 
 const SHAPE_LABELS: Record<ImageDisplayShape, string> = {
-  dynamic: 'Dynamic',
+  dynamic: 'Mosaic',
   square: 'Square',
   grid: 'Grid',
   list: 'List',
@@ -113,6 +112,20 @@ export default defineComponent({
   computed: {
     shapeLabel(): string {
       return this.t('memories', SHAPE_LABELS[this.effectiveShape]);
+    },
+
+    /** Square is a sub-option of Mosaic, so both shapes belong to the same radio entry. */
+    mosaicActive(): boolean {
+      return this.effectiveShape === 'dynamic' || this.effectiveShape === 'square';
+    },
+
+    /**
+     * Which radio reads as selected. Collapses the mosaic family onto its
+     * 'dynamic' radio so picking Square doesn't leave the menu with nothing
+     * checked.
+     */
+    selectedShapeGroup(): ImageDisplayShape {
+      return this.mosaicActive ? 'dynamic' : this.effectiveShape;
     },
 
     /** Item-scope toggle is only offered on routes with a real sub-identity currently being viewed. */

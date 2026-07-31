@@ -35,50 +35,79 @@
           </template>
         </ViewOptionsAction>
         <FilterDropdownAction />
-        <RefreshOptionsAction />
-        <NcActions :inline="isMobile ? 0 : 2" v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
+        <NcActions
+          :inline="othersInline"
+          v-if="!routeIsPublic"
+          :aria-label="t('memories', 'Others')"
+          @closed="othersPanel = 'root'"
+        >
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
 
-          <NcActionButton
-            :aria-label="t('memories', 'Edit album details')"
-            :title="t('memories', 'Edit album details')"
-            @click="refs.createModal.open(true)"
-            close-after-click
-            v-if="canEditAlbum"
-          >
-            {{ t('memories', 'Edit album details') }}
-            <template #icon> <EditIcon :size="20" /> </template>
-          </NcActionButton>
-          <NcActionButton
-            :aria-label="t('memories', 'Remove album')"
-            :title="t('memories', 'Remove album')"
-            @click="refs.deleteModal.open()"
-            close-after-click
-            v-if="!isAlbumList"
-          >
-            {{ t('memories', 'Remove album') }}
-            <template #icon> <DeleteIcon :size="20" /> </template>
-          </NcActionButton>
-          <NcActionButton
-            :aria-label="t('memories', 'Share album')"
-            :title="t('memories', 'Share album')"
-            @click="openShareModal()"
-            close-after-click
-            v-if="canEditAlbum"
-          >
-            {{ t('memories', 'Share album') }}
-            <template #icon> <ShareIcon :size="20" /> </template>
-          </NcActionButton>
-          <NcActionButton
-            :aria-label="t('memories', 'Download album')"
-            :title="t('memories', 'Download album')"
-            @click="downloadAlbum()"
-            close-after-click
-            v-if="!isAlbumList"
-          >
-            {{ t('memories', 'Download album') }}
-            <template #icon> <DownloadIcon :size="20" /> </template>
-          </NcActionButton>
+          <template v-if="othersPanel === 'root'">
+            <NcActionButton
+              :aria-label="t('memories', 'Edit album details')"
+              :title="t('memories', 'Edit album details')"
+              @click="refs.createModal.open(true)"
+              close-after-click
+              v-if="canEditAlbum"
+            >
+              {{ t('memories', 'Edit album details') }}
+              <template #icon> <EditIcon :size="20" /> </template>
+            </NcActionButton>
+            <NcActionButton
+              :aria-label="t('memories', 'Remove album')"
+              :title="t('memories', 'Remove album')"
+              @click="refs.deleteModal.open()"
+              close-after-click
+              v-if="!isAlbumList"
+            >
+              {{ t('memories', 'Remove album') }}
+              <template #icon> <DeleteIcon :size="20" /> </template>
+            </NcActionButton>
+            <NcActionButton
+              :aria-label="t('memories', 'Share album')"
+              :title="t('memories', 'Share album')"
+              @click="openShareModal()"
+              close-after-click
+              v-if="canEditAlbum"
+            >
+              {{ t('memories', 'Share album') }}
+              <template #icon> <ShareIcon :size="20" /> </template>
+            </NcActionButton>
+            <NcActionButton
+              :aria-label="t('memories', 'Download album')"
+              :title="t('memories', 'Download album')"
+              @click="downloadAlbum()"
+              close-after-click
+              v-if="!isAlbumList"
+            >
+              {{ t('memories', 'Download album') }}
+              <template #icon> <DownloadIcon :size="20" /> </template>
+            </NcActionButton>
+
+            <NcActionSeparator />
+
+            <NcActionButton :aria-label="t('memories', 'Refresh')" @click="othersPanel = 'refresh'">
+              {{ t('memories', 'Refresh') }}
+              <template #icon> <RefreshIcon :size="20" /> </template>
+            </NcActionButton>
+          </template>
+
+          <template v-if="othersPanel === 'refresh'">
+            <NcActionButton @click="othersPanel = 'root'">
+              <template #icon> <BackIcon :size="20" /> </template>
+              {{ t('memories', 'Back') }}
+            </NcActionButton>
+
+            <NcActionSeparator />
+
+            <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
+              {{ t('memories', 'Refresh files') }}
+            </NcActionButton>
+            <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
+              {{ t('memories', 'Refresh untracked files') }}
+            </NcActionButton>
+          </template>
         </NcActions>
       </div>
     </div>
@@ -105,12 +134,12 @@ import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
-import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
 import { downloadWithHandle } from '@services/dav';
 import { API } from '@services/API';
 import * as utils from '@services/utils';
+import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import BackIcon from 'vue-material-design-icons/ArrowLeft.vue';
 
@@ -120,6 +149,7 @@ import DeleteIcon from 'vue-material-design-icons/TrashCanOutline.vue';
 import PlusIcon from 'vue-material-design-icons/Plus.vue';
 import ShareIcon from 'vue-material-design-icons/ShareVariant.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
+import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
 
 export default defineComponent({
   name: 'AlbumTopMatter',
@@ -135,7 +165,6 @@ export default defineComponent({
     ViewOptionsAction,
     ViewModeAction,
     SortByAction,
-    RefreshOptionsAction,
     FilterDropdownAction,
 
     BackIcon,
@@ -145,9 +174,14 @@ export default defineComponent({
     PlusIcon,
     ShareIcon,
     DotsHorizontalIcon,
+    RefreshIcon,
   },
 
   mixins: [UserConfig],
+
+  data: () => ({
+    othersPanel: 'root' as 'root' | 'refresh',
+  }),
 
   computed: {
     refs() {
@@ -173,9 +207,21 @@ export default defineComponent({
     isMobile(): boolean {
       return utils.isMobile();
     },
+
+    /**
+     * Only promote items to standalone inline buttons while showing the root
+     * panel -- otherwise the Refresh submenu's Back/entry buttons would get
+     * promoted out of the dropdown instead of the album action buttons.
+     */
+    othersInline(): number {
+      if (this.othersPanel !== 'root') return 0;
+      return this.isMobile || this.isAlbumList ? 0 : 2;
+    },
   },
 
   methods: {
+    requestFullIndexRefresh,
+
     back() {
       this.$router.go(-1);
     },

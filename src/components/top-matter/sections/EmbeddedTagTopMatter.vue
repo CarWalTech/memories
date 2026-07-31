@@ -32,20 +32,43 @@
           </NcActionButton>
         </ViewOptionsAction>
 
-        <RefreshOptionsAction />
-
-        <NcActions :aria-label="t('memories', 'Others')">
+        <NcActions :aria-label="t('memories', 'Others')" @closed="othersPanel = 'root'">
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
 
-          <NcActionButton :aria-label="t('memories', 'Prune empty tags')" @click="pruneEmpty" close-after-click>
-            {{ t('memories', 'Prune empty tags') }}
-            <template #icon> <TagOffIcon :size="20" /> </template>
-          </NcActionButton>
+          <template v-if="othersPanel === 'root'">
+            <NcActionButton :aria-label="t('memories', 'Prune empty tags')" @click="pruneEmpty" close-after-click>
+              {{ t('memories', 'Prune empty tags') }}
+              <template #icon> <TagOffIcon :size="20" /> </template>
+            </NcActionButton>
 
-          <NcActionButton :aria-label="t('memories', 'Find missing tags')" @click="findMissing" close-after-click>
-            {{ t('memories', 'Find missing tags') }}
-            <template #icon> <TagSearchIcon :size="20" /> </template>
-          </NcActionButton>
+            <NcActionButton :aria-label="t('memories', 'Find missing tags')" @click="findMissing" close-after-click>
+              {{ t('memories', 'Find missing tags') }}
+              <template #icon> <TagSearchIcon :size="20" /> </template>
+            </NcActionButton>
+
+            <NcActionSeparator />
+
+            <NcActionButton :aria-label="t('memories', 'Refresh')" @click="othersPanel = 'refresh'">
+              {{ t('memories', 'Refresh') }}
+              <template #icon> <RefreshIcon :size="20" /> </template>
+            </NcActionButton>
+          </template>
+
+          <template v-if="othersPanel === 'refresh'">
+            <NcActionButton @click="othersPanel = 'root'">
+              <template #icon> <ArrowLeftIcon :size="20" /> </template>
+              {{ t('memories', 'Back') }}
+            </NcActionButton>
+
+            <NcActionSeparator />
+
+            <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
+              {{ t('memories', 'Refresh files') }}
+            </NcActionButton>
+            <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
+              {{ t('memories', 'Refresh untracked files') }}
+            </NcActionButton>
+          </template>
         </NcActions>
       </div>
     </div>
@@ -62,10 +85,10 @@ import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
-import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
 import * as dav from '@services/dav';
+import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import TagsIcon from 'vue-material-design-icons/Tag.vue';
 import TagPlusIcon from 'vue-material-design-icons/TagPlus.vue';
@@ -74,6 +97,8 @@ import TagOffIcon from 'vue-material-design-icons/TagOff.vue';
 import TagSearchIcon from 'vue-material-design-icons/TagSearch.vue';
 import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
+import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
+import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue';
 
 export default defineComponent({
   name: 'EmbeddedTagTopMatter',
@@ -86,7 +111,6 @@ export default defineComponent({
     ViewOptionsAction,
     ViewModeAction,
     SortByAction,
-    RefreshOptionsAction,
     FilterDropdownAction,
     TagsIcon,
     TagPlusIcon,
@@ -95,7 +119,13 @@ export default defineComponent({
     TagSearchIcon,
     TimelineIcon,
     DotsHorizontalIcon,
+    RefreshIcon,
+    ArrowLeftIcon,
   },
+
+  data: () => ({
+    othersPanel: 'root' as 'root' | 'refresh',
+  }),
 
   computed: {
     pathParts(): string[] {
@@ -117,6 +147,8 @@ export default defineComponent({
   },
 
   methods: {
+    requestFullIndexRefresh,
+
     toggleRecursive(): void {
       this.$router.replace({
         query: {

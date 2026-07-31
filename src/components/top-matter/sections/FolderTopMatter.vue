@@ -57,32 +57,67 @@
             </NcActionButton>
           </ViewOptionsAction>
           <FilterDropdownAction v-if="!routeIsPublic" />
-          <RefreshFolderOptionsAction v-if="!routeIsPublic" />
 
-          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')">
+          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')" @closed="othersPanel = 'root'">
             <template #icon> <DotsHorizontalIcon :size="20" /> </template>
 
-            <NcActionButton :aria-label="t('memories', 'New folder')" @click="createFolder()" close-after-click>
-              {{ t('memories', 'New folder') }}
-              <template #icon> <NewFolderIcon :size="20" /> </template>
-            </NcActionButton>
+            <template v-if="othersPanel === 'root'">
+              <NcActionButton :aria-label="t('memories', 'New folder')" @click="createFolder()" close-after-click>
+                {{ t('memories', 'New folder') }}
+                <template #icon> <NewFolderIcon :size="20" /> </template>
+              </NcActionButton>
 
-            <NcActionButton :aria-label="t('memories', 'Share folder')" @click="share()" close-after-click>
-              {{ t('memories', 'Share folder') }}
-              <template #icon> <ShareIcon :size="20" /> </template>
-            </NcActionButton>
+              <NcActionButton :aria-label="t('memories', 'Share folder')" @click="share()" close-after-click>
+                {{ t('memories', 'Share folder') }}
+                <template #icon> <ShareIcon :size="20" /> </template>
+              </NcActionButton>
 
-            <NcActionButton
-              :aria-label="isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites')"
-              @click="toggleFavoriteFolder()"
-              close-after-click
-            >
-              {{ isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites') }}
-              <template #icon>
-                <StarIcon v-if="isFavoriteFolder" :size="20" />
-                <StarOutlineIcon v-else :size="20" />
-              </template>
-            </NcActionButton>
+              <NcActionButton
+                :aria-label="isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites')"
+                @click="toggleFavoriteFolder()"
+                close-after-click
+              >
+                {{ isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites') }}
+                <template #icon>
+                  <StarIcon v-if="isFavoriteFolder" :size="20" />
+                  <StarOutlineIcon v-else :size="20" />
+                </template>
+              </NcActionButton>
+
+              <NcActionSeparator />
+
+              <NcActionButton :aria-label="t('memories', 'Refresh')" @click="othersPanel = 'refresh'">
+                {{ t('memories', 'Refresh') }}
+                <template #icon> <RefreshIcon :size="20" /> </template>
+              </NcActionButton>
+            </template>
+
+            <template v-if="othersPanel === 'refresh'">
+              <NcActionButton @click="othersPanel = 'root'">
+                <template #icon> <ArrowLeftIcon :size="20" /> </template>
+                {{ t('memories', 'Back') }}
+              </NcActionButton>
+
+              <NcActionSeparator />
+
+              <NcActionCaption :name="t('memories', 'Refresh untracked files')" />
+              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', false)">
+                {{ t('memories', 'Refresh Folder') }}
+              </NcActionButton>
+              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', true)">
+                {{ t('memories', 'Refresh Folder + Subfolders') }}
+              </NcActionButton>
+
+              <NcActionSeparator />
+
+              <NcActionCaption :name="t('memories', 'Refresh all files')" />
+              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', false)">
+                {{ t('memories', 'Refresh Folder') }}
+              </NcActionButton>
+              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', true)">
+                {{ t('memories', 'Refresh Folder + Subfolders') }}
+              </NcActionButton>
+            </template>
           </NcActions>
         </template>
       </div>
@@ -117,9 +152,12 @@ import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
-import RefreshFolderOptionsAction from '@components/top-actions/RefreshFolderOptionsAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
 
+import axios from '@nextcloud/axios';
+import { showError, showSuccess } from '@nextcloud/dialogs';
+
+import { API } from '@services/API';
 import * as utils from '@services/utils';
 import * as dav from '@services/dav';
 import * as nativex from '@native';
@@ -133,6 +171,8 @@ import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';
 import StarOutlineIcon from 'vue-material-design-icons/StarOutline.vue';
+import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
+import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue';
 
 export default defineComponent({
   name: 'FolderTopMatter',
@@ -150,7 +190,6 @@ export default defineComponent({
     ViewOptionsAction,
     ViewModeAction,
     SortByAction,
-    RefreshFolderOptionsAction,
     FilterDropdownAction,
     HomeIcon,
     ShareIcon,
@@ -161,9 +200,16 @@ export default defineComponent({
     DotsHorizontalIcon,
     StarIcon,
     StarOutlineIcon,
+    RefreshIcon,
+    ArrowLeftIcon,
   },
 
   mixins: [UserConfig],
+
+  data: () => ({
+    refreshingIndex: false,
+    othersPanel: 'root' as 'root' | 'refresh',
+  }),
 
   computed: {
     list(): {
@@ -315,6 +361,35 @@ export default defineComponent({
 
       this.config.favorite_folders = favorites.join(';');
       await this.updateSetting('favorite_folders', 'favoriteFolders');
+    },
+
+    async doRefresh(mode: 'all' | 'untracked', recursive: boolean): Promise<void> {
+      this.refreshingIndex = true;
+      try {
+        const path = utils.getFolderRoutePath(this.config.folders_path);
+        const res = await axios.post<{ done?: boolean; queued?: boolean }>(API.INDEX_REFRESH_FOLDER(), {
+          path,
+          recursive,
+          mode,
+        });
+
+        if (res.data.done) {
+          // Finished within the request itself (the common case for an
+          // ordinary-sized folder) -- refresh the view now that we know
+          // there's something new to show, instead of waiting on a
+          // background job that may not run for a while.
+          showSuccess(
+            recursive ? this.t('memories', 'Folder and subfolders reindexed') : this.t('memories', 'Folder reindexed'),
+          );
+          utils.bus.emit('memories:timeline:soft-refresh', null);
+        } else {
+          showSuccess(this.t('memories', 'This folder has a lot to index -- continuing in the background'));
+        }
+      } catch (e) {
+        showError(e?.response?.data?.message ?? this.t('memories', 'Failed to refresh folder index'));
+      } finally {
+        this.refreshingIndex = false;
+      }
     },
   },
 });
