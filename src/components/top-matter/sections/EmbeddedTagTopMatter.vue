@@ -21,10 +21,10 @@
 
         <FilterDropdownAction />
 
-        <NcActions :aria-label="t('memories', 'Others')" @closed="othersPanel = 'root'">
+        <NcActions :aria-label="t('memories', 'Others')" @closed="closePanel">
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
 
-          <template v-if="othersPanel === 'root'">
+          <template v-if="panel === 'root'">
             <NcActionButton :aria-label="t('memories', 'Prune empty tags')" @click="pruneEmpty" close-after-click>
               {{ t('memories', 'Prune empty tags') }}
               <template #icon> <TagOffIcon :size="20" /> </template>
@@ -36,28 +36,9 @@
             </NcActionButton>
 
             <NcActionSeparator />
-
-            <NcActionButton :aria-label="t('memories', 'Refresh')" @click="othersPanel = 'refresh'">
-              {{ t('memories', 'Refresh') }}
-              <template #icon> <RefreshIcon :size="20" /> </template>
-            </NcActionButton>
           </template>
 
-          <template v-if="othersPanel === 'refresh'">
-            <NcActionButton @click="othersPanel = 'root'">
-              <template #icon> <ArrowLeftIcon :size="20" /> </template>
-              {{ t('memories', 'Back') }}
-            </NcActionButton>
-
-            <NcActionSeparator />
-
-            <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
-              {{ t('memories', 'Refresh files') }}
-            </NcActionButton>
-            <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
-              {{ t('memories', 'Refresh untracked files') }}
-            </NcActionButton>
-          </template>
+          <RefreshMenuActions :panel="panel" @open="openPanel('refresh')" @back="closePanel" />
         </NcActions>
       </div>
     </div>
@@ -74,17 +55,16 @@ import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
+import RefreshMenuActions from '@components/top-actions/RefreshMenuActions';
 
+import Submenu from '@mixins/Submenu';
 import * as dav from '@services/dav';
-import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import TagPlusIcon from 'vue-material-design-icons/TagPlus.vue';
 import TagMinusIcon from 'vue-material-design-icons/TagMinus.vue';
 import TagOffIcon from 'vue-material-design-icons/TagOff.vue';
 import TagSearchIcon from 'vue-material-design-icons/TagSearch.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
-import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
-import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue';
 
 export default defineComponent({
   name: 'EmbeddedTagTopMatter',
@@ -97,18 +77,16 @@ export default defineComponent({
     ViewModeAction,
     SortByAction,
     FilterDropdownAction,
+    RefreshMenuActions,
     TagPlusIcon,
     TagMinusIcon,
     TagOffIcon,
     TagSearchIcon,
     DotsHorizontalIcon,
-    RefreshIcon,
-    ArrowLeftIcon,
   },
 
-  data: () => ({
-    othersPanel: 'root' as 'root' | 'refresh',
-  }),
+  /** `Submenu` owns `panel` for the "Others" dropdown: 'root' plus the 'refresh' drill-down. */
+  mixins: [Submenu],
 
   computed: {
     pathParts(): string[] {
@@ -126,8 +104,6 @@ export default defineComponent({
   },
 
   methods: {
-    requestFullIndexRefresh,
-
     getRoute(path: string[]): object {
       return {
         ...this.$route,

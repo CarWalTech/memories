@@ -2,15 +2,10 @@ import { defineComponent } from 'vue';
 
 import ViewPrefs from '@mixins/ViewPrefs';
 import { listScopeTargetFor, getListScopeDef, type ListScopeTarget, type SortDir } from '@services/sort-group-defs';
-import type { ListScope } from '@services/list-scope';
+import { writeScoped, type ListScope } from '@services/list-scope';
 
 interface ListScopeLabels {
   title: string;
-  itemToggle: {
-    folder: string;
-    album: string;
-    tag: string;
-  };
 }
 
 /**
@@ -22,6 +17,11 @@ interface ListScopeLabels {
  * double-mix `ViewPrefs` (double-subscribing the `UserConfig` bus listener)
  * and collide on shared computed/method names, so SortByAction.vue talks to
  * `groupScope` directly for those instead.
+ *
+ * Whether a write lands on the view-type default or on this specific
+ * folder/album/tag isn't decided here -- `writeScoped` reads the one
+ * "Remember display style" flag that governs every per-view preference (see
+ * `view-prefs.ts`), so there is nothing per-scope to toggle.
  *
  * Mixes in `ViewPrefs` directly (rather than requiring consumers to compose
  * it alongside) so the `UserConfig` bus listener isn't double-subscribed --
@@ -58,30 +58,6 @@ export default function listScopeAction<T extends { key: string; dir: SortDir }>
       titleLabel(): string {
         return this.t('memories', labels.title);
       },
-
-      showItemToggle(): boolean {
-        return this.scopeKey != null && this.itemToggleLabel != null;
-      },
-
-      itemToggleLabel(): string | null {
-        switch (this.routeId) {
-          case 'Folders':
-          case 'FolderShare':
-            return this.t('memories', labels.itemToggle.folder);
-          case 'Albums':
-          case 'AlbumShare':
-            return this.t('memories', labels.itemToggle.album);
-          case 'Tags':
-          case 'EmbeddedTags':
-            return this.t('memories', labels.itemToggle.tag);
-          default:
-            return null;
-        }
-      },
-
-      itemToggleOn(): boolean {
-        return scope.isEnabled(this.effectiveTarget, this.scopeKey);
-      },
     },
 
     created() {
@@ -89,24 +65,8 @@ export default function listScopeAction<T extends { key: string; dir: SortDir }>
     },
 
     methods: {
-      toggleItemScope(checked: boolean): void {
-        if (this.effectiveTarget == null || this.scopeKey == null) return;
-
-        if (checked) {
-          scope.enable(this.effectiveTarget, this.scopeKey, this.setting);
-        } else {
-          scope.disable(this.effectiveTarget, this.scopeKey);
-        }
-      },
-
       write(value: T): void {
-        if (this.effectiveTarget == null) return;
-
-        if (this.itemToggleOn && this.scopeKey != null) {
-          scope.setItem(this.effectiveTarget, this.scopeKey, value);
-        } else {
-          scope.setView(this.effectiveTarget, value);
-        }
+        writeScoped(scope, this.effectiveTarget, this.scopeKey, value);
       },
     },
   });

@@ -42,10 +42,10 @@
           <SortByAction />
           <FilterDropdownAction v-if="!routeIsPublic" />
 
-          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')" @closed="othersPanel = 'root'">
+          <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')" @closed="closePanel">
             <template #icon> <DotsHorizontalIcon :size="20" /> </template>
 
-            <template v-if="othersPanel === 'root'">
+            <template v-if="panel === 'root'">
               <NcActionButton :aria-label="t('memories', 'New folder')" @click="createFolder()" close-after-click>
                 {{ t('memories', 'New folder') }}
                 <template #icon> <NewFolderIcon :size="20" /> </template>
@@ -71,39 +71,16 @@
               </NcActionButton>
 
               <NcActionSeparator />
-
-              <NcActionButton :aria-label="t('memories', 'Refresh')" @click="othersPanel = 'refresh'">
-                {{ t('memories', 'Refresh') }}
-                <template #icon> <RefreshIcon :size="20" /> </template>
-              </NcActionButton>
             </template>
 
-            <template v-if="othersPanel === 'refresh'">
-              <NcActionButton @click="othersPanel = 'root'">
-                <template #icon> <ArrowLeftIcon :size="20" /> </template>
-                {{ t('memories', 'Back') }}
-              </NcActionButton>
-
-              <NcActionSeparator />
-
-              <NcActionCaption :name="t('memories', 'Refresh untracked files')" />
-              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', false)">
-                {{ t('memories', 'Refresh Folder') }}
-              </NcActionButton>
-              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('untracked', true)">
-                {{ t('memories', 'Refresh Folder + Subfolders') }}
-              </NcActionButton>
-
-              <NcActionSeparator />
-
-              <NcActionCaption :name="t('memories', 'Refresh all files')" />
-              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', false)">
-                {{ t('memories', 'Refresh Folder') }}
-              </NcActionButton>
-              <NcActionButton :disabled="refreshingIndex" close-after-click @click="doRefresh('all', true)">
-                {{ t('memories', 'Refresh Folder + Subfolders') }}
-              </NcActionButton>
-            </template>
+            <!-- Folder-scoped only -- no library-wide pair here, that stays reachable from the
+                 Timeline/Collaborative Tags toolbars, so this menu tops out at 4 buttons. -->
+            <RefreshMenuActions
+              :panel="panel"
+              :sections="refreshSections"
+              @open="openPanel('refresh')"
+              @back="closePanel"
+            />
           </NcActions>
         </template>
       </div>
@@ -125,19 +102,20 @@
 import { defineComponent } from 'vue';
 
 import UserConfig from '@mixins/UserConfig';
+import Submenu from '@mixins/Submenu';
 
 const NcBreadcrumbs = () => import('@nextcloud/vue/dist/Components/NcBreadcrumbs.js');
 const NcBreadcrumb = () => import('@nextcloud/vue/dist/Components/NcBreadcrumb.js');
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
-import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
+import RefreshMenuActions, { type RefreshSection } from '@components/top-actions/RefreshMenuActions';
 
 import axios from '@nextcloud/axios';
 import { showError, showSuccess } from '@nextcloud/dialogs';
@@ -154,8 +132,6 @@ import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
 import StarIcon from 'vue-material-design-icons/Star.vue';
 import StarOutlineIcon from 'vue-material-design-icons/StarOutline.vue';
-import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
-import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue';
 
 export default defineComponent({
   name: 'FolderTopMatter',
@@ -166,13 +142,13 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     NcActionCheckbox,
-    NcActionCaption,
     NcActionSeparator,
     NcButton,
     PublicUploadHandler,
     ViewModeAction,
     SortByAction,
     FilterDropdownAction,
+    RefreshMenuActions,
     HomeIcon,
     ShareIcon,
     UploadIcon,
@@ -180,15 +156,13 @@ export default defineComponent({
     DotsHorizontalIcon,
     StarIcon,
     StarOutlineIcon,
-    RefreshIcon,
-    ArrowLeftIcon,
   },
 
-  mixins: [UserConfig],
+  /** `Submenu` owns `panel` for the "Others" dropdown: 'root' plus the 'refresh' drill-down. */
+  mixins: [UserConfig, Submenu],
 
   data: () => ({
     refreshingIndex: false,
-    othersPanel: 'root' as 'root' | 'refresh',
   }),
 
   computed: {
@@ -256,6 +230,23 @@ export default defineComponent({
       // computed re-evaluates on navigation between folders.
       const path = utils.getFolderRoutePath(this.config.folders_path, this.$route.params.path, !!this.$route.query.abs);
       return utils.getFoldersRoots(this.config.favorite_folders).includes(path);
+    },
+
+    /** 4 buttons: 2 scopes (this folder / + subfolders) x 2 modes (quick scan / full reindex). */
+    refreshSections(): RefreshSection[] {
+      const button = (mode: 'untracked' | 'all', recursive: boolean) => ({
+        label: mode === 'untracked' ? this.t('memories', 'Quick scan') : this.t('memories', 'Full reindex'),
+        onClick: () => this.doRefresh(mode, recursive),
+        disabled: this.refreshingIndex,
+      });
+
+      return [
+        { caption: this.t('memories', 'This folder'), buttons: [button('untracked', false), button('all', false)] },
+        {
+          caption: this.t('memories', 'This folder + subfolders'),
+          buttons: [button('untracked', true), button('all', true)],
+        },
+      ];
     },
   },
 

@@ -24,7 +24,7 @@ export interface GroupSetting {
  *   pseudo-target here (see `listScopeTargetFor`). Recognize/FaceRecognition/
  *   Places don't have a list-variant target -- their cluster lists have no
  *   sortable/groupable backend fields, so Sort by/Group by isn't offered on
- *   those list pages at all (see `ViewModeAction.vue`'s `hasSortGroup`);
+ *   those list pages at all (see `ListScopeAction.ts`'s `applicable`);
  *   opened-person/place photo browsing still uses the plain `Recognize`/
  *   `FaceRecognition`/`Places` RouteId key below like any other photo grid.
  * - Folders and EmbeddedTags each show a tile row (subfolders / sub-tags)
@@ -150,6 +150,25 @@ const LIST_VARIANT_FOR: Partial<Record<RouteId, ListScopeTarget>> = {
   Albums: 'AlbumsList',
   Tags: 'TagsList',
 };
+
+/** Inverse of the pseudo-targets above: which route a non-RouteId target belongs to. */
+const ROUTE_ID_FOR_TARGET: Partial<Record<ListScopeTarget, RouteId>> = {
+  FoldersTiles: 'Folders',
+  EmbeddedTagsTiles: 'EmbeddedTags',
+  AlbumsList: 'Albums',
+  TagsList: 'Tags',
+};
+
+/**
+ * Route a target's settings belong to. Sort/Group are keyed by
+ * `ListScopeTarget` (which splits one route into several independent
+ * collections), but the "is this view remembered?" master flag is keyed by
+ * `RouteId` -- this collapses the former onto the latter.
+ */
+export function routeIdForTarget(target: ListScopeTarget | null): RouteId | null {
+  if (target == null) return null;
+  return ROUTE_ID_FOR_TARGET[target] ?? (target as RouteId);
+}
 
 /**
  * Resolve which `ListScopeTarget` governs the *primary* content of a route

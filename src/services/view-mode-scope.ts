@@ -164,4 +164,19 @@ class ViewModeScope {
   }
 }
 
-export default new ViewModeScope();
+const viewModeScope = new ViewModeScope();
+export default viewModeScope;
+
+/**
+ * Master flag for every per-view preference: is this specific folder/album/tag
+ * remembering its own settings (view mode, sort, group, tile sort/group, image
+ * properties), rather than following its view-type default?
+ *
+ * Presence of a `view_mode_scope` item entry IS that flag -- the other scoped
+ * stores (`list-scope`, `image-props`) keep their own `item` maps purely as
+ * value storage and consult this to decide whether to read/write them, so
+ * there is exactly one "Remember display style" checkbox driving all of them.
+ */
+export function isRemembered(routeId: RouteId | null, scopeKey: string | null): boolean {
+  return viewModeScope.isEnabled(routeId, scopeKey);
+}

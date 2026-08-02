@@ -3,7 +3,7 @@
     :aria-label="`${t('memories', 'View mode')}: ${shapeLabel}`"
     :menu-title="`${t('memories', 'View mode')}: ${shapeLabel}`"
     :force-menu="true"
-    @closed="panel = 'root'"
+    @closed="closePanel"
   >
     <template #icon>
       <component :is="shapeIcon(effectiveShape)" :size="20" />
@@ -70,12 +70,12 @@
       />
 
       <template v-if="hasTiles">
-        <NcActionButton is-menu @click="panel = 'tilesSort'">
+        <NcActionButton is-menu @click="openPanel('tilesSort')">
           <template #icon><component :is="sortTriggerIconFor(tilesSortSetting)" :size="20" /></template>
           {{ `${t('memories', 'Sort tiles by')}` }}
         </NcActionButton>
 
-        <NcActionButton is-menu @click="panel = 'tilesGroup'">
+        <NcActionButton is-menu @click="openPanel('tilesGroup')">
           <template #icon>
             <NoGroupIcon v-if="tilesGroupSetting.key === 'none'" :size="20" />
             <component :is="groupTriggerIconFor(tilesGroupSetting)" v-else :size="20" />
@@ -84,15 +84,16 @@
         </NcActionButton>
       </template>
 
-      <NcActionButton is-menu @click="panel = 'info'">
+      <NcActionButton is-menu @click="openPanel('info')">
         <template #icon><InformationOutlineIcon :size="20" /></template>
         {{ t('memories', 'Show additional info') }}
       </NcActionButton>
 
-      <NcActionSeparator />
+      <NcActionSeparator v-if="showRememberToggle || hasTiles || !!$slots.default" />
 
-      <NcActionCheckbox v-if="showItemToggle" :checked="itemToggleOn" @update:checked="toggleItemScope">
-        {{ itemToggleLabel }}
+      <!-- The single per-view toggle: governs everything this menu (and Sort by) can set for this folder/album/tag. -->
+      <NcActionCheckbox v-if="showRememberToggle" :checked="remembered" @update:checked="toggleRemembered">
+        {{ rememberLabel }}
       </NcActionCheckbox>
 
       <template v-if="hasTiles">
@@ -107,14 +108,9 @@
 
     <!-- Properties / tile options / view-specific extras -->
     <template v-if="panel === 'info'">
-      <NcActionButton @click="panel = 'root'">
-        <template #icon><ArrowLeftIcon :size="20" /></template>
-        {{ t('memories', 'Back') }}
-      </NcActionButton>
+      <SubmenuBackAction @back="closePanel" />
 
-      <NcActionSeparator />
-
-      <NcActionCaption :name="t('memories', 'Properties for {mode} view', { mode: shapeLabel })" />
+      <NcActionCaption :name="infoCaption" />
 
       <NcActionCheckbox
         :checked="effectiveImageProps.show_owner_name_timeline"
@@ -179,22 +175,7 @@
 
     <!-- Subfolder / sub-tag tile row Sort by panel -->
     <template v-if="panel === 'tilesSort'">
-      <NcActionButton @click="panel = 'root'">
-        <template #icon><ArrowLeftIcon :size="20" /></template>
-        {{ t('memories', 'Back') }}
-      </NcActionButton>
-
-      <NcActionSeparator />
-
-      <NcActionCheckbox
-        v-if="showTilesSortItemToggle"
-        :checked="tilesSortItemToggleOn"
-        @update:checked="toggleTilesSortItemScope"
-      >
-        {{ tilesSortItemToggleLabel }}
-      </NcActionCheckbox>
-
-      <NcActionSeparator v-if="showTilesSortItemToggle" />
+      <SubmenuBackAction @back="closePanel" />
 
       <NcActionButton
         v-for="opt in tilesDef.sortKeys"
@@ -236,22 +217,7 @@
 
     <!-- Subfolder / sub-tag tile row Group by panel -->
     <template v-if="panel === 'tilesGroup'">
-      <NcActionButton @click="panel = 'root'">
-        <template #icon><ArrowLeftIcon :size="20" /></template>
-        {{ t('memories', 'Back') }}
-      </NcActionButton>
-
-      <NcActionSeparator />
-
-      <NcActionCheckbox
-        v-if="showTilesGroupItemToggle"
-        :checked="tilesGroupItemToggleOn"
-        @update:checked="toggleTilesGroupItemScope"
-      >
-        {{ tilesGroupItemToggleLabel }}
-      </NcActionCheckbox>
-
-      <NcActionSeparator v-if="showTilesGroupItemToggle" />
+      <SubmenuBackAction @back="closePanel" />
 
       <NcActionButton
         type="radio"
@@ -315,12 +281,22 @@ import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import ZoomRowAction from './ZoomRowAction.vue';
+import SubmenuBackAction from './SubmenuBackAction';
 
 import ViewPrefs from '@mixins/ViewPrefs';
+import Submenu from '@mixins/Submenu';
 import viewModeScope, { type ImageDisplayShape } from '@services/view-mode-scope';
 import imageProps, { type ImagePropsBundle } from '@services/image-props';
 import { zoomLabel, clampZoom, ZOOM_MIN, ZOOM_MAX } from '@services/zoom';
-import { sortScope, groupScope } from '@services/list-scope';
+import { sortScope, groupScope, writeScoped } from '@services/list-scope';
+import { rememberViewPrefs, forgetViewPrefs, isRemembered } from '@services/view-prefs';
+import {
+  sortKeyIcon,
+  sortTriggerIconFor,
+  groupKeyIcon,
+  groupKeyOptsFor,
+  groupTriggerIconFor,
+} from '@services/sort-group-icons';
 import {
   getListScopeDef,
   type SortKey,
@@ -338,28 +314,6 @@ import InformationOutlineIcon from 'vue-material-design-icons/InformationOutline
 import SortAscIcon from 'vue-material-design-icons/SortAscending.vue';
 import SortDescIcon from 'vue-material-design-icons/SortDescending.vue';
 import NoGroupIcon from 'vue-material-design-icons/FormatListBulleted.vue';
-import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue';
-import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
-import TagsIcon from 'vue-material-design-icons/Tag.vue';
-import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
-import SortAlphaIcon from 'vue-material-design-icons/SortAlphabeticalVariant.vue';
-import FileSizeIcon from 'vue-material-design-icons/Harddisk.vue';
-import UpdatedIcon from 'vue-material-design-icons/ClockOutline.vue';
-import CreatedIcon from 'vue-material-design-icons/CalendarOutline.vue';
-import CountIcon from 'vue-material-design-icons/Counter.vue';
-import GroupDayIcon from 'vue-material-design-icons/CalendarTodayOutline.vue';
-import GroupWeekIcon from 'vue-material-design-icons/CalendarWeekOutline.vue';
-import GroupMonthIcon from 'vue-material-design-icons/CalendarMonthOutline.vue';
-import GroupYearIcon from 'vue-material-design-icons/CalendarBlankOutline.vue';
-
-import SortAlphaAscIcon from 'vue-material-design-icons/SortAlphabeticalAscending.vue';
-import SortAlphaDescIcon from 'vue-material-design-icons/SortAlphabeticalDescending.vue';
-import SortNumericAscIcon from 'vue-material-design-icons/SortNumericAscending.vue';
-import SortNumericDescIcon from 'vue-material-design-icons/SortNumericDescending.vue';
-import SortClockAscIcon from 'vue-material-design-icons/SortClockAscendingOutline.vue';
-import SortClockDescIcon from 'vue-material-design-icons/SortClockDescendingOutline.vue';
-import SortCalendarAscIcon from 'vue-material-design-icons/SortCalendarAscending.vue';
-import SortCalendarDescIcon from 'vue-material-design-icons/SortCalendarDescending.vue';
 
 /** camelCase server-side config keys for the Dynamic-mode (global config) properties. */
 const REMOTE_NAMES: Record<keyof ImagePropsBundle, string> = {
@@ -387,50 +341,6 @@ const SHAPE_ICONS: Record<ImageDisplayShape, unknown> = {
   list: ViewListIcon,
 };
 
-/** Icon per Sort by key, shown next to each option in the subfolder/sub-tag Sort by panel. */
-const SORT_KEY_ICONS: Record<SortKey, unknown> = {
-  name: SortAlphaIcon,
-  size: FileSizeIcon,
-  updated: UpdatedIcon,
-  created: CreatedIcon,
-  count: CountIcon,
-};
-
-/** Combined key+direction icon for the "Sort by" row -- mirrors the type distinctions above (alpha/numeric/clock/calendar) instead of a generic up/down arrow. */
-const SORT_KEY_DIR_ICONS: Record<SortKey, { asc: unknown; desc: unknown }> = {
-  name: { asc: SortAlphaAscIcon, desc: SortAlphaDescIcon },
-  size: { asc: SortNumericAscIcon, desc: SortNumericDescIcon },
-  updated: { asc: SortClockAscIcon, desc: SortClockDescIcon },
-  created: { asc: SortCalendarAscIcon, desc: SortCalendarDescIcon },
-  count: { asc: SortNumericAscIcon, desc: SortNumericDescIcon },
-};
-
-const GROUP_KEY_LABELS: Record<Exclude<GroupKey, 'none'>, string> = {
-  day: 'Day',
-  week: 'Week',
-  month: 'Month',
-  year: 'Year',
-  name: 'Name',
-};
-
-/** Icon per Group by key (excluding 'none', which always uses NoGroupIcon directly). */
-const GROUP_KEY_ICONS: Record<Exclude<GroupKey, 'none'>, unknown> = {
-  day: GroupDayIcon,
-  week: GroupWeekIcon,
-  month: GroupMonthIcon,
-  year: GroupYearIcon,
-  name: SortAlphaIcon,
-};
-
-/** Combined key+direction icon for the "Group by" row -- same idea as SORT_KEY_DIR_ICONS. */
-const GROUP_KEY_DIR_ICONS: Record<Exclude<GroupKey, 'none'>, { asc: unknown; desc: unknown }> = {
-  day: { asc: SortCalendarAscIcon, desc: SortCalendarDescIcon },
-  week: { asc: SortCalendarAscIcon, desc: SortCalendarDescIcon },
-  month: { asc: SortCalendarAscIcon, desc: SortCalendarDescIcon },
-  year: { asc: SortCalendarAscIcon, desc: SortCalendarDescIcon },
-  name: { asc: SortAlphaAscIcon, desc: SortAlphaDescIcon },
-};
-
 export default defineComponent({
   name: 'ViewModeAction',
 
@@ -441,6 +351,7 @@ export default defineComponent({
     NcActionCaption,
     NcActionSeparator,
     ZoomRowAction,
+    SubmenuBackAction,
     ViewDynamicIcon,
     ViewSquareIcon,
     ViewGridIcon,
@@ -449,27 +360,24 @@ export default defineComponent({
     SortAscIcon,
     SortDescIcon,
     NoGroupIcon,
-    ArrowLeftIcon,
-    FoldersIcon,
-    TagsIcon,
-    TimelineIcon,
   },
 
-  mixins: [ViewPrefs],
-
-  data: () => ({
-    /** The Folders/EmbeddedTags subfolder/sub-tag tile-row Sort by and Group by live as drill-down sub-panels of the "Show additional info" panel. */
-    panel: 'root' as 'root' | 'info' | 'tilesSort' | 'tilesGroup',
-  }),
+  /** `Submenu` owns `panel`: 'root' plus the 'info' / 'tilesSort' / 'tilesGroup' drill-downs. */
+  mixins: [ViewPrefs, Submenu],
 
   computed: {
     shapeLabel(): string {
       return this.t('memories', SHAPE_LABELS[this.effectiveShape]);
     },
 
-    /** Square is a sub-option of Mosaic, so both shapes belong to the same radio entry. */
-    mosaicActive(): boolean {
-      return this.effectiveShape === 'dynamic' || this.effectiveShape === 'square';
+    /**
+     * Image properties are stored per shape, except on a remembered view --
+     * there they belong to the folder/album/tag itself, whatever shape it is
+     * currently showing.
+     */
+    infoCaption(): string {
+      if (this.remembered) return this.t('memories', 'Properties for this view');
+      return this.t('memories', 'Properties for {mode} view', { mode: this.shapeLabel });
     },
 
     /**
@@ -481,12 +389,12 @@ export default defineComponent({
       return this.effectiveShape;
     },
 
-    /** Item-scope toggle is only offered on routes with a real sub-identity currently being viewed. */
-    showItemToggle(): boolean {
-      return this.scopeKey != null && this.itemToggleLabel != null;
+    /** Only offered on routes with a real sub-identity currently being viewed. */
+    showRememberToggle(): boolean {
+      return this.scopeKey != null && this.rememberLabel != null;
     },
 
-    itemToggleLabel(): string | null {
+    rememberLabel(): string | null {
       switch (this.routeId) {
         case 'Folders':
         case 'FolderShare':
@@ -500,8 +408,9 @@ export default defineComponent({
       }
     },
 
-    itemToggleOn(): boolean {
-      return viewModeScope.isEnabled(this.routeId, this.scopeKey);
+    /** Whether this folder/album/tag keeps its own copy of every per-view preference. */
+    remembered(): boolean {
+      return isRemembered(this.routeId, this.scopeKey);
     },
 
     zoomLabel(): string {
@@ -529,10 +438,6 @@ export default defineComponent({
       return null;
     },
 
-    tilesCaption(): string {
-      return this.routeId === 'Folders' ? this.t('memories', 'Subfolders') : this.t('memories', 'Sub-tags');
-    },
-
     /** Folders/EmbeddedTags can flatten their tree into the plain photo timeline. */
     recursive(): boolean {
       return !!this.$route.query.recursive;
@@ -549,44 +454,6 @@ export default defineComponent({
     tilesGroupSetting() {
       return groupScope.resolve(this.tilesTarget, this.scopeKey);
     },
-
-    tilesSortLabel(): string {
-      const opt = this.tilesDef.sortKeys.find((o) => o.key === this.tilesSortSetting.key);
-      return opt?.label ?? '';
-    },
-
-    tilesGroupLabel(): string {
-      if (this.tilesGroupSetting.key === 'none') return this.t('memories', 'None');
-      return this.t('memories', GROUP_KEY_LABELS[this.tilesGroupSetting.key as Exclude<GroupKey, 'none'>]);
-    },
-
-    showTilesSortItemToggle(): boolean {
-      return this.scopeKey != null;
-    },
-
-    tilesSortItemToggleLabel(): string {
-      return this.routeId === 'Folders'
-        ? this.t('memories', 'Custom subfolder sort for this folder')
-        : this.t('memories', 'Custom sub-tag sort for this tag');
-    },
-
-    tilesSortItemToggleOn(): boolean {
-      return sortScope.isEnabled(this.tilesTarget, this.scopeKey);
-    },
-
-    showTilesGroupItemToggle(): boolean {
-      return this.scopeKey != null;
-    },
-
-    tilesGroupItemToggleLabel(): string {
-      return this.routeId === 'Folders'
-        ? this.t('memories', 'Custom subfolder grouping for this folder')
-        : this.t('memories', 'Custom sub-tag grouping for this tag');
-    },
-
-    tilesGroupItemToggleOn(): boolean {
-      return groupScope.isEnabled(this.tilesTarget, this.scopeKey);
-    },
   },
 
   created() {
@@ -602,20 +469,29 @@ export default defineComponent({
     changeImageDisplayShape(mode: ImageDisplayShape): void {
       if (this.routeId == null) return;
 
-      if (this.itemToggleOn && this.scopeKey != null) {
+      if (this.remembered && this.scopeKey != null) {
         viewModeScope.setItem(this.routeId, this.scopeKey, mode);
       } else {
         viewModeScope.setView(this.routeId, mode);
       }
     },
 
-    toggleItemScope(checked: boolean): void {
+    /**
+     * The one per-view toggle: turning it on snapshots everything currently in
+     * effect for this folder/album/tag (shape, sort, grouping, tile sort and
+     * grouping, image properties) onto the item itself; turning it off drops
+     * the lot and hands the view back to its view-type defaults.
+     */
+    toggleRemembered(checked: boolean): void {
       if (this.routeId == null || this.scopeKey == null) return;
 
       if (checked) {
-        viewModeScope.enable(this.routeId, this.scopeKey, this.effectiveShape);
+        rememberViewPrefs(this.routeId, this.scopeKey, this.$route, {
+          shape: this.effectiveShape,
+          imageProps: this.effectiveImageProps,
+        });
       } else {
-        viewModeScope.disable(this.routeId, this.scopeKey);
+        forgetViewPrefs(this.routeId, this.scopeKey, this.$route);
       }
     },
 
@@ -650,6 +526,11 @@ export default defineComponent({
      * instead of silently flipping the setting.
      */
     toggleImageProp(key: keyof ImagePropsBundle, value: boolean): void {
+      if (this.remembered && this.routeId != null && this.scopeKey != null) {
+        imageProps.setItemProp(this.routeId, this.scopeKey, key, value);
+        return;
+      }
+
       const shape = this.effectiveShape;
       if (shape === 'dynamic') {
         this.toggle(key, value, REMOTE_NAMES[key]);
@@ -664,82 +545,26 @@ export default defineComponent({
       this.updateSetting(key, remote);
     },
 
-    sortKeyIcon(key: SortKey) {
-      return SORT_KEY_ICONS[key];
-    },
-
-    sortTriggerIconFor(setting: { key: SortKey; dir: SortDir }) {
-      return SORT_KEY_DIR_ICONS[setting.key][setting.dir];
-    },
-
-    groupKeyIcon(key: Exclude<GroupKey, 'none'>) {
-      return GROUP_KEY_ICONS[key];
-    },
-
-    groupKeyOptsFor(def: ListScopeDef): { key: Exclude<GroupKey, 'none'>; label: string }[] {
-      return def.groupKeys.map((key) => ({ key, label: this.t('memories', GROUP_KEY_LABELS[key]) }));
-    },
-
-    groupTriggerIconFor(setting: { key: GroupKey; dir: SortDir }) {
-      if (setting.key === 'none') return null;
-      const key = setting.key as Exclude<GroupKey, 'none'>;
-      return GROUP_KEY_DIR_ICONS[key][setting.dir];
-    },
-
-    writeTilesSort(value: { key: SortKey; dir: SortDir }): void {
-      if (this.tilesTarget == null) return;
-
-      if (this.tilesSortItemToggleOn && this.scopeKey != null) {
-        sortScope.setItem(this.tilesTarget, this.scopeKey, value);
-      } else {
-        sortScope.setView(this.tilesTarget, value);
-      }
-    },
+    sortKeyIcon,
+    sortTriggerIconFor,
+    groupKeyIcon,
+    groupKeyOptsFor,
+    groupTriggerIconFor,
 
     changeTilesSortKey(key: SortKey): void {
-      this.writeTilesSort({ key, dir: this.tilesSortSetting.dir });
+      writeScoped(sortScope, this.tilesTarget, this.scopeKey, { key, dir: this.tilesSortSetting.dir });
     },
 
     changeTilesSortDir(dir: SortDir): void {
-      this.writeTilesSort({ key: this.tilesSortSetting.key, dir });
-    },
-
-    toggleTilesSortItemScope(checked: boolean): void {
-      if (this.tilesTarget == null || this.scopeKey == null) return;
-
-      if (checked) {
-        sortScope.enable(this.tilesTarget, this.scopeKey, this.tilesSortSetting);
-      } else {
-        sortScope.disable(this.tilesTarget, this.scopeKey);
-      }
-    },
-
-    writeTilesGroup(value: { key: GroupKey; dir: SortDir }): void {
-      if (this.tilesTarget == null) return;
-
-      if (this.tilesGroupItemToggleOn && this.scopeKey != null) {
-        groupScope.setItem(this.tilesTarget, this.scopeKey, value);
-      } else {
-        groupScope.setView(this.tilesTarget, value);
-      }
+      writeScoped(sortScope, this.tilesTarget, this.scopeKey, { key: this.tilesSortSetting.key, dir });
     },
 
     changeTilesGroupKey(key: GroupKey): void {
-      this.writeTilesGroup({ key, dir: this.tilesGroupSetting.dir });
+      writeScoped(groupScope, this.tilesTarget, this.scopeKey, { key, dir: this.tilesGroupSetting.dir });
     },
 
     changeTilesGroupDir(dir: SortDir): void {
-      this.writeTilesGroup({ key: this.tilesGroupSetting.key, dir });
-    },
-
-    toggleTilesGroupItemScope(checked: boolean): void {
-      if (this.tilesTarget == null || this.scopeKey == null) return;
-
-      if (checked) {
-        groupScope.enable(this.tilesTarget, this.scopeKey, this.tilesGroupSetting);
-      } else {
-        groupScope.disable(this.tilesTarget, this.scopeKey);
-      }
+      writeScoped(groupScope, this.tilesTarget, this.scopeKey, { key: this.tilesGroupSetting.key, dir });
     },
   },
 });

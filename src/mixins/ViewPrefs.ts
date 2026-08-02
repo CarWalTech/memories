@@ -41,7 +41,7 @@ export default defineComponent({
     },
 
     effectiveImageProps(): ImagePropsBundle {
-      return imageProps.resolve(this.effectiveShape, this.config);
+      return imageProps.resolve(this.effectiveShape, this.config, this.routeId, this.scopeKey);
     },
   },
 });

@@ -35,11 +35,11 @@
           :inline="othersInline"
           v-if="!routeIsPublic"
           :aria-label="t('memories', 'Others')"
-          @closed="othersPanel = 'root'"
+          @closed="closePanel"
         >
           <template #icon> <DotsHorizontalIcon :size="20" /> </template>
 
-          <template v-if="othersPanel === 'root'">
+          <template v-if="panel === 'root'">
             <NcActionButton
               :aria-label="t('memories', 'Edit album details')"
               :title="t('memories', 'Edit album details')"
@@ -82,28 +82,9 @@
             </NcActionButton>
 
             <NcActionSeparator />
-
-            <NcActionButton :aria-label="t('memories', 'Refresh')" @click="othersPanel = 'refresh'">
-              {{ t('memories', 'Refresh') }}
-              <template #icon> <RefreshIcon :size="20" /> </template>
-            </NcActionButton>
           </template>
 
-          <template v-if="othersPanel === 'refresh'">
-            <NcActionButton @click="othersPanel = 'root'">
-              <template #icon> <BackIcon :size="20" /> </template>
-              {{ t('memories', 'Back') }}
-            </NcActionButton>
-
-            <NcActionSeparator />
-
-            <NcActionButton close-after-click @click="requestFullIndexRefresh('all')">
-              {{ t('memories', 'Refresh files') }}
-            </NcActionButton>
-            <NcActionButton close-after-click @click="requestFullIndexRefresh('untracked')">
-              {{ t('memories', 'Refresh untracked files') }}
-            </NcActionButton>
-          </template>
+          <RefreshMenuActions :panel="panel" @open="openPanel('refresh')" @back="closePanel" />
         </NcActions>
       </div>
     </div>
@@ -117,10 +98,10 @@
 import { defineComponent } from 'vue';
 
 import UserConfig from '@mixins/UserConfig';
+import Submenu from '@mixins/Submenu';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 import NcActionCheckbox from '@nextcloud/vue/dist/Components/NcActionCheckbox.js';
-import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 
 import axios from '@nextcloud/axios';
@@ -130,11 +111,11 @@ import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
+import RefreshMenuActions from '@components/top-actions/RefreshMenuActions';
 
 import { downloadWithHandle } from '@services/dav';
 import { API } from '@services/API';
 import * as utils from '@services/utils';
-import { requestFullIndexRefresh } from '@services/index-refresh';
 
 import BackIcon from 'vue-material-design-icons/ArrowLeft.vue';
 
@@ -144,7 +125,6 @@ import DeleteIcon from 'vue-material-design-icons/TrashCanOutline.vue';
 import PlusIcon from 'vue-material-design-icons/Plus.vue';
 import ShareIcon from 'vue-material-design-icons/ShareVariant.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
-import RefreshIcon from 'vue-material-design-icons/Refresh.vue';
 
 export default defineComponent({
   name: 'AlbumTopMatter',
@@ -152,7 +132,6 @@ export default defineComponent({
     NcActions,
     NcActionButton,
     NcActionCheckbox,
-    NcActionCaption,
     NcActionSeparator,
 
     AlbumCreateModal,
@@ -160,6 +139,7 @@ export default defineComponent({
     ViewModeAction,
     SortByAction,
     FilterDropdownAction,
+    RefreshMenuActions,
 
     BackIcon,
     DownloadIcon,
@@ -168,14 +148,10 @@ export default defineComponent({
     PlusIcon,
     ShareIcon,
     DotsHorizontalIcon,
-    RefreshIcon,
   },
 
-  mixins: [UserConfig],
-
-  data: () => ({
-    othersPanel: 'root' as 'root' | 'refresh',
-  }),
+  /** `Submenu` owns `panel` for the "Others" dropdown: 'root' plus the 'refresh' drill-down. */
+  mixins: [UserConfig, Submenu],
 
   computed: {
     refs() {
@@ -208,14 +184,12 @@ export default defineComponent({
      * promoted out of the dropdown instead of the album action buttons.
      */
     othersInline(): number {
-      if (this.othersPanel !== 'root') return 0;
+      if (this.panel !== 'root') return 0;
       return this.isMobile || this.isAlbumList ? 0 : 2;
     },
   },
 
   methods: {
-    requestFullIndexRefresh,
-
     back() {
       this.$router.go(-1);
     },

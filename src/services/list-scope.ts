@@ -5,7 +5,15 @@ import { API } from '@services/API';
 import { bus } from '@services/utils/event-bus';
 import staticConfig from '@services/static-config';
 
-import { getListScopeDef, type ListScopeTarget, type SortSetting, type GroupSetting, type SortDir } from '@services/sort-group-defs';
+import {
+  getListScopeDef,
+  routeIdForTarget,
+  type ListScopeTarget,
+  type SortSetting,
+  type GroupSetting,
+  type SortDir,
+} from '@services/sort-group-defs';
+import { isRemembered } from '@services/view-mode-scope';
 
 export type { ListScopeTarget, SortSetting, GroupSetting };
 export { listScopeTargetFor } from '@services/sort-group-defs';
@@ -14,7 +22,13 @@ export { routeIdForName, scopeKeyFor } from '@services/view-mode-scope';
 interface ScopeData<T> {
   /** Per-target base, e.g. "every Albums list page defaults to sorting by name". */
   view: Partial<Record<ListScopeTarget, T>>;
-  /** Per-specific-item override; key is `${target}:${scopeKey}`. Presence of a key IS the toggle-on state. */
+  /**
+   * Per-specific-item override; key is `${target}:${scopeKey}`. Only consulted
+   * while that view is remembered (see `isRemembered`) -- unlike the master
+   * `view_mode_scope` store, presence of a key here is NOT itself the
+   * toggle-on state, so a value left behind by a since-forgotten view can't
+   * silently keep winning.
+   */
   item: Record<string, T>;
 }
 
@@ -50,15 +64,10 @@ export class ListScope<T extends { key: string; dir: SortDir }> {
     }
   }
 
-  public isEnabled(target: ListScopeTarget | null, scopeKey: string | null): boolean {
-    if (target == null || scopeKey == null) return false;
-    return this.data.item[`${target}:${scopeKey}`] != null;
-  }
-
   public resolve(target: ListScopeTarget | null, scopeKey: string | null): T {
     if (target == null) return this.getDefault(target);
 
-    if (scopeKey != null) {
+    if (scopeKey != null && isRemembered(routeIdForTarget(target), scopeKey)) {
       const itemValue = this.data.item[`${target}:${scopeKey}`];
       if (itemValue != null) return itemValue;
     }
@@ -71,12 +80,7 @@ export class ListScope<T extends { key: string; dir: SortDir }> {
     this.persist();
   }
 
-  public enable(target: ListScopeTarget, scopeKey: string, initialValue: T) {
-    Vue.set(this.data.item, `${target}:${scopeKey}`, initialValue);
-    this.persist();
-  }
-
-  public disable(target: ListScopeTarget, scopeKey: string) {
+  public clearItem(target: ListScopeTarget, scopeKey: string) {
     Vue.delete(this.data.item, `${target}:${scopeKey}`);
     this.persist();
   }
@@ -98,3 +102,24 @@ export class ListScope<T extends { key: string; dir: SortDir }> {
 
 export const sortScope = new ListScope<SortSetting>('sort_scope', 'sortScope', (target) => getListScopeDef(target).defaultSort);
 export const groupScope = new ListScope<GroupSetting>('group_scope', 'groupScope', (target) => getListScopeDef(target).defaultGroup);
+
+/**
+ * Write a scoped setting to the right layer: a remembered folder/album/tag
+ * keeps its own value, everything else moves that view-type's default.
+ * Shared by every Sort by / Group by write path (primary content and the
+ * Folders/EmbeddedTags tile rows alike).
+ */
+export function writeScoped<T extends { key: string; dir: SortDir }>(
+  scope: ListScope<T>,
+  target: ListScopeTarget | null,
+  scopeKey: string | null,
+  value: T,
+): void {
+  if (target == null) return;
+
+  if (scopeKey != null && isRemembered(routeIdForTarget(target), scopeKey)) {
+    scope.setItem(target, scopeKey, value);
+  } else {
+    scope.setView(target, value);
+  }
+}

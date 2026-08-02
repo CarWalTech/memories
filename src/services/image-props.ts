@@ -6,7 +6,7 @@ import { bus } from '@services/utils/event-bus';
 import staticConfig from '@services/static-config';
 
 import type { IConfig } from '@typings';
-import type { ImageDisplayShape } from './view-mode-scope';
+import { isRemembered, type ImageDisplayShape, type RouteId } from './view-mode-scope';
 
 export type ImagePropsBundle = Pick<
   IConfig,
@@ -38,9 +38,15 @@ interface ImagePropsModesData {
   square: Partial<ImagePropsBundle>;
   grid: Partial<ImagePropsBundle>;
   list: Partial<ImagePropsBundle>;
+  /**
+   * Per-remembered-view override; key is `${routeId}:${scopeKey}`. Deliberately
+   * *not* split by shape -- "remembered for this folder" means the properties
+   * follow the folder, not whichever shape it happens to be showing.
+   */
+  item: Record<string, Partial<ImagePropsBundle>>;
 }
 
-const emptyData = (): ImagePropsModesData => ({ square: {}, grid: {}, list: {} });
+const emptyData = (): ImagePropsModesData => ({ square: {}, grid: {}, list: {}, item: {} });
 
 function pick(config: IConfig): ImagePropsBundle {
   const result = {} as ImagePropsBundle;
@@ -64,20 +70,54 @@ class ImagePropsStore {
       this.data.square = parsed.square ?? {};
       this.data.grid = parsed.grid ?? {};
       this.data.list = parsed.list ?? {};
+      this.data.item = parsed.item ?? {};
     } catch {
       // ignore malformed blob, start fresh
     }
   }
 
-  /** Sparsely layers the Square/List mode's saved overrides over the Dynamic (global) baseline. */
-  public resolve(mode: ImageDisplayShape, config: IConfig): ImagePropsBundle {
-    const base = pick(config);
-    if (mode === 'dynamic') return base;
-    return { ...base, ...this.data[mode] };
+  /**
+   * Sparsely layers, in order: the Dynamic (global) baseline, the
+   * Square/Grid/List mode's saved overrides, then -- only for a view that is
+   * remembering its own preferences -- that view's own overrides.
+   */
+  public resolve(
+    mode: ImageDisplayShape,
+    config: IConfig,
+    routeId: RouteId | null = null,
+    scopeKey: string | null = null,
+  ): ImagePropsBundle {
+    let result = pick(config);
+    if (mode !== 'dynamic') result = { ...result, ...this.data[mode] };
+    if (isRemembered(routeId, scopeKey)) result = { ...result, ...this.data.item[`${routeId}:${scopeKey}`] };
+    return result;
   }
 
   public setModeProp<K extends keyof ImagePropsBundle>(mode: OverridableMode, key: K, value: ImagePropsBundle[K]) {
     Vue.set(this.data[mode], key, value);
+    this.persist();
+  }
+
+  public setItemProp<K extends keyof ImagePropsBundle>(
+    routeId: RouteId,
+    scopeKey: string,
+    key: K,
+    value: ImagePropsBundle[K],
+  ) {
+    const itemKey = `${routeId}:${scopeKey}`;
+    if (this.data.item[itemKey] == null) Vue.set(this.data.item, itemKey, {});
+    Vue.set(this.data.item[itemKey], key, value);
+    this.persist();
+  }
+
+  /** Snapshot a whole bundle at once -- used when a view starts remembering. */
+  public setItemBundle(routeId: RouteId, scopeKey: string, bundle: ImagePropsBundle) {
+    Vue.set(this.data.item, `${routeId}:${scopeKey}`, { ...bundle });
+    this.persist();
+  }
+
+  public clearItem(routeId: RouteId, scopeKey: string) {
+    Vue.delete(this.data.item, `${routeId}:${scopeKey}`);
     this.persist();
   }
 
