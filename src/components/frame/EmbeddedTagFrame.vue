@@ -2,29 +2,57 @@
   <router-link
     draggable="false"
     class="folder fill-block"
-    :class="{ hasPreview: previews.length > 0, onePreview: previews.length === 1, empty: data.count === 0 }"
+    :class="{
+      hasPreview: previews.length > 0,
+      onePreview: previews.length === 1,
+      empty: data.count === 0,
+      'list-view': isListView,
+    }"
     :to="target"
   >
-    <div class="delete" @click.stop.prevent="onDelete">
-      <TagRemoveIcon :size="18" />
-    </div>
-
-    <div class="count-bubble">
-      <NcCounterBubble>{{ data.count }}</NcCounterBubble>
-    </div>
-
-    <div class="big-icon top-left fill-block">
-      <TagIcon class="icon" />
-      <div class="name">{{ data.name }}</div>
-    </div>
-
-    <div class="previews fill-block">
-      <div class="preview-container fill-block">
-        <div class="img-outer" v-for="info of previews" :key="info.fileid">
-          <XImg class="ximg fill-block" :src="previewUrl(info)" />
+    <!-- Compact list row layout -->
+    <template v-if="isListView">
+      <div class="list-thumb">
+        <TagIcon v-if="!previews.length" class="icon" />
+        <div class="img-outer" v-else>
+          <XImg class="ximg fill-block" :src="previewUrl(previews[0])" />
         </div>
       </div>
-    </div>
+
+      <div class="list-info">
+        <span class="list-filename">{{ data.name }}</span>
+      </div>
+
+      <NcCounterBubble class="list-count">{{ data.count }}</NcCounterBubble>
+
+      <div class="list-delete" @click.stop.prevent="onDelete">
+        <TagRemoveIcon :size="18" />
+      </div>
+    </template>
+
+    <!-- Regular grid tile layout -->
+    <template v-else>
+      <div class="delete" @click.stop.prevent="onDelete">
+        <TagRemoveIcon :size="18" />
+      </div>
+
+      <div class="count-bubble">
+        <NcCounterBubble>{{ data.count }}</NcCounterBubble>
+      </div>
+
+      <div class="big-icon top-left fill-block">
+        <TagIcon class="icon" />
+        <div class="name">{{ data.name }}</div>
+      </div>
+
+      <div class="previews fill-block">
+        <div class="preview-container fill-block">
+          <div class="img-outer" v-for="info of previews" :key="info.fileid">
+            <XImg class="ximg fill-block" :src="previewUrl(info)" />
+          </div>
+        </div>
+      </div>
+    </template>
   </router-link>
 </template>
 
@@ -39,6 +67,7 @@ import * as dav from '@services/dav';
 import * as utils from '@services/utils/helpers';
 
 import type { IEmbeddedTagFolder, IPhoto } from '@typings';
+import type { ImageDisplayShape } from '@services/view-mode-scope';
 
 import TagIcon from 'vue-material-design-icons/Tag.vue';
 import TagRemoveIcon from 'vue-material-design-icons/TagRemove.vue';
@@ -58,6 +87,10 @@ export default defineComponent({
       type: Object as PropType<IEmbeddedTagFolder>,
       required: true,
     },
+    imageDisplayShape: {
+      type: String as PropType<ImageDisplayShape>,
+      required: true,
+    },
   },
 
   emits: {
@@ -65,6 +98,11 @@ export default defineComponent({
   },
 
   computed: {
+    /** Whether to render the compact list-row layout instead of a tile */
+    isListView(): boolean {
+      return this.imageDisplayShape === 'list';
+    },
+
     /** Open this tag path */
     target() {
       let path: string[] | string = this.$route.params.path || [];
@@ -265,6 +303,92 @@ export default defineComponent({
         opacity: 0.5;
       }
     }
+  }
+}
+
+// List view row layout
+.folder.list-view {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  border-radius: var(--border-radius, 8px);
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background-color: var(--color-background-hover);
+    }
+  }
+}
+
+.list-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+  height: calc(100% - 12px);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 4px;
+  background-color: var(--color-background-dark);
+  margin: 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .icon {
+    width: 60%;
+    height: 60%;
+    opacity: 0.3;
+  }
+
+  .img-outer {
+    width: 100%;
+    height: 100%;
+  }
+
+  .ximg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.list-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+
+  .list-filename {
+    font-size: 0.95em;
+    color: var(--color-main-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.list-count {
+  flex: 0 0 auto;
+
+  :deep .counter-bubble__counter {
+    color: unset !important;
+  }
+}
+
+.list-delete {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 3px;
+
+  &:hover {
+    opacity: 1;
+    background-color: var(--color-background-hover);
   }
 }
 </style>

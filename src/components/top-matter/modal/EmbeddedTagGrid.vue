@@ -3,9 +3,14 @@
     <template v-for="group in groups">
       <div v-if="group.label != null" :key="`header-${group.label}`" class="group-header">{{ group.label }}</div>
 
-      <div :key="`grid-${group.label ?? ''}`" class="grid" :style="{ '--min-item-size': `${minItemSize}px` }">
+      <div
+        :key="`grid-${group.label ?? ''}`"
+        class="grid"
+        :class="{ 'list-view': isListView }"
+        :style="{ '--min-item-size': `${minItemSize}px`, '--list-row-height': `${listRowHeight}px` }"
+      >
         <div class="item fill-block" v-for="item of group.items" :key="item.path">
-          <EmbeddedTagFrame :data="item" @deleted="$emit('deleted', $event)" />
+          <EmbeddedTagFrame :data="item" :image-display-shape="effectiveShape" @deleted="$emit('deleted', $event)" />
         </div>
       </div>
     </template>
@@ -15,10 +20,10 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 
-import UserConfig from '@mixins/UserConfig';
+import ViewPrefs from '@mixins/ViewPrefs';
 import EmbeddedTagFrame from '@components/frame/EmbeddedTagFrame.vue';
 
-import { zoomScale } from '@services/zoom';
+import { zoomScale, listRowHeight as listRowHeightForZoom } from '@services/zoom';
 import { groupByName } from '@services/cluster-group';
 import type { GroupSetting } from '@services/sort-group-defs';
 
@@ -34,7 +39,7 @@ export default defineComponent({
     EmbeddedTagFrame,
   },
 
-  mixins: [UserConfig],
+  mixins: [ViewPrefs],
 
   props: {
     items: {
@@ -53,8 +58,16 @@ export default defineComponent({
   },
 
   computed: {
+    isListView(): boolean {
+      return this.effectiveShape === 'list';
+    },
+
     minItemSize(): number {
       return Math.round(BASE_ITEM_SIZE * zoomScale(this.config.grid_zoom));
+    },
+
+    listRowHeight(): number {
+      return listRowHeightForZoom(this.config.grid_zoom);
     },
 
     groups() {
@@ -86,6 +99,21 @@ export default defineComponent({
   > .item {
     aspect-ratio: 1 / 1;
     position: relative;
+  }
+
+  &.list-view {
+    display: flex;
+    flex-direction: column;
+    grid-gap: 0;
+    padding: 0;
+    // Keep the base rule's scrollbar-reserving width (desktop -40px / mobile
+    // -2px) instead of going full-width -- otherwise list rows run under the
+    // scrollbar that the grid/square/dynamic tile layouts already avoid.
+
+    > .item {
+      aspect-ratio: unset;
+      height: var(--list-row-height);
+    }
   }
 }
 </style>

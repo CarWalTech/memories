@@ -106,7 +106,9 @@ export default defineComponent({
     flex-direction: column;
     grid-gap: 0;
     padding: 0;
-    width: 100%;
+    // Keep the base rule's scrollbar-reserving width (desktop -40px / mobile
+    // -2px) instead of going full-width -- otherwise list rows run under the
+    // scrollbar that the grid/square/dynamic tile layouts already avoid.
 
     > .item {
       aspect-ratio: unset;

@@ -24,7 +24,7 @@ export interface GroupSetting {
  *   pseudo-target here (see `listScopeTargetFor`). Recognize/FaceRecognition/
  *   Places don't have a list-variant target -- their cluster lists have no
  *   sortable/groupable backend fields, so Sort by/Group by isn't offered on
- *   those list pages at all (see `ViewOptionsAction.vue`'s `hasSortGroup`);
+ *   those list pages at all (see `ViewModeAction.vue`'s `hasSortGroup`);
  *   opened-person/place photo browsing still uses the plain `Recognize`/
  *   `FaceRecognition`/`Places` RouteId key below like any other photo grid.
  * - Folders and EmbeddedTags each show a tile row (subfolders / sub-tags)
@@ -153,7 +153,7 @@ const LIST_VARIANT_FOR: Partial<Record<RouteId, ListScopeTarget>> = {
 
 /**
  * Resolve which `ListScopeTarget` governs the *primary* content of a route
- * (i.e. what `ViewOptionsAction`'s Sort by / Group by panels should use).
+ * (i.e. what `SortByAction`'s Sort by / Group by panels should use).
  * Doesn't cover `FoldersTiles`, which is a second, independent target for
  * the subfolder-tile row shown alongside a Folders page's main content --
  * callers rendering that row use the `'FoldersTiles'` target directly.

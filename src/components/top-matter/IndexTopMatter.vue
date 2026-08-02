@@ -5,7 +5,6 @@
       <div class="right-actions">
         <ViewModeAction />
         <SortByAction />
-        <ViewOptionsAction />
         <FilterDropdownAction />
         <RefreshOptionsAction />
       </div>
@@ -16,7 +15,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import RefreshOptionsAction from '@components/top-actions/RefreshOptionsAction.vue';
@@ -27,7 +25,6 @@ export default defineComponent({
   name: 'IndexTopMatter',
 
   components: {
-    ViewOptionsAction,
     ViewModeAction,
     SortByAction,
     RefreshOptionsAction,

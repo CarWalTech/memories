@@ -2,10 +2,21 @@
   <li class="action zoom-row-action">
     <span class="zoom-row-action__content">
       <span class="zoom-row-action__label">{{ label }}</span>
-      <NcButton type="tertiary" :aria-label="t('memories', 'Zoom out')" :disabled="disableMinus" @click="$emit('zoom-out')">
+      <NcButton
+        type="tertiary"
+        :aria-label="t('memories', 'Zoom out')"
+        :disabled="disableMinus"
+        @click="$emit('zoom-out')"
+      >
         <template #icon> <MinusIcon :size="20" /> </template>
       </NcButton>
-      <NcButton type="tertiary" :aria-label="t('memories', 'Zoom in')" :disabled="disablePlus" @click="$emit('zoom-in')">
+      <span class="zoom-row-action__indicator">{{ value }}</span>
+      <NcButton
+        type="tertiary"
+        :aria-label="t('memories', 'Zoom in')"
+        :disabled="disablePlus"
+        @click="$emit('zoom-in')"
+      >
         <template #icon> <PlusIcon :size="20" /> </template>
       </NcButton>
     </span>
@@ -19,6 +30,7 @@ import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 
 import MinusIcon from 'vue-material-design-icons/Minus.vue';
 import PlusIcon from 'vue-material-design-icons/Plus.vue';
+import { zoomLabel } from '@services/zoom';
 
 export default defineComponent({
   name: 'ZoomRowAction',
@@ -31,6 +43,10 @@ export default defineComponent({
 
   props: {
     label: {
+      type: String,
+      required: true,
+    },
+    value: {
       type: String,
       required: true,
     },
@@ -52,10 +68,9 @@ export default defineComponent({
 .zoom-row-action__content {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 14px;
+  gap: 0px;
+  padding: 2px 0px 2px 8px;
   width: 100%;
-  max-width: 220px;
   box-sizing: border-box;
 
   .zoom-row-action__label {
@@ -64,6 +79,16 @@ export default defineComponent({
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .zoom-row-action__indicator {
+    flex-grow: 1;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 50px;
+    min-width: 50px;
   }
 }
 </style>

@@ -30,14 +30,7 @@
             </NcActionButton>
           </NcActions>
 
-          <ViewModeAction />
-          <SortByAction />
-
-          <ViewOptionsAction>
-            <NcActionSeparator />
-
-            <NcActionCaption name="Folder options"></NcActionCaption>
-
+          <ViewModeAction>
             <NcActionCheckbox :checked="config.show_empty_folders" @update:checked="toggleShowEmptyFolders">
               {{ t('memories', 'Show empty folders') }}
             </NcActionCheckbox>
@@ -45,17 +38,8 @@
             <NcActionCheckbox :checked="config.show_hidden_folders" @update:checked="toggleShowHiddenFolders">
               {{ t('memories', 'Show hidden folders') }}
             </NcActionCheckbox>
-
-            <NcActionSeparator />
-
-            <NcActionButton @click="toggleRecursive" close-after-click>
-              {{ recursive ? t('memories', 'Folder view') : t('memories', 'Timeline view') }}
-              <template #icon>
-                <FoldersIcon v-if="recursive" :size="20" />
-                <TimelineIcon v-else :size="20" />
-              </template>
-            </NcActionButton>
-          </ViewOptionsAction>
+          </ViewModeAction>
+          <SortByAction />
           <FilterDropdownAction v-if="!routeIsPublic" />
 
           <NcActions v-if="!routeIsPublic" :aria-label="t('memories', 'Others')" @closed="othersPanel = 'root'">
@@ -73,7 +57,9 @@
               </NcActionButton>
 
               <NcActionButton
-                :aria-label="isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites')"
+                :aria-label="
+                  isFavoriteFolder ? t('memories', 'Remove from favorites') : t('memories', 'Add to favorites')
+                "
                 @click="toggleFavoriteFolder()"
                 close-after-click
               >
@@ -149,7 +135,6 @@ import NcActionCaption from '@nextcloud/vue/dist/Components/NcActionCaption.js';
 import NcActionSeparator from '@nextcloud/vue/dist/Components/NcActionSeparator.js';
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
 import PublicUploadHandler from '@components/upload/PublicUploadHandler.vue';
-import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
@@ -164,8 +149,6 @@ import * as nativex from '@native';
 
 import HomeIcon from 'vue-material-design-icons/Home.vue';
 import ShareIcon from 'vue-material-design-icons/ShareVariant.vue';
-import TimelineIcon from 'vue-material-design-icons/ImageMultiple.vue';
-import FoldersIcon from 'vue-material-design-icons/FolderMultiple.vue';
 import UploadIcon from 'vue-material-design-icons/Upload.vue';
 import NewFolderIcon from 'vue-material-design-icons/FolderPlus.vue';
 import DotsHorizontalIcon from 'vue-material-design-icons/DotsHorizontal.vue';
@@ -187,14 +170,11 @@ export default defineComponent({
     NcActionSeparator,
     NcButton,
     PublicUploadHandler,
-    ViewOptionsAction,
     ViewModeAction,
     SortByAction,
     FilterDropdownAction,
     HomeIcon,
     ShareIcon,
-    TimelineIcon,
-    FoldersIcon,
     UploadIcon,
     NewFolderIcon,
     DotsHorizontalIcon,
@@ -254,10 +234,6 @@ export default defineComponent({
       });
     },
 
-    recursive(): boolean {
-      return !!this.$route.query.recursive;
-    },
-
     rootFolderName(): string {
       return this.routeIsPublic ? this.initstate.shareTitle : this.t('memories', 'Home');
     },
@@ -304,15 +280,6 @@ export default defineComponent({
       }
 
       this.$router.push(this.getRoute([...path, name]));
-    },
-
-    toggleRecursive(): void {
-      this.$router.replace({
-        query: {
-          ...this.$router.currentRoute.query,
-          recursive: this.recursive ? undefined : String(1),
-        },
-      });
     },
 
     getRoute(path: string[]): object {

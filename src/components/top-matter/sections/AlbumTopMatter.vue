@@ -21,19 +21,15 @@
             <template #icon> <PlusIcon :size="20" /> </template>
           </NcActionButton>
         </NcActions>
-        <ViewModeAction />
-        <SortByAction />
-        <ViewOptionsAction>
+
+        <ViewModeAction>
           <template v-if="isAlbumList">
-            <NcActionSeparator />
-
-            <NcActionCaption :name="t('memories', 'Album options')" />
-
             <NcActionCheckbox :checked="config.show_hidden_albums" @update:checked="toggleShowHiddenAlbums">
               {{ t('memories', 'Show hidden albums') }}
             </NcActionCheckbox>
           </template>
-        </ViewOptionsAction>
+        </ViewModeAction>
+        <SortByAction />
         <FilterDropdownAction />
         <NcActions
           :inline="othersInline"
@@ -131,7 +127,6 @@ import axios from '@nextcloud/axios';
 
 import AlbumCreateModal from '@components/modal/AlbumCreateModal.vue';
 import AlbumDeleteModal from '@components/modal/AlbumDeleteModal.vue';
-import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import FilterDropdownAction from '@components/top-actions/FilterDropdownAction.vue';
@@ -162,7 +157,6 @@ export default defineComponent({
 
     AlbumCreateModal,
     AlbumDeleteModal,
-    ViewOptionsAction,
     ViewModeAction,
     SortByAction,
     FilterDropdownAction,

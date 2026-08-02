@@ -12,7 +12,6 @@
     <div class="right-actions">
       <ViewModeAction />
       <SortByAction />
-      <ViewOptionsAction />
 
       <NcActions :inline="0">
         <!-- root view (not cluster or unassigned) -->
@@ -37,7 +36,6 @@ import { defineComponent } from 'vue';
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js';
 import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js';
 
-import ViewOptionsAction from '@components/top-actions/ViewOptionsAction.vue';
 import ViewModeAction from '@components/top-actions/ViewModeAction.vue';
 import SortByAction from '@components/top-actions/SortByAction.vue';
 import * as strings from '@services/strings';
@@ -50,7 +48,6 @@ export default defineComponent({
   components: {
     NcActions,
     NcActionButton,
-    ViewOptionsAction,
     ViewModeAction,
     SortByAction,
     BackIcon,
