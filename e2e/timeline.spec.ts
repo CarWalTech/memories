@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { login } from './login';
+import { login, ALLOW_DESTRUCTIVE } from './login';
 
 test.beforeEach(login('/'));
 
@@ -20,6 +20,10 @@ test.describe('Open', () => {
   });
 
   test('Select two images and delete', async ({ page }) => {
+    // Deletes real files -- opt in explicitly, and only against disposable
+    // data. See ALLOW_DESTRUCTIVE in e2e/login.ts.
+    test.skip(!ALLOW_DESTRUCTIVE, 'destructive; set MEMORIES_E2E_DESTRUCTIVE=1 to run');
+
     const src1 = await page.locator('.img-outer > img').nth(1).getAttribute('src');
     const src2 = await page.locator('.img-outer > img').nth(2).getAttribute('src');
 

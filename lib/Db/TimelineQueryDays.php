@@ -71,7 +71,7 @@ trait TimelineQueryDays
         // FilterExpression). Rating alone needs no recheck: SQL matches it
         // exactly (unambiguous numeric comparison), so it's safe to trust
         // postProcessDays() (no re-verification) in that case.
-        if (!$this->shouldFilterExifBySQL() || $this->hasEmbeddedTagFilterActive() || $this->hasFilterExprActive() || $this->hasUntaggedEmbeddedFilterActive()) {
+        if ($this->phpVerifyActive()) {
             $rows = $this->postProcessDaysWithFilters($rows, $groupMode);
         } else {
             // Post process the days normally
@@ -607,6 +607,24 @@ trait TimelineQueryDays
      * ClustersBackend\EmbeddedTagsBackend::transformDayQuery()), so callers
      * use this to decide whether an authoritative PHP recheck is still needed.
      */
+    /**
+     * Whether this request needs an authoritative PHP verify pass over the
+     * rows SQL returned -- i.e. whether SQL alone is only a coarse superset.
+     *
+     * Two consequences for callers:
+     *  1. getDays() must recount days in PHP (postProcessDaysWithFilters()).
+     *  2. getDay() may return fewer rows than SQL produced, so a SQL-level
+     *     LIMIT/OFFSET would page the *pre-filter* set. Chunked day loading
+     *     (DaysController::day()) therefore refuses to page when this is true.
+     */
+    public function phpVerifyActive(): bool
+    {
+        return !$this->shouldFilterExifBySQL()
+            || $this->hasEmbeddedTagFilterActive()
+            || $this->hasFilterExprActive()
+            || $this->hasUntaggedEmbeddedFilterActive();
+    }
+
     private function hasEmbeddedTagFilterActive(): bool
     {
         return !empty($this->getEmbeddedTagsFromRequest()) || null !== $this->request->getParam('embeddedtag');

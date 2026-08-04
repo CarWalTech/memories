@@ -33,6 +33,9 @@ use OCP\AppFramework\Http\JSONResponse;
 
 final class DaysController extends GenericApiController
 {
+    /** Upper bound on chunkLimit, so a client can't ask for an unbounded window */
+    private const MAX_CHUNK_LIMIT = 2000;
+
     #[NoAdminRequired]
     #[PublicPage]
     public function days(): Http\Response
@@ -61,6 +64,18 @@ final class DaysController extends GenericApiController
     public function day(array $dayIds): Http\Response
     {
         return Util::guardEx(function () use ($dayIds) {
+            // Chunked day loading: fetch only a window of a (large) day, so a
+            // day with thousands of photos streams in as the user scrolls
+            // instead of arriving as one huge response.
+            //
+            // Applied here rather than in getTransformations(), which is
+            // shared with days() and with preloadDays()'s second getDay()
+            // call -- neither of which may be paged.
+            $transforms = $this->getTransformations();
+            if ($chunk = $this->getChunkParams()) {
+                $transforms[] = [$this->tq, 'transformLimitOffset', $chunk[0], $chunk[1]];
+            }
+
             // Run actual query
             $list = $this->tq->getDay(
                 $dayIds,
@@ -73,11 +88,52 @@ final class DaysController extends GenericApiController
                 $this->getMinRating(),
                 $this->getEmbeddedTags(),
                 $this->getCollabTags(),
-                $this->getTransformations(),
+                $transforms,
             );
 
-            return new JSONResponse($list, Http::STATUS_OK);
+            $response = new JSONResponse($list, Http::STATUS_OK);
+
+            // Tell the client whether the window it asked for was actually
+            // applied. Without this it cannot distinguish "here is your chunk"
+            // from "paging was refused, here is the whole day", since both are
+            // just a bare JSON array. A header keeps the body format unchanged
+            // and costs nothing on the days list.
+            if ($chunk) {
+                $response->addHeader('X-Memories-Chunk', "{$chunk[1]}-{$chunk[0]}");
+            }
+
+            return $response;
         });
+    }
+
+    /**
+     * Validated [limit, offset] for a chunked day request, or null if this
+     * request must not be paged.
+     *
+     * Paging is refused -- silently, returning the whole day, which is always
+     * a correct superset of any chunk -- when getDay() applies an
+     * authoritative PHP filter pass on top of SQL: a SQL-level LIMIT/OFFSET
+     * would then page the coarse pre-filter set rather than the rows the
+     * client actually receives, producing gaps and duplicates.
+     *
+     * @return null|array{0: int, 1: int}
+     */
+    private function getChunkParams(): ?array
+    {
+        $limit = (int) $this->request->getParam('chunkLimit', 0);
+        if ($limit <= 0) {
+            return null;
+        }
+
+        // SQL paging is only exact when SQL alone decides the result set
+        if ($this->tq->phpVerifyActive()) {
+            return null;
+        }
+
+        return [
+            min($limit, self::MAX_CHUNK_LIMIT),
+            max(0, (int) $this->request->getParam('chunkOffset', 0)),
+        ];
     }
 
     #[NoAdminRequired]

@@ -80,6 +80,13 @@ export const enum DaysFilterType {
   NO_PRELOAD = 'nopreload',
   /** Ask the backend to attach each photo's visible collaborative tag names (Image Property overlay) */
   COLLAB_TAGS = 'collabTags',
+  /**
+   * Chunked day loading (see services/segments.ts): fetch only a window of a
+   * large day's photos. Sent only for chunked segments, so an ordinary day's
+   * request URL -- and therefore its cache key -- is unchanged.
+   */
+  CHUNK_OFFSET = 'chunkOffset',
+  CHUNK_LIMIT = 'chunkLimit',
 }
 
 export class API {

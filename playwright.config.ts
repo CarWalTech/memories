@@ -1,5 +1,6 @@
 import type { PlaywrightTestConfig } from '@playwright/test';
 import { devices } from '@playwright/test';
+import { contextOptions } from './e2e/login';
 
 /**
  * Read environment variables from file.
@@ -32,6 +33,9 @@ const config: PlaywrightTestConfig = {
   workers: process.env.CI ? 1 : undefined,
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
+    /* Authentication, when running against a real instance -- see e2e/login.ts */
+    ...contextOptions,
+
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 30000,
     /* Base URL to use in actions like `await page.goto('/')`. */

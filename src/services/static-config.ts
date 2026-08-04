@@ -48,6 +48,12 @@ class StaticConfig {
 
       // Clear page cache, keep other caches
       window.caches?.delete('memories-pages');
+
+      // The data cache bucket is named after the version, which is read
+      // synchronously from localStorage so stashed data can be served without
+      // waiting for this request. That mirrored value has just changed, so
+      // drop the bucket opened under the old one.
+      utils.onVersionChange();
     }
 
     this.migrateLegacyMobileNavItems();

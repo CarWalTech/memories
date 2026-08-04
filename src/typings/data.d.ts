@@ -19,8 +19,17 @@ declare module '@typings' {
     count: number;
     /** Rows in the day */
     rows?: IRow[];
-    /** List of photos for this day */
+    /**
+     * List of photos for this day.
+     *
+     * Only populated once EVERY segment of the day has loaded (see
+     * services/segments.ts) -- partially-loaded days keep their photos on the
+     * segments instead. The viewer and restoreDay both assume a day's detail,
+     * when present, is complete.
+     */
     detail?: IPhoto[];
+    /** Photos loaded so far across all segments; equals count when complete */
+    loadedCount?: number;
     /** This day has some local photos */
     haslocal?: boolean;
   };

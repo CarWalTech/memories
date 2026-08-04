@@ -176,6 +176,15 @@ export default defineComponent({
       type: Object as PropType<InstanceType<typeof ScrollerManager>>,
       required: false,
     },
+    /**
+     * Load every remaining chunk of a day (see services/segments.ts).
+     * Needed because a large day is only partially resident while the user
+     * scrolls through it, and "select all in this day" must mean all of it.
+     */
+    fetchDay: {
+      type: Function as PropType<(dayId: number, now?: boolean) => Promise<void>>,
+      required: false,
+    },
   },
 
   emits: {
@@ -892,7 +901,14 @@ export default defineComponent({
     },
 
     /** Select or deselect all photos in a head */
-    selectHead(head: IHeadRow) {
+    async selectHead(head: IHeadRow) {
+      // A large day is loaded in chunks as the user scrolls, so day.rows may
+      // hold only the part they have reached. Selecting "the day" has to mean
+      // the whole day, so pull in whatever is still missing first.
+      if (head.day.detail === undefined) {
+        await this.fetchDay?.(head.day.dayid, true);
+      }
+
       head.selected = !head.selected;
       for (const row of head.day.rows ?? []) {
         for (const photo of row.photos ?? []) {
@@ -905,10 +921,12 @@ export default defineComponent({
     /** Check if the day for a photo is selected entirely */
     updateHeadSelected(head: IHeadRow) {
       let selected = true;
+      let seen = false;
 
       // Check if all photos are selected
       for (const row of head.day.rows ?? []) {
         for (const photo of row.photos ?? []) {
+          seen = true;
           if (!(photo.flag & this.c.FLAG_SELECTED)) {
             selected = false;
             break;
@@ -916,8 +934,10 @@ export default defineComponent({
         }
       }
 
-      // Update head
-      head.selected = selected;
+      // A day with nothing loaded yet vacuously passes the loop above; it is
+      // not selected, it is unknown, and rendering its header checked would
+      // be a lie.
+      head.selected = seen && selected;
     },
 
     /** Clear all selected photos */

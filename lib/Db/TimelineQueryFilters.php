@@ -326,10 +326,36 @@ trait TimelineQueryFilters
 
     public function transformLimit(IQueryBuilder &$query, bool $aggregate, int $limit): void
     {
+        // Never limit an aggregate query: getDays() selects COUNT(...) GROUP BY
+        // m.dayid, so setMaxResults() there would truncate the *day list*
+        // instead of the photos within a day.
+        if ($aggregate) {
+            return;
+        }
+
         /** @psalm-suppress RedundantCondition */
         if ($limit >= 1 || $limit <= 100) {
             $query->setMaxResults($limit);
         }
+    }
+
+    /**
+     * Fetch a bounded window of a day's photos, for chunked day loading.
+     *
+     * Safe to page with a plain OFFSET because getDay()'s ORDER BY ends in
+     * m.fileid DESC, a unique tie-breaker, making the sort a total order --
+     * so the same query at successive offsets yields a stable, gapless
+     * partition of the day.
+     */
+    public function transformLimitOffset(IQueryBuilder &$query, bool $aggregate, int $limit, int $offset): void
+    {
+        // See transformLimit() -- paging an aggregate would page the day list.
+        if ($aggregate) {
+            return;
+        }
+
+        $query->setMaxResults($limit);
+        $query->setFirstResult($offset);
     }
 
     private function applyAllTransforms(array $transforms, IQueryBuilder &$query, bool $aggregate): void

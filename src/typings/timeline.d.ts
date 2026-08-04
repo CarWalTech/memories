@@ -28,6 +28,46 @@ declare module '@typings' {
   /** Type of IRow (0 = head, 1 = photos) */
   export type IRowType = 0 | 1;
 
+  /**
+   * A contiguous, independently-fetched and independently-laid-out slice of
+   * one head's photos (see services/segments.ts).
+   *
+   * Segments generalize the "Group by: None" pseudo-buckets they replaced:
+   * those only ever MERGED several small days into one fetch unit, whereas a
+   * segment can also SPLIT a single large day into several. Both directions
+   * exist so the unit of work stays roughly constant regardless of how the
+   * library's photos happen to be distributed across days.
+   */
+  export type ISegment = {
+    /**
+     * Unique key. Opaque -- unlike IRow.dayId this is NOT a day id and must
+     * never be date-parsed.
+     */
+    id: string;
+    /** The head (bucket) id this segment renders under */
+    dayId: number;
+    /** Real backend day ids covered. Length > 1 only for merged buckets. */
+    realDayIds: number[];
+    /** Photo offset within the bucket's ordered photo list */
+    offset: number;
+    /** Max photos in this segment, or null when it covers the whole bucket */
+    limit: number | null;
+    /** Position of this segment within its day's segment list */
+    index: number;
+    /** Photo count: estimated from the days list, corrected once fetched */
+    count: number;
+    /** Whether the request for this segment carries chunk params */
+    chunked: boolean;
+    /** Whether fetching this segment fetches (and satisfies) the whole day */
+    fetchWhole: boolean;
+    /** Whether this is the last segment of its day */
+    final: boolean;
+    /** Photos, once loaded */
+    photos?: IPhoto[];
+    /** Rows owned by this segment (a contiguous slice of day.rows) */
+    rows: IRow[];
+  };
+
   export type IRow = {
     /** Vue Recycler identifier */
     id?: string;
@@ -35,6 +75,8 @@ declare module '@typings' {
     num: number;
     /** Day ID */
     dayId: number;
+    /** Id of the segment that owns this row (see ISegment) */
+    segId: string;
     /** Refrence to day object */
     day: IDay;
     /** Type of row (0 = head, 1 = photos) */

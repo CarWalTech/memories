@@ -110,6 +110,7 @@
       :isreverse="isGroupReverse"
       :recycler="refs.recycler?.$el"
       :scrollerManager="refs.scrollerManager"
+      :fetchDay="fetchDay"
       @updateLoading="updateLoading"
     />
   </SwipeRefresh>
@@ -146,20 +147,13 @@ import * as nativex from '@native';
 import { API, DaysFilterType } from '@services/API';
 import { emptyFilters, hasActiveFilters } from '@services/filters';
 import { sortScope, groupScope } from '@services/list-scope';
+import { buildSegments, resegment } from '@services/segments';
 import { listScopeTargetFor, type ListScopeTarget, type SortSetting, type GroupSetting } from '@services/sort-group-defs';
 
-import type { IDay, IHeadRow, IPhoto, IRow, IFilters } from '@typings';
+import type { IDay, IHeadRow, IPhoto, IRow, ISegment, IFilters } from '@typings';
 
 const SCROLL_LOAD_DELAY = 100; // Delay in loading data when scrolling
 const ROW_NUM_LPAD = 16; // Number of rows to load before and after viewport
-
-/**
- * Group by: None -- minimum photo count per merged pseudo-bucket (see
- * processDays' bucket-merging step). Large enough that seams between
- * pseudo-buckets are infrequent; small enough to keep individual fetches
- * reasonably sized.
- */
-const MIN_UNGROUPED_BUCKET_PHOTOS = 60;
 
 export default defineComponent({
   name: 'Timeline',
@@ -224,22 +218,23 @@ export default defineComponent({
     /** Height of the scroller */
     scrollerHeight: 100,
 
-    /** Set of dayIds for which images loaded */
-    loadedDays: new Set<number>(),
-    /** Set of dayIds for which image size is calculated */
-    sizedDays: new Set<number>(),
-    /** Days to load in the next call */
-    fetchDayQueue: [] as number[],
+    /** All segments by id (see services/segments.ts) */
+    segments: new Map<string, ISegment>(),
+    /** Segments of each head, in display order */
+    daySegments: new Map<number, ISegment[]>(),
+    /** Real backend dayId -> the bucket (head) id it belongs to */
+    realToBucket: new Map<number, number>(),
+
+    /** Set of segment ids for which images loaded */
+    loadedSegs: new Set<string>(),
+    /** Set of segment ids for which image size is calculated */
+    sizedSegs: new Set<string>(),
+    /** Segments to load in the next call */
+    fetchSegQueue: [] as string[],
     /** Timer to load day call */
     fetchDayTimer: null as number | null,
-
-    /**
-     * Group by: None -- pseudo-bucket dayId -> the real dayIds merged into
-     * it (see processDays). Empty/unused in any other grouping mode.
-     */
-    ungroupedBucketDayIds: new Map<number, number[]>(),
-    /** Reverse of the above: real dayId -> the pseudo-bucket dayId it belongs to. */
-    ungroupedBucketRealToPseudo: new Map<number, number>(),
+    /** In-flight day requests, so navigating away can abort them */
+    fetchAborters: new Set<AbortController>(),
 
     /** State for request cancellations */
     state: Math.random(),
@@ -510,11 +505,28 @@ export default defineComponent({
       this.currentStart = 0;
       this.currentEnd = 0;
       this.state = Math.random();
-      this.loadedDays.clear();
-      this.sizedDays.clear();
-      this.fetchDayQueue = [];
+      this.segments = new Map();
+      this.daySegments = new Map();
+      this.realToBucket = new Map();
+      this.loadedSegs.clear();
+      this.sizedSegs.clear();
+      this.fetchSegQueue = [];
+      this.abortFetches();
       window.clearTimeout(this.fetchDayTimer ?? 0);
       window.clearTimeout(this.resizeTimer ?? 0);
+    },
+
+    /**
+     * Abort any in-flight day requests.
+     *
+     * Without this a response for the view the user just left still lands,
+     * writing its photos into CacheStorage under a key derived from the
+     * CURRENT query (getQuery() having since changed), and burning bandwidth
+     * that the new view needs.
+     */
+    abortFetches() {
+      for (const aborter of this.fetchAborters) aborter.abort();
+      this.fetchAborters.clear();
     },
 
     /** Recreate everything */
@@ -564,7 +576,7 @@ export default defineComponent({
      */
     async _softRefreshInternal(sync: boolean) {
       this.refs.selectionManager.clear();
-      this.fetchDayQueue = []; // reset queue
+      this.fetchSegQueue = []; // reset queue
 
       // Fetch days
       if (sync) {
@@ -661,7 +673,7 @@ export default defineComponent({
       if (this.list.length > 0) {
         // At this point we're sure the size has changed, so we need
         // to invalidate everything related to sizes
-        this.sizedDays.clear();
+        this.sizedSegs.clear();
         this.refs.scrollerManager.adjust();
 
         // Explicitly request a scroll event
@@ -745,7 +757,7 @@ export default defineComponent({
       // rows on that side. This ensures we have minimal reflows.
       const rmin = Math.max(0, startIndex - ROW_NUM_LPAD / 2);
       const rmax = Math.min(this.list.length - 1, endIndex + ROW_NUM_LPAD / 2);
-      const notsized = (r: IRow) => r && !this.sizedDays.has(r.dayId);
+      const notsized = (r: IRow) => r && !this.sizedSegs.has(r.segId);
 
       // Check at the start
       if (this.list.slice(rmin, startIndex).some(notsized)) {
@@ -761,19 +773,22 @@ export default defineComponent({
       startIndex = Math.max(0, startIndex);
       endIndex = Math.min(this.list.length - 1, endIndex);
 
-      // Fetch all visible days
+      // Fetch all visible segments. Every row already knows which segment
+      // owns it (stamped in processDays), so the visible range maps to the
+      // chunks that need fetching without any offset arithmetic here.
       for (let i = startIndex; i <= endIndex; i++) {
         const item = this.list[i];
         if (!item) continue;
-        if (this.loadedDays.has(item.dayId)) {
-          if (!this.sizedDays.has(item.dayId)) {
+        if (this.loadedSegs.has(item.segId)) {
+          if (!this.sizedSegs.has(item.segId)) {
             // Just quietly reflow without refetching
-            this.processDay(item.dayId, item.day.detail!);
+            const seg = this.segments.get(item.segId);
+            if (seg?.photos) this.processSegment(seg, seg.photos);
           }
           continue;
         }
 
-        this.fetchDay(item.dayId);
+        this.fetchSegment(item.segId);
       }
     },
 
@@ -1010,10 +1025,15 @@ export default defineComponent({
       return query;
     },
 
-    /** Fetch timeline main call */
-    async fetchDays(noCache = false) {
-      // Awaiting this is important because the folders must render
-      // before the timeline to prevent glitches
+    /**
+     * Refresh the dynamic top matter (subfolder/subtag grid).
+     *
+     * Deliberately NOT awaited by fetchDays before it requests photos: on a
+     * folder page this runs a preview query per subfolder, and on an embedded
+     * tag page a whole-account scan -- neither of which the photo list depends
+     * on. Serializing them meant no photo appeared until the grid resolved.
+     */
+    async refreshTopMatter() {
       try {
         this.updateLoading(1);
         const state = this.state;
@@ -1031,9 +1051,24 @@ export default defineComponent({
         // trigger a recalculation.
         await this.$nextTick();
         this.refs.recycler?.updateVisibleItems(false);
+      } catch (e) {
+        // Never reject: the photo list is fetched concurrently and must not be
+        // taken down with the grid. Previously a throw here aborted fetchDays
+        // entirely, so a failing folder/tag listing meant no photos at all.
+        if (!utils.isNetworkError(e)) console.error('Failed to refresh top matter', e);
+        this.dtmContent = false;
       } finally {
         this.updateLoading(-1);
       }
+    },
+
+    /** Fetch timeline main call */
+    async fetchDays(noCache = false) {
+      // Kick off the top matter concurrently -- see refreshTopMatter(). Its
+      // own state guard makes it safe to leave running; we only await it at
+      // the end so callers still get a promise that resolves once the whole
+      // view has settled.
+      const topMatter = this.refreshTopMatter();
 
       // Get URL an cache identifier
       let url: string;
@@ -1041,7 +1076,7 @@ export default defineComponent({
         url = API.Q(API.DAYS(), this.getQuery());
       } catch (err) {
         // Likely invalid route; just quit doing anything
-        return;
+        return await topMatter;
       }
 
       // URL for cached data
@@ -1103,6 +1138,11 @@ export default defineComponent({
       } finally {
         // If cache is set here, loading was already decremented
         if (!cache) this.updateLoading(-1);
+
+        // Settle the concurrently-started top matter refresh, so callers
+        // awaiting fetchDays still get a fully settled view. Safe to await
+        // here because refreshTopMatter never rejects.
+        await topMatter;
       }
     },
 
@@ -1122,34 +1162,33 @@ export default defineComponent({
       // do not become reactive (which happens only after assignment).
       const preloads = new Map<number, IPhoto[]>();
 
-      // Group by: None -- merge consecutive real days into larger
-      // pseudo-buckets so getLayout() (called once per bucket in processDay)
-      // packs each bucket's photos in one continuous pass, with no seam at
-      // old day boundaries. Preloaded .detail is intentionally dropped for
-      // merged buckets -- fetchDay() will fetch them fresh, which is simpler
-      // than gluing partial preloads from several real days together and
-      // only affects the very first screen's paint speed, not correctness.
-      // Skipped for ThisDay (whose "days" are deliberately non-consecutive,
-      // one per year) and native builds (whose local-photo merging keys
-      // directly off real dayids -- see fetchDayExpire's routeHasNative branch).
-      this.ungroupedBucketDayIds.clear();
-      this.ungroupedBucketRealToPseudo.clear();
-      let buckets = data;
-      if (!this.isGrouped && !this.routeIsThisDay && !this.routeHasNative) {
-        const merged: IDay[] = [];
-        let current: IDay | null = null;
-        for (const day of data) {
-          if (day.count === 0) continue;
-          if (!current || current.count >= MIN_UNGROUPED_BUCKET_PHOTOS) {
-            current = { dayid: day.dayid, count: 0, rows: [] };
-            this.ungroupedBucketDayIds.set(current.dayid, []);
-            merged.push(current);
-          }
-          current.count += day.count;
-          this.ungroupedBucketDayIds.get(current.dayid)!.push(day.dayid);
-          this.ungroupedBucketRealToPseudo.set(day.dayid, current.dayid);
-        }
-        buckets = merged;
+      // Fold the raw days response into the buckets that get a header and the
+      // segments that get fetched and laid out (see services/segments.ts):
+      // consecutive small days are merged (Group by: None), and any bucket
+      // holding more than CHUNK_THRESHOLD photos is split so it streams in as
+      // the user scrolls rather than arriving all at once.
+      //
+      // Merging is skipped for ThisDay (whose "days" are deliberately
+      // non-consecutive, one per year) and native builds (whose local-photo
+      // merging keys directly off real dayids -- see fetchSegExpire).
+      // Preloaded .detail is dropped for merged buckets -- fetchSegment() will
+      // fetch them fresh, which is simpler than gluing partial preloads from
+      // several real days together and only affects the very first screen's
+      // paint speed, not correctness.
+      const built = buildSegments(data, {
+        isGrouped: this.isGrouped,
+        pagable: this.canPageDays(),
+        mergeable: !this.isGrouped && !this.routeIsThisDay && !this.routeHasNative,
+      });
+      const buckets = built.buckets;
+
+      this.realToBucket = built.realToBucket;
+      const segments = new Map<string, ISegment>();
+      const daySegments = new Map<number, ISegment[]>();
+      for (const seg of built.segments) {
+        segments.set(seg.id, seg);
+        if (!daySegments.has(seg.dayId)) daySegments.set(seg.dayId, []);
+        daySegments.get(seg.dayId)!.push(seg);
       }
 
       let prevDay: IDay | null = null;
@@ -1168,7 +1207,9 @@ export default defineComponent({
           delete day.detail;
         }
 
-        // Create header for this day
+        // Create header for this day. It carries the id of the day's first
+        // segment so that "is this row's data loaded/sized" works uniformly
+        // for headers and photo rows alike (see loadScrollView).
         const head: IHeadRow = {
           id: `${day.dayid}-head`,
           num: -1,
@@ -1176,6 +1217,7 @@ export default defineComponent({
           type: 0, // head
           selected: false,
           dayId: day.dayid,
+          segId: daySegments.get(day.dayid)?.[0]?.id ?? `${day.dayid}:0`,
           day: day,
         };
 
@@ -1199,28 +1241,34 @@ export default defineComponent({
         heads.set(day.dayid, head);
         list.push(head);
 
-        // Dummy rows for placeholders
-        let nrows = Math.ceil(day.count / this.numCols);
+        // Dummy rows for placeholders, per segment. Each segment owns a
+        // contiguous slice of day.rows, so the row a given scroll position
+        // falls on already knows which segment must be fetched -- no offset
+        // arithmetic happens at scroll time.
+        for (const seg of daySegments.get(day.dayid) ?? []) {
+          let nrows = Math.ceil(seg.count / this.numCols);
 
-        // Check if already loaded - we can learn
-        const prevRows = this.heads.get(day.dayid)?.day?.rows;
-        nrows = prevRows?.length || nrows;
+          // Check if already loaded - we can learn. Keyed by segment id, which
+          // is stable across refreshes for as long as the day's size is.
+          const prevRows = this.segments.get(seg.id)?.rows;
+          nrows = prevRows?.length || nrows;
 
-        // Add rows
-        for (let i = 0; i < nrows; i++) {
-          const row = this.addRow(day);
-          list.push(row);
+          // Add rows
+          for (let i = 0; i < nrows; i++) {
+            const row = this.addRow(day, seg, day.rows.length, i);
+            list.push(row);
 
-          // Add placeholder count
-          const leftNum = day.count - i * this.numCols;
-          row.pct = Math.max(0, Math.min(this.numCols, leftNum));
-          row.photos = [];
+            // Add placeholder count
+            const leftNum = seg.count - i * this.numCols;
+            row.pct = Math.max(0, Math.min(this.numCols, leftNum));
+            row.photos = [];
 
-          // Learn from existing row
-          if (prevRows && i < prevRows.length && !prevRows[i].pct) {
-            row.size = prevRows[i].size;
-            row.photos = prevRows[i].photos;
-            delete row.pct;
+            // Learn from existing row
+            if (prevRows && i < prevRows.length && !prevRows[i].pct) {
+              row.size = prevRows[i].size;
+              row.photos = prevRows[i].photos;
+              delete row.pct;
+            }
           }
         }
 
@@ -1231,8 +1279,10 @@ export default defineComponent({
       // Store globally
       this.list = list;
       this.heads = heads;
-      this.loadedDays.clear();
-      this.sizedDays.clear();
+      this.segments = segments;
+      this.daySegments = daySegments;
+      this.loadedSegs.clear();
+      this.sizedSegs.clear();
 
       // Mark if the data was from cache
       this.daysIsCache = cache;
@@ -1257,8 +1307,22 @@ export default defineComponent({
       this.scrollChange(this.currentStart, this.currentEnd, true);
     },
 
+    /**
+     * Whether day contents may be requested in windows for this view.
+     *
+     * The server refuses to page whenever it applies an authoritative PHP
+     * filter pass over the SQL result (embedded tags, filter expressions),
+     * and we refuse for native builds, where local-photo merging assumes it
+     * is given a complete day. In both cases days are still SPLIT INTO
+     * SEGMENTS -- only the fetch stays whole, so the giant single layout pass
+     * is avoided even when the download can't be.
+     */
+    canPageDays(): boolean {
+      return !this.routeHasNative && !this.routeIsThisDay && !dav.isSingleItem();
+    },
+
     /** API url for Day call */
-    getDayUrl(dayIds: number[]) {
+    getDayUrl(dayIds: number[], chunk?: { offset: number; limit: number }) {
       const query = this.getQuery();
 
       // If any day in the fetch list has local images we need to fetch
@@ -1269,39 +1333,87 @@ export default defineComponent({
         }
       }
 
-      // Expand any Group by: None pseudo-bucket ids to the real dayIds
-      // merged into them (see processDays) -- the backend only knows real
-      // dayids. A no-op for grouped modes/ThisDay/native, where every id is
-      // already real (ungroupedBucketDayIds stays empty).
-      const realDayIds = dayIds.flatMap((id) => this.ungroupedBucketDayIds.get(id) ?? [id]);
+      // Expand any bucket ids to the real dayIds merged into them (see
+      // services/segments.ts) -- the backend only knows real dayids. A no-op
+      // for grouped modes/ThisDay/native, where every id is already real.
+      const realDayIds = dayIds.flatMap((id) => this.daySegments.get(id)?.[0]?.realDayIds ?? [id]);
+
+      // Window within the day, for chunked segments only. Omitted entirely
+      // for unchunked ones, so their URL (and cache key) stays byte-identical
+      // to what it was before chunking existed.
+      if (chunk) {
+        query[DaysFilterType.CHUNK_OFFSET] = String(chunk.offset);
+        query[DaysFilterType.CHUNK_LIMIT] = String(chunk.limit);
+      }
 
       return API.Q(API.DAY(realDayIds.join(',')), query);
     },
 
-    /** Fetch image data for one dayId */
-    async fetchDay(dayId: number, now = false) {
-      if (!now && this.loadedDays.has(dayId)) return;
+    /** API url for a segment */
+    getSegmentUrl(seg: ISegment) {
+      return this.getDayUrl([seg.dayId], seg.chunked ? { offset: seg.offset, limit: seg.limit! } : undefined);
+    },
 
-      // Get head to ensure the day exists / is valid
-      const head = this.heads.get(dayId);
+    /**
+     * CacheStorage key for a Day call. This is NOT the request URL: it is
+     * prefixed with the route name, since two routes may produce an identical
+     * getQuery() and must not share cached day contents.
+     */
+    getDayCacheKey(dayIds: number[], chunk?: { offset: number; limit: number }) {
+      return <string>this.$route.name + this.getDayUrl(dayIds, chunk);
+    },
+
+    /** CacheStorage key for a segment */
+    getSegmentCacheKey(seg: ISegment) {
+      return <string>this.$route.name + this.getSegmentUrl(seg);
+    },
+
+    /**
+     * Fetch image data for an entire day.
+     *
+     * Kept for callers that genuinely need a whole day resident -- the viewer's
+     * neighbouring-day prefetch and deep links, which index into day.detail.
+     */
+    async fetchDay(dayId: number, now = false) {
+      const segs = this.daySegments.get(dayId);
+      if (!segs?.length) return;
+
+      // Segments that already have their photos need nothing, even when the
+      // caller asked for an immediate fetch -- otherwise opening the viewer
+      // inside a large day would re-download every chunk already on screen.
+      const pending = segs.filter((seg) => !seg.photos);
+      await Promise.all(pending.map((seg) => this.fetchSegment(seg.id, now)));
+    },
+
+    /** Fetch image data for one segment */
+    async fetchSegment(segId: string, now = false) {
+      if (!now && this.loadedSegs.has(segId)) return;
+
+      // Get segment and head to ensure it still exists / is valid
+      const seg = this.segments.get(segId);
+      if (!seg) return;
+      const head = this.heads.get(seg.dayId);
       if (!head) return;
 
       // Do this in advance to prevent duplicate requests
-      this.loadedDays.add(dayId);
-      this.sizedDays.add(dayId);
+      this.loadedSegs.add(segId);
+      this.sizedSegs.add(segId);
 
-      // Look for cache
-      const cacheUrl = this.getDayUrl([dayId]);
+      // Look for cache. The route name is part of the key because two routes
+      // can produce an identical getQuery() (e.g. ThisDay vs the base
+      // timeline), and a day cached under one must not be served to the other.
+      // Same keying as the days list cache in fetchDays().
+      const cacheUrl = this.getSegmentCacheKey(seg);
       try {
         let cache = await utils.getCachedData<IPhoto[]>(cacheUrl);
         if (cache) {
           // Cache only contains remote images; update from local too
           if (this.routeHasNative && head.day?.haslocal) {
-            nativex.mergeDay(cache, await nativex.getLocalDay(dayId));
+            nativex.mergeDay(cache, await nativex.getLocalDay(seg.dayId));
           }
 
           // Process the cache
-          cache = this.preprocessDay(dayId, cache);
+          cache = this.preprocessDay(seg.dayId, cache);
 
           // If this is a cached response and the list is not, then we don't
           // want to take any destructive actions like removing a day.
@@ -1312,19 +1424,19 @@ export default defineComponent({
             throw new Error('Skipping empty cache because view is fresh');
           }
 
-          this.processDay(dayId, cache);
+          this.processSegment(seg, cache);
         }
       } catch (e) {
         console.warn(`Failed or skipped processing day cache: ${cacheUrl}`, e);
       }
 
       // Aggregate fetch requests
-      this.fetchDayQueue.push(dayId);
+      this.fetchSegQueue.push(segId);
 
       // If the queue has gotten large enough, just expire immediately
       // This is to prevent a large number of requests from being queued
-      now ||= this.fetchDayQueue.length >= 16;
-      now ||= this.fetchDayQueue.reduce((sum, dayId) => sum + (this.heads.get(dayId)?.day?.count ?? 0), 0) > 256;
+      now ||= this.fetchSegQueue.length >= 16;
+      now ||= this.fetchSegQueue.reduce((sum, id) => sum + (this.segments.get(id)?.count ?? 0), 0) > 256;
 
       // Process immediately
       if (now) return await this.fetchDayExpire();
@@ -1337,120 +1449,200 @@ export default defineComponent({
     },
 
     async fetchDayExpire() {
-      if (this.fetchDayQueue.length === 0) return;
+      if (this.fetchSegQueue.length === 0) return;
 
-      // Map of dayId to photos
-      const dayIds = this.fetchDayQueue;
-      const dayMap = new Map<number, IPhoto[]>();
-      for (const dayId of dayIds) dayMap.set(dayId, []);
+      const queued = this.fetchSegQueue
+        .map((id) => this.segments.get(id))
+        .filter((seg): seg is ISegment => !!seg);
+      this.fetchSegQueue = [];
+
+      // Chunked segments are never merged with anything else: a multi-day
+      // response is binned back by each photo's own dayid, which cannot tell
+      // two windows of the SAME day apart. Everything else still shares one
+      // request, exactly as before chunking existed.
+      const batched = queued.filter((seg) => !seg.chunked);
+      const solo = queued.filter((seg) => seg.chunked);
+
+      const jobs: Promise<void>[] = [];
+      if (batched.length) jobs.push(this.fetchSegBatch(batched));
+      for (const seg of solo) jobs.push(this.fetchSegBatch([seg]));
+
+      await Promise.all(jobs);
+    },
+
+    /**
+     * Run one day request covering the given segments, and route the response
+     * back onto them.
+     *
+     * @param segs Either any number of unchunked segments, or exactly one
+     *             chunked segment (see fetchDayExpire).
+     */
+    async fetchSegBatch(segs: ISegment[]) {
+      const chunked = segs.length === 1 && segs[0].chunked ? segs[0] : null;
+      const dayIds = segs.map((seg) => seg.dayId);
 
       // Construct URL
-      const url = this.getDayUrl(dayIds);
-      this.fetchDayQueue = [];
+      const url = chunked
+        ? this.getSegmentUrl(chunked)
+        : this.getDayUrl(dayIds);
+
+      // Let navigation away cancel this. Without it the response still lands,
+      // and still writes to CacheStorage under a key derived from a query
+      // that has since changed.
+      const aborter = new AbortController();
+      this.fetchAborters.add(aborter);
 
       try {
         const startState = this.state;
-        const res = await axios.get<IPhoto[]>(url);
+        const res = await axios.get<IPhoto[]>(url, { signal: aborter.signal });
         if (res.status !== 200) throw res;
         const data = res.data;
 
         // Check if the state has changed
-        if (this.state !== startState || this.getDayUrl(dayIds) !== url) {
+        if (this.state !== startState) return;
+
+        if (chunked) {
+          // The server declines to page whenever it post-filters in PHP, in
+          // which case it returns the whole day and says so by omitting the
+          // chunk header. Spread that response across every segment of the
+          // day instead of treating it as this one window's contents.
+          //
+          // Measured on the RAW payload: preprocessDay() drops hidden files
+          // and stacks RAW pairs, either of which can shorten a response
+          // without it being short for paging purposes.
+          const applied = res.headers?.['x-memories-chunk'] === `${chunked.offset}-${chunked.limit}`;
+          if (!applied) {
+            await this.processServerDay(chunked.dayId, data, url);
+            return;
+          }
+
+          // A short window is the last one; a full window means there may be
+          // more. Either way this is what corrects the day-list estimate.
+          await this.processServerSegment(chunked, data, data.length < chunked.limit!);
+
           return;
         }
 
-        // Bin the data into separate days (or, in Group by: None, pseudo-buckets --
-        // dayMap is keyed by whatever was queued in fetchDayQueue, which is
-        // pseudo-bucket ids there; each photo's own .dayid is always real, so
-        // map it back via the reverse lookup, a no-op everywhere else)
-        // It is already sorted in dayid DESC
+        // Bin the data into separate days (or buckets -- each photo's own
+        // .dayid is always real, so map it back via the reverse lookup,
+        // a no-op when nothing was merged). Already sorted in dayid DESC.
+        const dayMap = new Map<number, IPhoto[]>();
+        for (const dayId of dayIds) dayMap.set(dayId, []);
         for (const photo of data) {
-          const bucketId = this.ungroupedBucketRealToPseudo.get(photo.dayid) ?? photo.dayid;
+          const bucketId = this.realToBucket.get(photo.dayid) ?? photo.dayid;
           dayMap.get(bucketId)?.push(photo);
         }
 
-        // Store cache asynchronously
-        // Do this regardless of whether the state has
-        // changed since the data is already fetched
-        //
-        // These loops cannot be combined because processDay
-        // creates circular references which cannot be stringified
-        //
-        // The day is cached regardless of whether it is empty.
-        // Empty days might be fetched e.g. on NativeX. In this case,
-        // empty caches will not be processed if the view is fresh.
         for (const [dayId, photos] of dayMap) {
-          utils.cacheData(this.getDayUrl([dayId]), photos);
-        }
-
-        // Get local images if we are running in native environment.
-        // Get them all together for each day here.
-        if (this.routeHasNative) {
-          const promises = Array.from(dayMap.entries())
-            .filter(([dayId, photos]) => {
-              // Extra hooks for each day
-              // Well this doesn't really belong here ...
-              nativex.processFreshServerDay(dayId, photos);
-
-              // Only process days that have local images further
-              return this.heads.get(dayId)?.day?.haslocal;
-            })
-            .map(async ([dayId, photos]) => {
-              nativex.mergeDay(photos, await nativex.getLocalDay(dayId));
-            });
-          if (promises.length) await Promise.all(promises);
-        }
-
-        // Process each day as needed
-        for (let [dayId, photos] of dayMap) {
-          // Remove files marked as hidden
-          photos = this.preprocessDay(dayId, photos);
-
-          // Check if the response has any delta
-          const head = this.heads.get(dayId);
-          if (head?.day?.detail?.length === photos.length) {
-            // Goes over the day and checks each photo including
-            // the order with the current list. If anything changes,
-            // we reprocess everything; otherwise just copy over
-            // newer props that are reactive.
-            const isSame = head.day.detail.every((curr, i) => {
-              const now = photos[i];
-              if (curr.fileid === now.fileid && curr.etag === now.etag) {
-                // copy over any properties that might have changed
-                // this way we don't need to iterate again for this
-                utils.convertFlags(now);
-
-                // copy over flags
-                utils.copyPhotoFlags(now, curr);
-
-                return true;
-              }
-
-              return false;
-            });
-
-            // Skip this entire day since nothing changed
-            if (isSame) continue;
-          }
-
-          // Pass ahead
-          this.processDay(dayId, photos);
+          await this.processServerDay(dayId, photos, this.getDayCacheKey([dayId]));
         }
       } catch (e) {
-        // The days were optimistically marked as loaded/sized in fetchDay()
-        // to prevent duplicate requests while this one was in flight. Since
-        // it failed, undo that so these days get retried on the next scroll
-        // instead of being stuck as unloaded placeholders forever.
-        for (const dayId of dayIds) {
-          this.loadedDays.delete(dayId);
-          this.sizedDays.delete(dayId);
-        }
-
-        if (!utils.isNetworkError(e)) {
+        // Aborts are deliberate -- the view moved on. Leave the marks cleared
+        // by the finally below and let the new view fetch what it needs.
+        if (!axios.isCancel(e) && !utils.isNetworkError(e)) {
           showError(this.t('memories', 'Failed to load some photos'));
           console.error(e);
         }
+      } finally {
+        this.fetchAborters.delete(aborter);
+
+        // The segments were optimistically marked as loaded/sized in
+        // fetchSegment() to prevent duplicate requests while this one was in
+        // flight. Anything that did NOT end up with photos failed, was
+        // aborted, or was discarded as stale -- unmark those so they get
+        // retried on the next scroll instead of being stuck as placeholders
+        // forever. Done in a finally so no early return can skip it.
+        for (const seg of segs) {
+          if (seg.photos) continue;
+          this.loadedSegs.delete(seg.id);
+          this.sizedSegs.delete(seg.id);
+        }
       }
+    },
+
+    /**
+     * Handle a server response holding one segment's window of photos.
+     *
+     * @param seg     the segment fetched
+     * @param raw     the raw photos from the server, before preprocessing
+     * @param isFinal whether the server indicated this is the day's last window
+     */
+    async processServerSegment(seg: ISegment, raw: IPhoto[], isFinal: boolean) {
+      utils.cacheData(this.getSegmentCacheKey(seg), raw);
+
+      const photos = this.preprocessDay(seg.dayId, raw);
+      if (this.segmentUnchanged(seg, photos)) return;
+
+      this.processSegment(seg, photos, isFinal);
+    },
+
+    /**
+     * Handle a server response holding an entire day, splitting it across the
+     * day's segments.
+     *
+     * This is both the unchunked path and the fallback for when the server
+     * declined to page a chunked request.
+     */
+    async processServerDay(dayId: number, raw: IPhoto[], cacheKey: string) {
+      const segs = this.daySegments.get(dayId);
+      if (!segs?.length) return;
+
+      // Store cache asynchronously. Do this regardless of whether the state
+      // has changed since the data is already fetched. This cannot be
+      // combined with the processing below, because processSegment creates
+      // circular references which cannot be stringified.
+      //
+      // The day is cached regardless of whether it is empty. Empty days might
+      // be fetched e.g. on NativeX. In this case, empty caches will not be
+      // processed if the view is fresh.
+      if (segs.length === 1) utils.cacheData(cacheKey, raw);
+
+      // Get local images if we are running in native environment.
+      if (this.routeHasNative) {
+        // Extra hooks for each day. Well this doesn't really belong here ...
+        nativex.processFreshServerDay(dayId, raw);
+
+        if (this.heads.get(dayId)?.day?.haslocal) {
+          nativex.mergeDay(raw, await nativex.getLocalDay(dayId));
+        }
+      }
+
+      // Slice the raw response by each segment's window. Slicing before
+      // preprocessing (rather than after) keeps the boundaries aligned with
+      // the offsets the server pages by, so a re-fetch of one segment lands on
+      // exactly the same photos.
+      for (const seg of segs) {
+        const slice = segs.length === 1 ? raw : raw.slice(seg.offset, seg.offset + (seg.limit ?? raw.length));
+        const photos = this.preprocessDay(dayId, slice);
+        if (this.segmentUnchanged(seg, photos)) continue;
+
+        this.processSegment(seg, photos, seg === segs[segs.length - 1]);
+      }
+    },
+
+    /**
+     * Whether a freshly fetched segment is identical to what is already
+     * displayed, in which case the (expensive) relayout can be skipped and
+     * only the reactive flags copied over.
+     */
+    segmentUnchanged(seg: ISegment, photos: IPhoto[]): boolean {
+      const current = seg.photos;
+      if (current?.length !== photos.length) return false;
+
+      // Goes over the segment and checks each photo including the order with
+      // the current list. If anything changes, we reprocess everything;
+      // otherwise just copy over newer props that are reactive.
+      return current.every((curr: IPhoto, i: number) => {
+        const now = photos[i];
+        if (curr.fileid !== now.fileid || curr.etag !== now.etag) return false;
+
+        // copy over any properties that might have changed
+        // this way we don't need to iterate again for this
+        utils.convertFlags(now);
+        utils.copyPhotoFlags(now, curr);
+
+        return true;
+      });
     },
 
     /**
@@ -1551,37 +1743,92 @@ export default defineComponent({
     },
 
     /**
-     * Process items from day response.
+     * Process items from a day response, for a whole day at once.
+     *
+     * Spreads the photos across the day's segments -- see processServerDay,
+     * which does the same for network responses.
      */
     processDay(dayId: number, data: IPhoto[]) {
+      const segs = this.daySegments.get(dayId);
+      if (!segs?.length) return;
+
+      for (const seg of segs) {
+        const slice = segs.length === 1 ? data : data.slice(seg.offset, seg.offset + (seg.limit ?? data.length));
+        this.processSegment(seg, slice, seg === segs[segs.length - 1]);
+      }
+    },
+
+    /**
+     * Lay out one segment's photos and splice its rows into the main list.
+     *
+     * Each segment is laid out independently, which is the whole point: a day
+     * with thousands of photos costs one bounded layout pass per chunk as the
+     * user scrolls, instead of one enormous pass the moment the day is
+     * reached. The cost is a seam at every chunk boundary, which stretchLastRow
+     * below turns into an ordinary full-width row.
+     *
+     * @param seg     the segment being processed
+     * @param data    its photos, already preprocessed
+     * @param isFinal whether this is known to be the day's last segment
+     */
+    processSegment(seg: ISegment, data: IPhoto[], isFinal?: boolean) {
       if (!data || !this.state) return;
 
-      const head = this.heads.get(dayId);
+      const head = this.heads.get(seg.dayId);
       if (!head) return;
 
       const day = head.day;
-      this.loadedDays.add(dayId);
-      this.sizedDays.add(dayId);
+      this.loadedSegs.add(seg.id);
+      this.sizedSegs.add(seg.id);
 
       // Convert server flags to bitflags
       data.forEach(utils.convertFlags);
 
       // Set and make reactive
-      day.count = data.length;
-      day.detail = data;
+      seg.photos = data;
+      seg.count = data.length;
       day.rows ??= [];
 
-      // Reset rows including placeholders
-      for (const row of day.rows) {
+      // A chunk coming back short means the day is smaller than the days list
+      // estimated, so any segments planned past this one don't exist. Drop
+      // them (and their placeholder rows) before laying this one out.
+      if (isFinal && !seg.final) this.truncateDay(day, seg);
+
+      // Roll the day's own totals up from its segments. day.count must NOT be
+      // set from this one chunk: ScrollerManager sums it per tick for the
+      // scrubber's photo counts, and the viewer derives its global indices
+      // from it, so it has to keep meaning "photos in the whole day". While
+      // partially loaded it stays at the days-list estimate.
+      const segs = this.daySegments.get(seg.dayId) ?? [seg];
+      const complete = segs.every((s) => s.photos);
+      day.loadedCount = segs.reduce((acc, s) => acc + (s.photos?.length ?? 0), 0);
+      if (complete) {
+        day.count = day.loadedCount;
+        // Only ever a complete day: the viewer and restoreDay both index into
+        // detail assuming it holds everything.
+        day.detail = segs.flatMap((s) => s.photos!);
+      } else {
+        delete day.detail;
+      }
+
+      // Reset this segment's rows including placeholders. Other segments'
+      // rows are left completely alone.
+      for (const row of seg.rows) {
         row.photos = [];
       }
 
       // Force all to square
       const squareMode = this.isMobileLayout() || this.effectiveShape !== 'dynamic';
 
+      // Whether this segment ends mid-day. Such a seam has no header to
+      // explain a "cut off" row, so fill it like an ungrouped bucket's last
+      // row -- getLayout reflows the tail to find a near-full row and then
+      // stretches away whatever gap remains.
+      const midDay = segs.length > 1 && seg !== segs[segs.length - 1];
+
       // Create justified layout with correct params
       const justify = getLayout(
-        day.detail.map((p) => ({
+        data.map((p) => ({
           width: p.w || this.rowHeight,
           height: p.h || this.rowHeight,
           forceSquare: false,
@@ -1594,12 +1841,15 @@ export default defineComponent({
           numCols: this.numCols,
           allowBreakout: this.allowBreakout(),
           listMode: this.effectiveShape === 'list',
-          seed: dayId,
+          // Vary per segment: reusing the day's seed for every chunk would
+          // replay the identical square-mode promotion pattern every
+          // CHUNK_SIZE photos, which reads as visible repetition.
+          seed: seg.dayId * 31 + seg.index,
           // Group by: None -- fill each bucket's last row instead of leaving
           // it short, since there's no header to explain a "cut off" row.
           // Grid opts out: it keeps every cell the same size, so a short final
           // row is expected there rather than something to stretch away.
-          stretchLastRow: !this.isGrouped && this.effectiveShape !== 'grid',
+          stretchLastRow: (midDay || !this.isGrouped) && this.effectiveShape !== 'grid',
         },
       );
 
@@ -1610,16 +1860,23 @@ export default defineComponent({
       let scrollTop = this.refs.recycler!.$el.scrollTop;
       let needAdjust = false;
 
-      // Get index and Y position of header in O(n)
-      let headIdx = 0;
-      let headY = 0;
+      // Get index and Y position of the row this segment starts after, in
+      // O(n): the head for the day's first segment, else the last row of the
+      // preceding segment. Segments always own a contiguous run of rows.
+      const anchor = this.segmentAnchor(head, segs, seg);
+      let anchorIdx = 0;
+      let anchorY = 0;
       for (const row of this.list) {
-        if (row === head) break;
-        headIdx++;
-        headY += row.size;
+        if (row === anchor) break;
+        anchorIdx++;
+        anchorY += row.size;
       }
-      let rowIdx = headIdx + 1;
-      let rowY = headY + head.size;
+      let rowIdx = anchorIdx + 1;
+      let rowY = anchorY + anchor.size;
+
+      // Number rows continuously across the day, so day.rows[row.num] is the
+      // row itself and the row-change animation below can measure between them.
+      const baseNum = segs.slice(0, segs.indexOf(seg)).reduce((acc, s) => acc + s.rows.length, 0);
 
       // Duplicate detection, e.g. for face rects
       const seen = new Map<number, number>();
@@ -1629,10 +1886,12 @@ export default defineComponent({
 
       // Add all rows
       let dataIdx = 0;
+      let segRowIdx = 0;
       while (dataIdx < data.length) {
-        // Check if we ran out of rows
-        if (rowIdx >= this.list.length || this.list[rowIdx].type === 0) {
-          const newRow = this.addRow(day);
+        // Check if we ran out of rows. Rows belonging to a later segment are
+        // off limits: this segment may only grow into its own run.
+        if (rowIdx >= this.list.length || this.list[rowIdx].type === 0 || this.list[rowIdx].segId !== seg.id) {
+          const newRow = this.addRow(day, seg, baseNum + segRowIdx, segRowIdx);
           addedRows.push(newRow);
           this.list.splice(rowIdx, 0, newRow);
 
@@ -1651,6 +1910,7 @@ export default defineComponent({
         if (jbox.top !== prevJustifyTop) {
           prevJustifyTop = jbox.top;
           rowIdx++;
+          segRowIdx++;
           rowY += row.size;
           continue;
         }
@@ -1743,17 +2003,23 @@ export default defineComponent({
       const removedRows: IRow[] = [];
       let headRemoved = false;
 
-      // No rows, splice everything including the header
-      if (data.length === 0) {
-        removedRows.push(...this.list.splice(headIdx, 1));
-        rowIdx = headIdx - 1;
+      // The whole day turned out to be empty -- splice everything including
+      // the header. Only the last remaining segment may do this, since the
+      // header belongs to the day rather than to any one segment.
+      if (day.loadedCount === 0 && complete) {
+        removedRows.push(...this.list.splice(anchorIdx, 1));
+        rowIdx = anchorIdx - 1;
         headRemoved = true;
-        this.heads.delete(dayId);
+        this.heads.delete(seg.dayId);
+        this.daySegments.delete(seg.dayId);
+        for (const s of segs) this.segments.delete(s.id);
       }
 
-      // Get rid of any extra rows
+      // Get rid of any extra rows this segment no longer needs. Bounded to
+      // this segment's own run: a following segment's rows are not ours to
+      // remove, and neither is the next day's header.
       let spliceCount = 0;
-      for (let i = rowIdx + 1; i < this.list.length && this.list[i].type !== 0; i++) {
+      for (let i = rowIdx + 1; i < this.list.length && this.list[i].segId === seg.id; i++) {
         spliceCount++;
       }
       if (spliceCount > 0) {
@@ -1769,9 +2035,19 @@ export default defineComponent({
           scrollTop -= row.size;
         }
 
-        // Remove from day
+        // Remove from day and from its segment
         const idx = day.rows.indexOf(row);
         if (idx >= 0) day.rows.splice(idx, 1);
+        const sidx = seg.rows.indexOf(row);
+        if (sidx >= 0) seg.rows.splice(sidx, 1);
+      }
+
+      // Keep day.rows in display order: it is the concatenation of every
+      // segment's rows, and selectHead/the delete path both walk it expecting
+      // that order. Renumber so day.rows[row.num] === row holds.
+      if (!headRemoved && segs.length > 1) {
+        day.rows = segs.flatMap((s) => s.rows);
+        day.rows.forEach((row, i) => (row.num = i));
       }
 
       // This will be true even if the head is being spliced
@@ -1782,7 +2058,8 @@ export default defineComponent({
           // or adjust isn't going to work right
           this.refs.scrollerManager.reflow();
         } else {
-          // Otherwise just adjust the ticks
+          // Otherwise just adjust the ticks. adjust() coalesces through a
+          // nextTick, so several chunks landing together still cost one pass.
           this.refs.scrollerManager.adjust();
         }
 
@@ -1791,24 +2068,70 @@ export default defineComponent({
       }
     },
 
-    /** Add and get a new blank photos row */
-    addRow(day: IDay): IRow {
+    /**
+     * The row a segment's own run starts immediately after: the day's header
+     * for its first segment, otherwise the last row of the preceding segment
+     * that actually has any.
+     */
+    segmentAnchor(head: IHeadRow, segs: ISegment[], seg: ISegment): IRow {
+      for (let i = segs.indexOf(seg) - 1; i >= 0; i--) {
+        const rows = segs[i].rows;
+        if (rows.length) return rows[rows.length - 1];
+      }
+      return head;
+    },
+
+    /**
+     * Drop the segments planned after `last`, along with their placeholder
+     * rows. Called when a chunk comes back short, which means the day holds
+     * fewer photos than the days list estimated.
+     */
+    truncateDay(day: IDay, last: ISegment) {
+      const segs = this.daySegments.get(last.dayId);
+      if (!segs) return;
+
+      const keep = segs.slice(0, segs.indexOf(last) + 1);
+      const drop = segs.slice(segs.indexOf(last) + 1);
+      if (!drop.length) return;
+
+      const dropped = new Set(drop.flatMap((s) => s.rows));
+      if (dropped.size) {
+        this.list = this.list.filter((row) => !dropped.has(row));
+        day.rows = (day.rows ?? []).filter((row) => !dropped.has(row));
+      }
+
+      for (const s of drop) {
+        this.segments.delete(s.id);
+        this.loadedSegs.delete(s.id);
+        this.sizedSegs.delete(s.id);
+      }
+
+      last.final = true;
+      this.daySegments.set(last.dayId, keep);
+    },
+
+    /** Add and get a new blank photos row, owned by the given segment */
+    addRow(day: IDay, seg: ISegment, num: number, segIdx: number): IRow {
       // Make sure rows exists
       day.rows ??= [];
 
-      // Create new row
+      // Create new row. The id must be unique across the whole list (it is the
+      // recycler's key), hence the segment offset -- two segments of the same
+      // day both start counting their rows at zero.
       const row: IRow = {
-        id: `${day.dayid}-${day.rows.length}`,
-        num: day.rows.length,
+        id: `${day.dayid}-${seg.offset}-${segIdx}`,
+        num,
         photos: [],
         type: 1, // photos
         size: this.rowHeight,
         dayId: day.dayid,
+        segId: seg.id,
         day: day,
       };
 
-      // Add to day
+      // Add to day and to the segment that owns it
       day.rows.push(row);
+      seg.rows.splice(segIdx, 0, row);
 
       return row;
     },
@@ -1844,9 +2167,50 @@ export default defineComponent({
 
       // Reflow all touched days
       for (const day of updatedDays) {
-        const newDetail = day.detail?.filter((p) => !delPhotosSet.has(p));
-        this.processDay(day.dayid, newDetail!);
+        const segs = this.daySegments.get(day.dayid);
+        if (!segs?.length) continue;
+
+        if (day.detail) {
+          // The whole day is resident, so re-derive every segment from the
+          // surviving photos: a deletion shifts every offset after it, which
+          // would otherwise leave the later segments describing the wrong
+          // photos (and refetching under the wrong chunk key).
+          const newDetail = day.detail.filter((p) => !delPhotosSet.has(p));
+          this.resegmentDay(day, newDetail.length);
+          this.processDay(day.dayid, newDetail);
+          continue;
+        }
+
+        // Partially loaded: only the segments that actually lost a photo need
+        // reflowing, and the day's offsets stay as the server sees them until
+        // the next full refresh.
+        for (const seg of segs) {
+          if (!seg.photos?.some((p) => delPhotosSet.has(p))) continue;
+          this.processSegment(seg, seg.photos.filter((p) => !delPhotosSet.has(p)));
+        }
       }
+    },
+
+    /** Rebuild a day's segment list for a new photo count, preserving loaded ones */
+    resegmentDay(day: IDay, count: number) {
+      const segs = this.daySegments.get(day.dayid);
+      if (!segs?.length) return;
+
+      const next = resegment(segs, count);
+      for (const seg of segs) {
+        if (next.includes(seg)) continue;
+
+        // Dropped -- remove its rows and forget it
+        const dropped = new Set(seg.rows);
+        this.list = this.list.filter((row) => !dropped.has(row));
+        day.rows = (day.rows ?? []).filter((row) => !dropped.has(row));
+        this.segments.delete(seg.id);
+        this.loadedSegs.delete(seg.id);
+        this.sizedSegs.delete(seg.id);
+      }
+
+      for (const seg of next) this.segments.set(seg.id, seg);
+      this.daySegments.set(day.dayid, next);
     },
 
     onFiltersChanged(filters: IFilters) {
