@@ -7,11 +7,8 @@
     :allowSwipe="allowSwipe"
     :state="state"
   >
-    <!-- Loading indicator -->
-    <XLoadingIcon class="loading-icon centered" v-if="loading" />
-
     <!-- Static top matter -->
-    <TopMatter ref="topmatter" />
+    <TopMatter ref="topmatter" :refreshing="!!loading" />
 
     <!-- No content found and nothing is loading -->
     <EmptyContent v-if="showEmpty" @reset-filters="resetFilters" :has-filters="hasFilters" />

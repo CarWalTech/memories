@@ -1,8 +1,6 @@
 <template>
   <div v-if="noParams" class="container no-user-select cluster-view">
-    <XLoadingIcon class="loading-icon centered" v-if="loading" />
-
-    <TopMatter />
+    <TopMatter :refreshing="!!loading" />
 
     <EmptyContent v-if="!items.length && !loading" />
 
